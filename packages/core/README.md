@@ -7,8 +7,6 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
-**Runtimes:** Node (>=18) and Bun. The engine is also renderer-safe for desktop apps (e.g. Tauri) when you execute from in-memory `.http` content via `runString()`.
-
 ## Features
 
 - **Parse `.http` files** - Standard format used by VS Code REST Client, JetBrains HTTP Client
@@ -21,8 +19,6 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 ## Philosophy
 
 **Requests are just code.** No DSL, no hidden state machines. Each `.http` file contains one request, and you orchestrate them with standard JavaScript:
-
-> Note: `client.run('./file.http')` reads from disk. In **Node**, pass `io: createNodeIO()` when creating the client. In **Tauri/desktop**, prefer `client.runString()` from the editor buffer, or provide an IO adapter that bridges to your backend.
 
 ```typescript
 // Login and get token
@@ -619,13 +615,6 @@ if (!response.ok) {
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-
-## Publishing
-
-This is a scoped package (`@t-req/core`). The repo is configured to publish it as **public**.
-
-- **Local publish**: `bun publish --access public`
-- **CI publish**: push a tag like `v0.1.0` (see `.github/workflows/release.yml`)
 
 ## License
 
