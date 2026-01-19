@@ -1,0 +1,69 @@
+### Login with username/password
+# @name login
+POST https://api.example.com/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+
+### Use JWT token (from login response)
+# @name authenticatedRequest
+GET https://api.example.com/me
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Basic authentication
+# @name basicAuth
+GET https://api.example.com/protected
+Authorization: Basic {{$base64(username:password)}}
+Accept: application/json
+
+###
+
+### API key in header
+# @name apiKeyHeader
+GET https://api.example.com/data
+X-API-Key: {{apiKey}}
+Accept: application/json
+
+###
+
+### API key in query string
+# @name apiKeyQuery
+GET https://api.example.com/data?api_key={{apiKey}}
+Accept: application/json
+
+###
+
+### OAuth2 token refresh
+# @name refreshToken
+POST https://api.example.com/auth/refresh
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&refresh_token={{refreshToken}}
+
+###
+
+### Logout
+# @name logout
+POST https://api.example.com/auth/logout
+Authorization: Bearer {{token}}
+
+###
+
+### Register new user
+# @name register
+POST https://api.example.com/auth/register
+Content-Type: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}",
+  "password": "{{password}}"
+}

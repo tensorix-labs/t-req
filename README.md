@@ -1,42 +1,73 @@
-# Turborepo starter with shell commands
+# t-req
 
-This Turborepo starter is maintained by the Turborepo core team. This template is great for issue reproductions and exploring building task graphs without frameworks.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml/badge.svg)](https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml)
 
-## Using this example
+HTTP request parsing, execution, and testing. Define requests in `.http` files, test them in isolation.
 
-Run the following command:
+## Packages
 
-```sh
-npx create-turbo@latest -e with-shell-commands
+| Package | Description |
+|---------|-------------|
+| [@t-req/core](./packages/core) | Core HTTP request parsing and execution library |
+
+## Documentation
+
+Visit [apps/webdocs](./apps/webdocs) for full documentation.
+
+## Quick Start
+
+```bash
+# Install @t-req/core
+npm install @t-req/core
+# or
+bun add @t-req/core
 ```
 
-### For bug reproductions
+Create a `.http` file:
 
-Giving the Turborepo core team a minimal reproduction is the best way to create a tight feedback loop for a bug you'd like to report.
+```http
+# auth/login.http
+POST https://api.example.com/auth/login
+Content-Type: application/json
 
-Because most monorepos will rely on more tooling than Turborepo (frameworks, linters, formatters, etc.), it's often useful for us to have a reproduction that strips away all of this other tooling so we can focus _only_ on Turborepo's role in your repo. This example does exactly that, giving you a good starting point for creating a reproduction.
+{"email": "{{email}}", "password": "{{password}}"}
+```
 
-- Feel free to rename/delete packages for your reproduction so that you can be confident it most closely matches your use case.
-- If you need to use a different package manager to produce your bug, run `npx @turbo/workspaces convert` to switch package managers.
-- It's possible that your bug really **does** have to do with the interaction of Turborepo and other tooling within your repository. If you find that your bug does not reproduce in this minimal example and you're confident Turborepo is still at fault, feel free to bring that other tooling into your reproduction.
+Run it:
 
-## What's inside?
+```typescript
+import { createClient } from '@t-req/core';
+import { createNodeIO } from '@t-req/core/runtime';
 
-This Turborepo includes the following packages:
+const client = createClient({
+  io: createNodeIO(),
+  variables: {
+    email: 'user@example.com',
+    password: 'secret',
+  },
+});
 
-### Apps and Packages
+const response = await client.run('./auth/login.http');
+const { token } = await response.json();
+```
 
-- `app-a`: A final package that depends on all other packages in the graph and has no dependents. This could resemble an application in your monorepo that consumes everything in your monorepo through its topological tree.
-- `app-b`: Another final package with many dependencies. No dependents, lots of dependencies.
-- `pkg-a`: A package that has all scripts in the root `package.json`.
-- `pkg-b`: A package with _almost_ all scripts in the root `package.json`.
-- `tooling-config`: A package to simulate a common configuration used for all of your repository. This could resemble a configuration for tools like TypeScript or ESLint that are installed into all of your packages.
+## Monorepo Structure
 
-### Some scripts to try
+```
+t-req/
+├── apps/
+│   └── webdocs/       # Documentation site
+├── packages/
+│   └── core/          # @t-req/core - HTTP parsing & execution
+├── .changeset/        # Changesets for versioning
+└── ...
+```
 
-If you haven't yet, [install global `turbo`](https://turborepo.dev/docs/installing#install-globally) to run tasks.
+## Contributing
 
-- `turbo build lint check-types`: Runs all tasks in the default graph.
-- `turbo build`: A basic command to build `app-a` and `app-b` in parallel.
-- `turbo build --filter=app-a`: Building only `app-a` and its dependencies.
-- `turbo lint`: A basic command for running lints in all packages in parallel.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
+
+## License
+
+[MIT](./LICENSE)

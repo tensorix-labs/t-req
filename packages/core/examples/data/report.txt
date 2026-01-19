@@ -1,0 +1,8 @@
+Q4 2025 Financial Report
+========================
+
+Revenue: $1,234,567
+Expenses: $987,654
+Net Income: $246,913
+
+This file demonstrates multipart form upload with the @./path syntax.

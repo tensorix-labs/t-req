@@ -1,0 +1,9 @@
+# @name multipartUpload
+# @description Multipart form data with file upload
+# Content-Type is automatically set to multipart/form-data when files are present
+
+POST https://httpbin.org/post
+
+title = Quarterly Report
+description = Q4 2025 financial summary
+document = @./data/report.txt

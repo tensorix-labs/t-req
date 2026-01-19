@@ -1,0 +1,8 @@
+PUT {{baseUrl}}/carts/{{cartId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "merge": true,
+  "products": [{"id": {{productId}}, "quantity": {{quantity}}}]
+}

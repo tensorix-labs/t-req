@@ -1,0 +1,8 @@
+# @name uploadDocument
+# @description Upload a JSON payload from an external file
+# Demonstrates the file reference syntax: < ./path
+
+POST https://httpbin.org/post
+Content-Type: application/json
+
+< ./data/payload.json

@@ -1,0 +1,2 @@
+GET {{baseUrl}}/products?limit={{limit}}&skip={{skip}}
+Authorization: Bearer {{token}}

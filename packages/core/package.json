@@ -1,0 +1,92 @@
+{
+  "name": "@t-req/core",
+  "version": "0.1.0",
+  "description": "HTTP request parsing, execution, and testing. Define requests in .http files, test them in isolation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tensorix-labs/t-req",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/tensorix-labs/t-req#readme",
+  "bugs": {
+    "url": "https://github.com/tensorix-labs/t-req/issues"
+  },
+  "keywords": [
+    "http",
+    "api",
+    "testing",
+    "requests",
+    "bun",
+    "rest",
+    "http-client",
+    "api-testing",
+    "http-file",
+    "rest-client"
+  ],
+  "author": "tensorix labs",
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0.0"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./engine": {
+      "types": "./dist/engine/index.d.ts",
+      "import": "./dist/engine/index.js",
+      "default": "./dist/engine/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js",
+      "default": "./dist/runtime/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js",
+      "default": "./dist/config/index.js"
+    },
+    "./cookies": {
+      "types": "./dist/cookies.d.ts",
+      "import": "./dist/cookies.js",
+      "default": "./dist/cookies.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "bun run build:js && bun run build:types",
+    "build:js": "bun build --target node --minify --sourcemap --outdir ./dist --root ./src ./src/index.ts ./src/engine/index.ts ./src/runtime/index.ts ./src/config/index.ts ./src/cookies.ts",
+    "build:types": "tsc -p tsconfig.build.json",
+    "test": "bun test",
+    "test:e2e": "bun test test/e2e.test.ts",
+    "test:unit": "bun test --ignore test/e2e.test.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "check-types": "tsc -p tsconfig.build.json --noEmit",
+    "prepublishOnly": "bun run build && bun run test:unit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/tough-cookie": "^4.0.5"
+  },
+  "dependencies": {
+    "tough-cookie": "^6.0.0"
+  }
+}

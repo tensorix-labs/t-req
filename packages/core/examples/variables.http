@@ -1,0 +1,88 @@
+// =============================================================================
+// Variable Interpolation Examples
+// =============================================================================
+// This file demonstrates the different ways to use variables in @t-req/http
+// =============================================================================
+
+### Simple variable substitution
+# Variables: baseUrl, userId
+GET {{baseUrl}}/users/{{userId}}
+Accept: application/json
+
+###
+
+### Nested object variables
+# Variables: user.name, user.email
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "name": "{{user.name}}",
+  "email": "{{user.email}}"
+}
+
+###
+
+### Using environment resolver
+# Resolvers: $env(VAR_NAME)
+GET {{baseUrl}}/secret
+Authorization: Bearer {{$env(API_TOKEN)}}
+X-API-Key: {{$env(API_KEY)}}
+
+###
+
+### Using timestamp resolver
+# Resolvers: $timestamp()
+GET {{baseUrl}}/data?t={{$timestamp()}}
+Accept: application/json
+
+###
+
+### Using UUID resolver
+# Resolvers: $uuid()
+POST {{baseUrl}}/resources
+Content-Type: application/json
+X-Request-ID: {{$uuid()}}
+
+{
+  "id": "{{$uuid()}}",
+  "name": "{{resourceName}}"
+}
+
+###
+
+### Using random resolver
+# Resolvers: $random(min,max)
+POST {{baseUrl}}/test
+Content-Type: application/json
+
+{
+  "testId": "test-{{$random(1000,9999)}}",
+  "value": {{$random(1,100)}}
+}
+
+###
+
+### Dynamic values from previous responses
+# Workflow context: steps.login.token, steps.login.userId
+GET {{baseUrl}}/users/{{steps.login.userId}}/profile
+Authorization: Bearer {{steps.login.token}}
+Accept: application/json
+
+###
+
+### Multiple variables in URL
+# Variables: baseUrl, version, resource, id
+GET {{baseUrl}}/{{version}}/{{resource}}/{{id}}
+Accept: application/json
+
+###
+
+### Variables in headers and body
+# Variables: contentType, authScheme, token, data
+POST {{baseUrl}}/submit
+Content-Type: {{contentType}}
+Authorization: {{authScheme}} {{token}}
+X-Custom-Header: {{customHeader}}
+
+{{data}}

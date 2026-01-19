@@ -1,0 +1,2 @@
+GET https://example.com/api
+Authorization: Bearer {{$secret(API_TOKEN)}}

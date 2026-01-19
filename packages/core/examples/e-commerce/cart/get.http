@@ -1,0 +1,2 @@
+GET {{baseUrl}}/carts/{{cartId}}
+Authorization: Bearer {{token}}

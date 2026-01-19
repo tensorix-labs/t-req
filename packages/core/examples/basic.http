@@ -1,0 +1,75 @@
+# =============================================================================
+# Basic CRUD Examples
+# =============================================================================
+# This file demonstrates the .http file format with common HTTP operations.
+#
+# For production use, we recommend one request per file:
+#   users/get-all.http
+#   users/get-by-id.http
+#   users/create.http
+#   etc.
+#
+# This file shows format examples only.
+# =============================================================================
+
+### Get all users
+# @name getUsers
+# @description Fetch a list of all users
+GET https://api.example.com/users
+Accept: application/json
+
+###
+
+### Get user by ID
+# @name getUser
+GET https://api.example.com/users/{{userId}}
+Accept: application/json
+
+###
+
+### Create new user
+# @name createUser
+POST https://api.example.com/users
+Content-Type: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}",
+  "role": "user"
+}
+
+###
+
+### Update user
+# @name updateUser
+PUT https://api.example.com/users/{{userId}}
+Content-Type: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}"
+}
+
+###
+
+### Partially update user
+# @name patchUser
+PATCH https://api.example.com/users/{{userId}}
+Content-Type: application/json
+
+{
+  "status": "{{status}}"
+}
+
+###
+
+### Delete user
+# @name deleteUser
+DELETE https://api.example.com/users/{{userId}}
+
+###
+
+### Search users with query parameters
+# @name searchUsers
+GET https://api.example.com/users?q={{query}}&limit={{limit}}&offset={{offset}}
+Accept: application/json

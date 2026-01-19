@@ -1,0 +1,3 @@
+This is a sample text file for testing.
+It has multiple lines.
+Used for file reference testing.

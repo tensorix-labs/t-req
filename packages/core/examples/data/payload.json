@@ -1,0 +1,5 @@
+{
+  "title": "Example Payload",
+  "description": "This JSON file is loaded via the < ./path syntax",
+  "items": [{ "id": 1, "name": "Item One" }, { "id": 2, "name": "Item Two" }]
+}

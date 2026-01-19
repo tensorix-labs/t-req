@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # Dependencies
 node_modules
 .pnp
@@ -8,16 +6,54 @@ node_modules
 # Turbo
 .turbo
 
-
 # Build Outputs
-output-file.txt
-a-different-file.txt
 dist
+out
+*.tgz
 
-# Debug
+# Code coverage
+coverage
+*.lcov
+
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# Misc
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
 .DS_Store
+
+# Bun specific
+*.bun-build
+
+# Temporary directories
+temp
+tmp
+
+# Git worktrees
+.worktrees
+
+# VS Code (keep extensions.json, exclude personal settings)
+.vscode/settings.json
+.vscode/mcp.json
+
+# Editor backup files
+*~
