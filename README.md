@@ -58,6 +58,7 @@ const { token } = await response.json();
 t-req/
 ├── apps/
 │   └── webdocs/       # Documentation site
+├── examples/          # Usage examples
 ├── packages/
 │   └── core/          # @t-req/core - HTTP parsing & execution
 ├── .changeset/        # Changesets for versioning

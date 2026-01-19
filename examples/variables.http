@@ -3,6 +3,20 @@
 // =============================================================================
 // This file demonstrates the different ways to use variables in @t-req/http
 // =============================================================================
+//
+// NOTE: Resolvers like $env, $timestamp, $uuid, $random are NOT built-in.
+// You must define them in your client config:
+//
+//   const client = createClient({
+//     resolvers: {
+//       $env: (key) => process.env[key] || '',
+//       $timestamp: () => String(Date.now()),
+//       $uuid: () => crypto.randomUUID(),
+//       $random: (min, max) => String(Math.floor(Math.random() * (Number(max) - Number(min) + 1)) + Number(min)),
+//     }
+//   });
+//
+// =============================================================================
 
 ### Simple variable substitution
 # Variables: baseUrl, userId
@@ -64,7 +78,11 @@ Content-Type: application/json
 ###
 
 ### Dynamic values from previous responses
-# Workflow context: steps.login.token, steps.login.userId
+# NOTE: steps.* is a pattern you implement yourself via setVariable()
+# after extracting values from previous responses. Example:
+#   const loginResponse = await client.run('./login.http');
+#   client.setVariable('steps.login.token', loginResponse.data.token);
+#   client.setVariable('steps.login.userId', loginResponse.data.userId);
 GET {{baseUrl}}/users/{{steps.login.userId}}/profile
 Authorization: Bearer {{steps.login.token}}
 Accept: application/json

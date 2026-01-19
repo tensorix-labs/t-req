@@ -1,0 +1,56 @@
+{
+  "name": "@t-req/ui",
+  "version": "0.1.0",
+  "description": "Shared UI components and Tailwind configuration for t-req",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tensorix-labs/t-req",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://github.com/tensorix-labs/t-req#readme",
+  "bugs": {
+    "url": "https://github.com/tensorix-labs/t-req/issues"
+  },
+  "keywords": [
+    "tailwind",
+    "ui",
+    "theme",
+    "t-req",
+    "http",
+    "components"
+  ],
+  "author": "tensorix labs",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles": "./dist/styles/base.css",
+    "./tailwind": "./tailwind.config.ts",
+    "./fonts": "./src/styles/fonts.css"
+  },
+  "files": [
+    "dist",
+    "tailwind.config.ts",
+    "src/styles/fonts.css"
+  ],
+  "scripts": {
+    "build": "bun run build:js && bun run build:types && bun run build:css",
+    "build:js": "bun build --target browser --minify --sourcemap --outdir ./dist ./src/index.ts",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build:css": "bunx @tailwindcss/cli -i ./src/styles/base.css -o ./dist/styles/base.css --minify"
+  },
+  "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.2.8"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/cli": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "typescript": "^5.0.0"
+  }
+}

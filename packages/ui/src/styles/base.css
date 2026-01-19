@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* t-req.ai theme - Warm industrial aesthetic */
+@theme {
+  /* Light mode colors (default) */
+  --color-treq-bg: #e8e4e0;
+  --color-treq-bg-nav: #e8e4e0;
+  --color-treq-bg-card: #f5f2ee;
+
+  /* Accent colors */
+  --color-treq-accent: #ff6b35;
+  --color-treq-accent-light: #ff8555;
+
+  /* Text colors */
+  --color-treq-text: #666666;
+  --color-treq-text-strong: #000000;
+  --color-treq-text-muted: #888888;
+
+  /* Border colors */
+  --color-treq-border: #000000;
+  --color-treq-border-light: rgba(0, 0, 0, 0.2);
+
+  /* Dark mode colors */
+  --color-treq-dark-bg: #1a1816;
+  --color-treq-dark-bg-nav: #1a1816;
+  --color-treq-dark-bg-card: #222018;
+
+  --color-treq-dark-text: #b0aca8;
+  --color-treq-dark-text-strong: #e8e4e0;
+  --color-treq-dark-text-muted: #8a8682;
+
+  --color-treq-dark-border: #3a3632;
+  --color-treq-dark-border-light: rgba(232, 228, 224, 0.1);
+
+  /* HTTP method colors */
+  --color-http-get: #238636;
+  --color-http-post: #1f6feb;
+  --color-http-put: #9e6a03;
+  --color-http-delete: #da3633;
+  --color-http-patch: #8957e5;
+}

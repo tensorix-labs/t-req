@@ -4,13 +4,13 @@
  * A realistic example showing how to test an e-commerce API flow.
  * Uses dummyjson.com as a real backend.
  *
- * Run: bun examples/e-commerce/checkout-flow.ts
+ * Run: cd examples && bun e-commerce/checkout-flow.ts
  */
 
-import { createCookieJar } from '../../src/cookies';
-import { createClient } from '../../src/index';
+import { createClient } from '@t-req/core';
+import { createCookieJar } from '@t-req/core/cookies';
 
-const REQUESTS = './examples/e-commerce';
+const REQUESTS = './e-commerce';
 
 const jar = createCookieJar();
 const client = createClient({

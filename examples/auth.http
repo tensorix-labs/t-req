@@ -20,6 +20,8 @@ Accept: application/json
 
 ### Basic authentication
 # @name basicAuth
+# NOTE: $base64 is a custom resolver you must implement:
+#   resolvers: { $base64: (input) => Buffer.from(input).toString('base64') }
 GET https://api.example.com/protected
 Authorization: Basic {{$base64(username:password)}}
 Accept: application/json
