@@ -1,5 +1,6 @@
 {
   "name": "@t-req/ui",
+  "private": true,
   "version": "0.1.0",
   "description": "Shared UI components and Tailwind configuration for t-req",
   "license": "MIT",
