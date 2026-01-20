@@ -1,3 +1,4 @@
+import { flushPendingCookieSaves } from '@t-req/core/cookies/persistence';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 import { createApp, type ServerConfig } from '../server/app';
@@ -143,16 +144,22 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   });
 
   // Graceful shutdown
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log('\nShutting down...');
     eventManager.closeAll();
     service.dispose();
+    try {
+      // Best-effort: flush any pending debounced cookie jar writes.
+      await flushPendingCookieSaves();
+    } catch {
+      // Ignore flush errors during shutdown.
+    }
     server.stop(true);
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown());
 }
 
 async function runStdioMode(argv: ServeOptions): Promise<void> {

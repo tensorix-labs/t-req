@@ -89,7 +89,7 @@ X-Request-ID: {{$uuid()}}
 X-Timestamp: {{$timestamp()}}
 
 {
-  "random_value": {{$random(1, 100)}}
+  "random_value": {{$random([1, 100])}}
 }
 ```
 

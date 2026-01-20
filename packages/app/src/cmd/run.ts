@@ -1,5 +1,11 @@
 import { createEngine, parse } from '@t-req/core';
+import { buildEngineOptions, DEFAULT_TIMEOUT_MS, resolveProjectConfig } from '@t-req/core/config';
 import { createCookieJar } from '@t-req/core/cookies';
+import {
+  cookieJarToData,
+  loadCookieJarData,
+  saveCookieJarData
+} from '@t-req/core/cookies/persistence';
 import type { CommandModule } from 'yargs';
 import {
   createCookieStoreFromJar,
@@ -15,14 +21,13 @@ interface RunOptions {
   file: string;
   name?: string;
   index?: number;
+  profile?: string;
   env?: string;
   var?: string[];
   timeout?: number;
   workspace?: string;
   verbose?: boolean;
 }
-
-export const DEFAULT_TIMEOUT_MS = 30_000;
 
 export const runCommand: CommandModule<object, RunOptions> = {
   command: 'run <file>',
@@ -43,9 +48,14 @@ export const runCommand: CommandModule<object, RunOptions> = {
       describe: 'Select request by index (0-based)',
       alias: 'i'
     },
+    profile: {
+      type: 'string',
+      describe: 'Config profile to use',
+      alias: 'p'
+    },
     env: {
       type: 'string',
-      describe: 'Environment to use (loads from environments/<env>.ts)',
+      describe: 'Environment to load from environments/<env>.ts',
       alias: 'e'
     },
     var: {
@@ -57,8 +67,8 @@ export const runCommand: CommandModule<object, RunOptions> = {
     timeout: {
       type: 'number',
       describe: 'Request timeout in milliseconds',
-      alias: 't',
-      default: DEFAULT_TIMEOUT_MS
+      alias: 't'
+      // NOTE: No default here - config timeout wins if not specified
     },
     workspace: {
       type: 'string',
@@ -222,6 +232,51 @@ async function runRequest(argv: RunOptions): Promise<void> {
     process.exit(1);
   }
 
+  // Build overrides from --env and --var
+  let envVariables: Record<string, unknown> = {};
+  if (argv.env) {
+    envVariables = await loadEnvironment(argv.env, workspaceRoot);
+  }
+  const cliVars = parseVariables(argv.var);
+
+  const overrideLayers: Array<{
+    name: string;
+    overrides: { variables: Record<string, unknown> };
+  }> = [];
+
+  if (argv.env && Object.keys(envVariables).length > 0) {
+    overrideLayers.push({
+      name: `env:${argv.env}`,
+      overrides: { variables: envVariables }
+    });
+  }
+
+  if (Object.keys(cliVars).length > 0) {
+    overrideLayers.push({
+      name: 'cli',
+      overrides: { variables: cliVars }
+    });
+  }
+
+  // Resolve project config
+  const { config, meta } = await resolveProjectConfig({
+    startDir: dirname(filePath),
+    stopDir: workspaceRoot,
+    profile: argv.profile,
+    overrideLayers
+  });
+
+  // Log any warnings from config resolution
+  for (const warning of meta.warnings) {
+    console.error(`Warning: ${warning}`);
+  }
+
+  if (argv.verbose && meta.configPath) {
+    console.error(`Config: ${meta.configPath}`);
+    console.error(`Profile: ${meta.profile ?? '(none)'}`);
+    console.error(`Layers: ${meta.layersApplied.join(' < ')}`);
+  }
+
   // Read and parse file
   const content = await Bun.file(filePath).text();
   const requests = parse(content);
@@ -266,24 +321,31 @@ async function runRequest(argv: RunOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Load variables
-  let variables: Record<string, unknown> = {};
+  // Create cookie jar (with persistence if configured)
+  const cookieJar = createCookieJar();
 
-  // Load environment if specified
-  if (argv.env) {
-    const envVars = await loadEnvironment(argv.env, workspaceRoot);
-    variables = { ...envVars };
+  // Load persistent cookies if configured
+  if (config.cookies.mode === 'persistent' && config.cookies.jarPath) {
+    const jarPath = resolve(config.projectRoot, config.cookies.jarPath);
+    const jarData = loadCookieJarData(jarPath);
+    if (jarData) {
+      // Restore cookies to jar
+      for (const cookie of jarData.cookies) {
+        try {
+          const cookieStr = `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}`;
+          cookieJar.setCookieSync(cookieStr, `https://${cookie.domain}${cookie.path}`);
+        } catch {
+          // Ignore invalid cookies
+        }
+      }
+    }
   }
 
-  // Add CLI variables (override env)
-  const cliVars = parseVariables(argv.var);
-  variables = { ...variables, ...cliVars };
-
-  // Create engine with cookie store
-  const cookieJar = createCookieJar();
   const cookieStore = createCookieStoreFromJar(cookieJar);
 
-  const engine = createEngine({
+  // Build engine options using centralized helper
+  const { engineOptions, requestDefaults } = buildEngineOptions({
+    config,
     cookieStore,
     onEvent: argv.verbose
       ? (event) => {
@@ -291,6 +353,8 @@ async function runRequest(argv: RunOptions): Promise<void> {
         }
       : undefined
   });
+
+  const engine = createEngine(engineOptions);
 
   // Show request info
   if (argv.verbose) {
@@ -308,14 +372,27 @@ async function runRequest(argv: RunOptions): Promise<void> {
   // Execute
   const basePath = dirname(filePath);
 
+  // Determine timeout: CLI flag wins, then config default
+  const timeoutMs = argv.timeout ?? requestDefaults.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
   try {
     const startTime = Date.now();
     const response = await engine.runString(selectedRequest.raw, {
-      variables,
+      variables: config.variables,
       basePath,
-      timeoutMs: argv.timeout
+      timeoutMs,
+      followRedirects: requestDefaults.followRedirects,
+      validateSSL: requestDefaults.validateSSL,
+      proxy: requestDefaults.proxy
     });
     const endTime = Date.now();
+
+    // Save persistent cookies if configured
+    if (config.cookies.mode === 'persistent' && config.cookies.jarPath) {
+      const jarPath = resolve(config.projectRoot, config.cookies.jarPath);
+      const jarData = cookieJarToData(cookieJar);
+      saveCookieJarData(jarPath, jarData);
+    }
 
     // Cast to FetchResponse for Bun type compatibility
     const fetchResponse = response as unknown as FetchResponse;
@@ -342,3 +419,6 @@ async function runRequest(argv: RunOptions): Promise<void> {
     process.exit(1);
   }
 }
+
+// Re-export for backward compatibility
+export { DEFAULT_TIMEOUT_MS };

@@ -34,7 +34,8 @@ Uses defaults: bun runtime, bun package manager.
 
 ```
 my-project/
-├── treq.config.ts        # Configuration with baseUrl variable
+├── treq.jsonc            # Project configuration (JSONC-first)
+├── .treq/                # Local state (optional, e.g. cookie jar)
 ├── collection/
 │   ├── auth/
 │   │   └── login.http    # Example POST request
@@ -53,6 +54,9 @@ Execute `.http` files directly from the command line:
 # Execute the first request in a file
 treq run collection/auth/login.http
 
+# Use a config profile
+treq run collection/auth/login.http --profile dev
+
 # Execute a specific request by name
 treq run collection/users.http --name "Get User"
 
@@ -62,7 +66,8 @@ treq run collection/users.http --index 2
 # Pass variables
 treq run collection/auth/login.http --var email=test@example.com --var password=secret
 
-# Use environment file
+# Legacy environment module (kept for compatibility)
+# Loads environments/<env>.ts or environments/<env>.js from the workspace
 treq run collection/auth/login.http --env dev
 
 # Set timeout (in milliseconds)
@@ -78,7 +83,8 @@ treq run collection/auth/login.http --verbose
 |--------|-------------|
 | `--name, -n` | Select request by @name directive |
 | `--index, -i` | Select request by index (0-based) |
-| `--env, -e` | Environment file to load (looks for `.env.<name>`) |
+| `--profile, -p` | Config profile to use |
+| `--env, -e` | Legacy environment module to load (`environments/<env>.ts` or `environments/<env>.js`) |
 | `--var` | Set variable (can be used multiple times) |
 | `--timeout, -t` | Request timeout in milliseconds |
 | `--workspace, -w` | Workspace root directory |
@@ -123,6 +129,7 @@ treq serve --stdio
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Server health and version info |
+| `GET` | `/config` | Resolved config summary (supports `?profile=` and `?path=`) |
 | `POST` | `/parse` | Parse `.http` file content |
 | `POST` | `/execute` | Execute HTTP request |
 | `POST` | `/session` | Create new session |
@@ -167,7 +174,7 @@ treq serve --help
 
 The server uses protocol version `1.0`.
 
-`/health` is intentionally lean (OpenCode pattern) and only returns a basic status and server version:
+`/health` is intentionally lean  and only returns a basic status and server version:
 
 ```json
 {

@@ -66,13 +66,14 @@ X-Request-ID: {{$uuid()}}
 ###
 
 ### Using random resolver
-# Resolvers: $random(min,max)
+# Resolvers: prefer JSON-args for unambiguous parsing
+# - $random([min,max])
 POST {{baseUrl}}/test
 Content-Type: application/json
 
 {
-  "testId": "test-{{$random(1000,9999)}}",
-  "value": {{$random(1,100)}}
+  "testId": "test-{{$random([1000,9999])}}",
+  "value": {{$random([1,100])}}
 }
 
 ###

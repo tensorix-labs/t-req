@@ -26,12 +26,16 @@ describe('run command variable substitution', () => {
 });
 
 describe('run command timeout handling', () => {
-  test('run command default timeout should match constant', () => {
+  test('DEFAULT_TIMEOUT_MS constant should be 30000', () => {
     expect(DEFAULT_TIMEOUT_MS).toBe(30000);
-    // Keep builder default in sync with the exported constant.
-    expect((runCommand.builder as { timeout?: { default?: number } }).timeout?.default).toBe(
-      DEFAULT_TIMEOUT_MS
-    );
+  });
+
+  test('run command timeout should NOT have a yargs default (config wins)', () => {
+    // The timeout option should NOT have a yargs default.
+    // This allows config.defaults.timeoutMs to win when --timeout is not passed.
+    // The fallback to DEFAULT_TIMEOUT_MS happens in the handler, not in yargs.
+    const builder = runCommand.builder as { timeout?: { default?: number } };
+    expect(builder.timeout?.default).toBeUndefined();
   });
 });
 

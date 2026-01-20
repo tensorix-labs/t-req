@@ -36,10 +36,6 @@ export const initCommand: CommandModule<object, InitOptions> = {
   }
 };
 
-// ============================================================================
-// Path Utilities (Bun-native)
-// ============================================================================
-
 const SEP = '/';
 
 function basename(p: string): string {
@@ -202,26 +198,18 @@ async function createProjectStructure(projectPath: string, config: ProjectConfig
 
   // Create directories using Bun shell
   await $`mkdir -p ${projectPath}`.quiet();
-  await $`mkdir -p ${join(projectPath, 'environments')}`.quiet();
+  await $`mkdir -p ${join(projectPath, '.treq')}`.quiet();
   await $`mkdir -p ${join(projectPath, 'collection', 'auth')}`.quiet();
   await $`mkdir -p ${join(projectPath, 'collection', 'users')}`.quiet();
 
   // Write root files
-  await Bun.write(join(projectPath, 'treq.config.ts'), generateConfig());
+  await Bun.write(join(projectPath, 'treq.jsonc'), generateConfig());
   await Bun.write(join(projectPath, 'run.ts'), generateRunScript(config.runtime));
   await Bun.write(join(projectPath, 'package.json'), generatePackageJson(projectName, config));
   await Bun.write(join(projectPath, '.gitignore'), generateGitignore());
 
-  // Write environments
-  await Bun.write(join(projectPath, 'environments', 'dev.ts'), generateDevEnvironment());
-  await Bun.write(join(projectPath, 'environments', 'prod.ts'), generateProdEnvironment());
-
   // Write collection
   await Bun.write(join(projectPath, 'collection', 'auth', 'login.http'), generateLoginRequest());
-  await Bun.write(
-    join(projectPath, 'collection', 'users', '_defaults.ts'),
-    generateFolderDefaults()
-  );
   await Bun.write(
     join(projectPath, 'collection', 'users', 'list.http'),
     generateListUsersRequest()
@@ -230,13 +218,33 @@ async function createProjectStructure(projectPath: string, config: ProjectConfig
 }
 
 export function generateConfig(): string {
-  return `import { defineConfig } from '@t-req/core/config';
-
-export default defineConfig({
-  variables: {
-    baseUrl: '{{baseUrl}}',
+  return `{
+  "variables": {
+    // Default base URL for the included sample requests.
+    // Switch profiles with: treq run ... --profile dev
+    "baseUrl": "https://jsonplaceholder.typicode.com"
+    // Example substitutions:
+    // "apiKey": "{env:API_KEY}",
+    // "authToken": "{file:./secrets/token.txt}"
   },
-});
+  "defaults": {
+    "timeoutMs": 30000
+  },
+  // Uncomment to persist cookies between runs:
+  // "cookies": {
+  //   "enabled": true,
+  //   "jarPath": ".treq/cookies.json"
+  // },
+  "profiles": {
+    "dev": {
+      "variables": { "baseUrl": "http://localhost:3000" },
+      "defaults": { "validateSSL": false }
+    },
+    "prod": {
+      "variables": { "baseUrl": "https://api.example.com" }
+    }
+  }
+}
 `;
 }
 
@@ -245,11 +253,32 @@ export function generateRunScript(runtime: Runtime): string {
 
   return `${shebang}
 import { createClient } from '@t-req/core';
+import { resolveProjectConfig } from '@t-req/core/config';
+${runtime === 'node' ? "import { createNodeIO } from '@t-req/core/runtime';" : ''}
+
+function getFlagValue(name: string): string | undefined {
+  const idx = process.argv.indexOf(name);
+  if (idx === -1) return undefined;
+  const value = process.argv[idx + 1];
+  return value && !value.startsWith('-') ? value : undefined;
+}
+
+const profile = getFlagValue('--profile') ?? process.env.TREQ_PROFILE;
+const { config, meta } = await resolveProjectConfig({
+  startDir: process.cwd(),
+  profile: profile || undefined,
+});
+
+for (const warning of meta.warnings) {
+  console.warn(\`Warning: \${warning}\`);
+}
 
 const client = createClient({
-  variables: {
-    baseUrl: 'https://jsonplaceholder.typicode.com',
-  },
+  ${runtime === 'node' ? 'io: createNodeIO(),' : ''}
+  variables: config.variables,
+  // Map config defaults into the client (timeout + headers/redirects/ssl/proxy).
+  timeout: config.defaults.timeoutMs,
+  defaults: config.defaults,
 });
 
 // Example: Get a user
@@ -298,36 +327,9 @@ dist/
 .env
 .env.local
 *.log
-`;
-}
 
-export function generateDevEnvironment(): string {
-  return `// Development environment
-export default {
-  baseUrl: 'http://localhost:3000',
-};
-`;
-}
-
-export function generateProdEnvironment(): string {
-  return `// Production environment
-export default {
-  baseUrl: 'https://api.example.com',
-};
-`;
-}
-
-export function generateFolderDefaults(): string {
-  return `// Folder defaults - requests in this folder inherit these settings
-export default {
-  auth: {
-    type: 'bearer',
-    token: '{{authToken}}',
-  },
-  headers: {
-    'X-Custom-Header': 'value',
-  },
-};
+# t-req local state
+.treq/cookies.json
 `;
 }
 

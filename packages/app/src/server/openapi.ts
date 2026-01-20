@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import {
   CapabilitiesResponseSchema,
+  ConfigSummaryResponseSchema,
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
@@ -218,6 +219,37 @@ export const eventRoute = createRoute({
   responses: {
     200: {
       description: 'SSE stream'
+    }
+  }
+});
+
+// Config query schema
+const ConfigQuerySchema = z.object({
+  profile: z
+    .string()
+    .optional()
+    .openapi({ param: { name: 'profile', in: 'query' } }),
+  path: z
+    .string()
+    .optional()
+    .openapi({ param: { name: 'path', in: 'query' } })
+});
+
+// Config summary
+export const configRoute = createRoute({
+  method: 'get',
+  path: '/config',
+  tags: ['System'],
+  summary: 'Get resolved configuration',
+  description:
+    'Returns the resolved project configuration including active profile, layers applied, and cookie settings',
+  request: {
+    query: ConfigQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ConfigSummaryResponseSchema } },
+      description: 'Resolved configuration summary'
     }
   }
 });

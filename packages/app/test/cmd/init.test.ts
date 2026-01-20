@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
   generateConfig,
-  generateDevEnvironment,
   generateGitignore,
   generateLoginRequest,
   generatePackageJson,
-  generateProdEnvironment,
   generateRunScript,
   getInstallCommand,
   getNextSteps,
@@ -72,11 +70,13 @@ describe('project name validation', () => {
 });
 
 describe('generated file contents', () => {
-  test('should generate valid treq.config.ts', () => {
+  test('should generate valid treq.jsonc config', () => {
     const config = generateConfig();
-    expect(config).toContain('import { defineConfig }');
-    expect(config).toContain('defineConfig({');
-    expect(config).toContain('variables:');
+    expect(config).toContain('"variables"');
+    expect(config).toContain('"baseUrl"');
+    expect(config).toContain('"profiles"');
+    expect(config).toContain('"dev"');
+    expect(config).toContain('"prod"');
   });
 
   test('should generate run script with correct shebang for bun', () => {
@@ -121,11 +121,14 @@ describe('generated file contents', () => {
     expect(gitignore).toContain('*.log');
   });
 
-  test('should generate environment files', () => {
-    const devEnv = generateDevEnvironment();
-    const prodEnv = generateProdEnvironment();
-    expect(devEnv).toContain('localhost:3000');
-    expect(prodEnv).toContain('api.example.com');
+  test('should generate config with profiles for dev and prod', () => {
+    const config = generateConfig();
+    // Dev profile should have localhost
+    expect(config).toContain('localhost:3000');
+    // Prod profile should have api.example.com
+    expect(config).toContain('api.example.com');
+    // Should have commented cookie persistence example
+    expect(config).toContain('Uncomment to persist cookies');
   });
 
   test('should generate sample HTTP request files', () => {

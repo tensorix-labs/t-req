@@ -8,6 +8,7 @@ import { getStatusForError, TreqError, ValidationError } from './errors';
 import { createEventManager, type EventEnvelope } from './events';
 import {
   capabilitiesRoute,
+  configRoute,
   createSessionRoute,
   deleteSessionRoute,
   eventRoute,
@@ -122,6 +123,16 @@ export function createApp(config: ServerConfig) {
 
   app.openapi(capabilitiesRoute, (c) => {
     return c.json(service.capabilities());
+  });
+
+  // ============================================================================
+  // Config Endpoint
+  // ============================================================================
+
+  app.openapi(configRoute, async (c) => {
+    const { profile, path } = c.req.valid('query');
+    const result = await service.getConfig({ profile, path });
+    return c.json(result, 200);
   });
 
   // ============================================================================

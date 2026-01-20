@@ -115,7 +115,7 @@ interpolate('User: {{user.name}}', {
 ```
 {{$resolverName()}}
 {{$resolverName(arg1)}}
-{{$resolverName(arg1, arg2)}}
+{{$resolverName(["arg1","arg2"])}}
 ```
 
 ```typescript
@@ -129,7 +129,8 @@ const interp = createInterpolator({
   },
 });
 
-await interp.interpolate('Value: {{$random(1, 10)}}', {});
+// Prefer JSON-array args for unambiguous parsing:
+await interp.interpolate('Value: {{$random([1, 10])}}', {});
 // "Value: 7" (random between 1-10)
 ```
 

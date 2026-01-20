@@ -109,6 +109,7 @@ export const ExecuteRequestSchema = z
 
     // Context
     sessionId: z.string().max(100).optional(),
+    profile: z.string().max(100).optional(),
     variables: z.record(z.string(), z.unknown()).optional(),
 
     // Options
@@ -258,6 +259,39 @@ export const SessionUpdatedPayloadSchema = z.object({
 });
 
 // ============================================================================
+// Config Summary Schemas
+// ============================================================================
+
+export const ResolvedDefaultsSchema = z.object({
+  timeoutMs: z.number(),
+  followRedirects: z.boolean(),
+  validateSSL: z.boolean(),
+  proxy: z.string().optional(),
+  headers: z.record(z.string(), z.string())
+});
+
+export const ResolvedCookiesSchema = z.object({
+  enabled: z.boolean(),
+  jarPath: z.string().optional(),
+  mode: z.enum(['disabled', 'memory', 'persistent'])
+});
+
+export const ConfigSummaryResponseSchema = z.object({
+  configPath: z.string().optional(),
+  projectRoot: z.string(),
+  format: z.enum(['jsonc', 'json', 'ts', 'js', 'mjs']).optional(),
+  profile: z.string().optional(),
+  layersApplied: z.array(z.string()),
+  resolvedConfig: z.object({
+    variables: z.record(z.string(), z.unknown()),
+    defaults: ResolvedDefaultsSchema,
+    cookies: ResolvedCookiesSchema,
+    resolverNames: z.array(z.string())
+  }),
+  warnings: z.array(z.string())
+});
+
+// ============================================================================
 // Error Response Schemas
 // ============================================================================
 
@@ -291,3 +325,4 @@ export type UpdateVariablesRequest = z.infer<typeof UpdateVariablesRequestSchema
 export type UpdateVariablesResponse = z.infer<typeof UpdateVariablesResponseSchema>;
 export type EventType = z.infer<typeof EventTypeSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+export type ConfigSummaryResponse = z.infer<typeof ConfigSummaryResponseSchema>;

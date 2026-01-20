@@ -1,17 +1,20 @@
 import { createEngine, parse } from '@t-req/core';
+import {
+  buildEngineOptions,
+  type ConfigMeta,
+  type ResolvedConfig,
+  resolveProjectConfig
+} from '@t-req/core/config';
 import { type CookieJar, createCookieJar } from '@t-req/core/cookies';
+import {
+  createCookieJarManager,
+  type loadCookieJarData,
+  scheduleCookieJarSave
+} from '@t-req/core/cookies/persistence';
 import type { CookieStore } from '@t-req/core/runtime';
 // Read version from package.json at build time
 import packageJson from '../../package.json';
-import {
-  createCookieStoreFromJar,
-  dirname,
-  findConfigPath,
-  findProjectRoot,
-  isAbsolute,
-  isPathSafe,
-  resolve
-} from '../utils';
+import { createCookieStoreFromJar, dirname, isAbsolute, isPathSafe, resolve } from '../utils';
 import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from './diagnostics';
 import {
   ContentOrPathRequiredError,
@@ -25,6 +28,7 @@ import {
 } from './errors';
 import type {
   CapabilitiesResponse,
+  ConfigSummaryResponse,
   CreateSessionRequest,
   CreateSessionResponse,
   Diagnostic,
@@ -73,6 +77,8 @@ export type Session = {
   lastUsedAt: number;
   snapshotVersion: number;
   lock: Promise<void>;
+  // Cookie persistence
+  cookieJarPath?: string;
 };
 
 // ============================================================================
@@ -141,6 +147,35 @@ function concatUint8(chunks: Uint8Array[], totalBytes: number): Uint8Array {
   return out;
 }
 
+// Sensitive key patterns for sanitization
+const SENSITIVE_KEY_PATTERNS = [
+  /token/i,
+  /key/i,
+  /secret/i,
+  /password/i,
+  /auth/i,
+  /credential/i,
+  /api.?key/i
+];
+
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+function sanitizeVariables(variables: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(variables)) {
+    if (isSensitiveKey(key)) {
+      result[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      result[key] = sanitizeVariables(value as Record<string, unknown>);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 function contentTypeIndicatesFormData(headers: unknown): boolean {
   // Core parser currently exposes headers in a few shapes; support common ones.
   if (!headers) return false;
@@ -172,6 +207,23 @@ function contentTypeIndicatesFormData(headers: unknown): boolean {
   }
 
   return false;
+}
+
+function restoreCookieJarFromData(
+  jar: CookieJar,
+  jarData: ReturnType<typeof loadCookieJarData>
+): void {
+  if (!jarData) return;
+  for (const cookie of jarData.cookies) {
+    try {
+      const domain = cookie.domain || '';
+      const cookieStr = `${cookie.key}=${cookie.value}; Domain=${domain}; Path=${cookie.path}`;
+      // NOTE: tough-cookie requires a URL; scheme doesn't matter for host/path matching here.
+      jar.setCookieSync(cookieStr, `https://${domain}${cookie.path}`);
+    } catch {
+      // Ignore invalid cookies
+    }
+  }
 }
 
 // ============================================================================
@@ -210,18 +262,19 @@ export function createService(config: ServiceConfig) {
     }
   }
 
-  function getResolvedPaths(httpFilePath?: string): ResolvedPaths {
+  function getResolvedPaths(
+    httpFilePath?: string,
+    resolvedConfig?: { config: ResolvedConfig; meta: ConfigMeta }
+  ): ResolvedPaths {
     const workspaceRoot = config.workspaceRoot;
-    const startPath = httpFilePath ? dirname(resolve(workspaceRoot, httpFilePath)) : workspaceRoot;
-    const projectRoot = findProjectRoot(startPath);
     const basePath = httpFilePath ? dirname(resolve(workspaceRoot, httpFilePath)) : workspaceRoot;
 
     return {
       workspaceRoot,
-      projectRoot,
+      projectRoot: resolvedConfig?.meta.projectRoot ?? workspaceRoot,
       httpFilePath,
       basePath,
-      configPath: findConfigPath(projectRoot)
+      configPath: resolvedConfig?.meta.configPath
     };
   }
 
@@ -242,6 +295,41 @@ export function createService(config: ServiceConfig) {
         diagnostics: true,
         streamingBodies: false
       }
+    };
+  }
+
+  async function getConfig(options: {
+    profile?: string;
+    path?: string;
+  }): Promise<ConfigSummaryResponse> {
+    const startDir = options.path
+      ? dirname(resolve(config.workspaceRoot, options.path))
+      : config.workspaceRoot;
+
+    const resolved = await resolveProjectConfig({
+      startDir,
+      stopDir: config.workspaceRoot,
+      profile: options.profile
+    });
+
+    const { config: projectConfig, meta } = resolved;
+
+    // Sanitize variables (redact sensitive values)
+    const sanitizedVariables = sanitizeVariables(projectConfig.variables);
+
+    return {
+      configPath: meta.configPath,
+      projectRoot: meta.projectRoot,
+      format: meta.format,
+      profile: meta.profile,
+      layersApplied: meta.layersApplied,
+      resolvedConfig: {
+        variables: sanitizedVariables,
+        defaults: projectConfig.defaults,
+        cookies: projectConfig.cookies,
+        resolverNames: Object.keys(projectConfig.resolvers)
+      },
+      warnings: meta.warnings
     };
   }
 
@@ -278,7 +366,16 @@ export function createService(config: ServiceConfig) {
       throw new ContentOrPathRequiredError();
     }
 
-    const resolved = getResolvedPaths(httpFilePath);
+    // Resolve config for project root info
+    const startDir = httpFilePath
+      ? dirname(resolve(config.workspaceRoot, httpFilePath))
+      : config.workspaceRoot;
+    const resolvedConfig = await resolveProjectConfig({
+      startDir,
+      stopDir: config.workspaceRoot
+    });
+
+    const resolved = getResolvedPaths(httpFilePath, resolvedConfig);
     let parsedRequests: ReturnType<typeof parse>;
     try {
       parsedRequests = parse(content);
@@ -358,6 +455,35 @@ export function createService(config: ServiceConfig) {
       throw new ContentOrPathRequiredError();
     }
 
+    // Resolve project config
+    const startDir = httpFilePath
+      ? dirname(resolve(config.workspaceRoot, httpFilePath))
+      : config.workspaceRoot;
+
+    // Build layered overrides from session + request variables (last wins)
+    const sessionVars = request.sessionId ? (sessions.get(request.sessionId)?.variables ?? {}) : {};
+    const overrideLayers: Array<{
+      name: string;
+      overrides: { variables: Record<string, unknown> };
+    }> = [];
+
+    if (Object.keys(sessionVars).length > 0) {
+      overrideLayers.push({ name: 'session', overrides: { variables: sessionVars } });
+    }
+
+    if (request.variables && Object.keys(request.variables).length > 0) {
+      overrideLayers.push({ name: 'request', overrides: { variables: request.variables } });
+    }
+
+    const resolvedConfig = await resolveProjectConfig({
+      startDir,
+      stopDir: config.workspaceRoot,
+      profile: request.profile,
+      overrideLayers
+    });
+
+    const { config: projectConfig } = resolvedConfig;
+
     // Parse and select request
     let parsedRequests: ReturnType<typeof parse>;
     try {
@@ -397,29 +523,102 @@ export function createService(config: ServiceConfig) {
       session?: Session;
       cookiesChanged: boolean;
     }> => {
-      const engine = createEngine({
-        cookieStore: undefined,
+      if (!projectConfig.cookies.enabled) {
+        // No cookies at all
+        const { engineOptions, requestDefaults } = buildEngineOptions({
+          config: projectConfig,
+          onEvent: (event) => {
+            config.onEvent?.(undefined, runId, event);
+          }
+        });
+
+        const engine = createEngine(engineOptions);
+
+        try {
+          const response = await engine.runString(selectedRequest.raw, {
+            variables: projectConfig.variables,
+            basePath,
+            timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+            followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+            validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+          });
+          return { response, session: undefined, cookiesChanged: false };
+        } catch (err) {
+          throw new ExecuteError(
+            `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+
+      // Cookies enabled: memory or persistent
+      if (projectConfig.cookies.mode === 'persistent' && projectConfig.cookies.jarPath) {
+        const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
+        const manager = createCookieJarManager(jarPath);
+
+        // LOCKED: persistent stateless runs are wrapped in per-jar lock (load → run → save)
+        return await manager.withLock(async () => {
+          const cookieJar = createCookieJar();
+          restoreCookieJarFromData(cookieJar, manager.load());
+
+          const cookieStore = createCookieStoreFromJar(cookieJar);
+
+          const { engineOptions, requestDefaults } = buildEngineOptions({
+            config: projectConfig,
+            cookieStore,
+            onEvent: (event) => {
+              config.onEvent?.(undefined, runId, event);
+            }
+          });
+
+          const engine = createEngine(engineOptions);
+
+          try {
+            const response = await engine.runString(selectedRequest.raw, {
+              variables: projectConfig.variables,
+              basePath,
+              timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+              followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+              validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+            });
+
+            manager.save(cookieJar);
+            return { response, session: undefined, cookiesChanged: false };
+          } catch (err) {
+            throw new ExecuteError(
+              `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        });
+      }
+
+      // Memory mode: fresh jar per request, no persistence
+      const cookieJar = createCookieJar();
+      const cookieStore = createCookieStoreFromJar(cookieJar);
+
+      const { engineOptions, requestDefaults } = buildEngineOptions({
+        config: projectConfig,
+        cookieStore,
         onEvent: (event) => {
           config.onEvent?.(undefined, runId, event);
         }
       });
 
-      let response: Response;
+      const engine = createEngine(engineOptions);
+
       try {
-        response = await engine.runString(selectedRequest.raw, {
-          variables: request.variables ?? {},
+        const response = await engine.runString(selectedRequest.raw, {
+          variables: projectConfig.variables,
           basePath,
-          timeoutMs: request.timeoutMs,
-          followRedirects: request.followRedirects,
-          validateSSL: request.validateSSL
+          timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+          followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+          validateSSL: request.validateSSL ?? requestDefaults.validateSSL
         });
+        return { response, session: undefined, cookiesChanged: false };
       } catch (err) {
         throw new ExecuteError(
           `Execution failed: ${err instanceof Error ? err.message : String(err)}`
         );
       }
-
-      return { response, session: undefined, cookiesChanged: false };
     };
 
     const runInSession = async (
@@ -432,6 +631,32 @@ export function createService(config: ServiceConfig) {
       session.lastUsedAt = bumpTime(session.lastUsedAt);
 
       let cookiesChanged = false;
+
+      // Ensure session cookie persistence is configured + loaded if enabled.
+      if (
+        projectConfig.cookies.enabled &&
+        projectConfig.cookies.mode === 'persistent' &&
+        projectConfig.cookies.jarPath
+      ) {
+        const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
+
+        if (session.cookieJarPath !== jarPath) {
+          const manager = createCookieJarManager(jarPath);
+          await manager.withLock(async () => {
+            const jar = createCookieJar();
+            restoreCookieJarFromData(jar, manager.load());
+            session.cookieJar = jar;
+            session.cookieStore = createCookieStoreFromJar(jar);
+            session.cookieJarPath = jarPath;
+          });
+        } else {
+          session.cookieJarPath = jarPath;
+        }
+      } else {
+        // Not persistent for this run; don't write back to a previous jar path.
+        session.cookieJarPath = undefined;
+      }
+
       const cookieStore: CookieStore = {
         getCookieHeader: async (url) => {
           return await session.cookieStore.getCookieHeader(url);
@@ -442,26 +667,25 @@ export function createService(config: ServiceConfig) {
         }
       };
 
-      const mergedVariables = {
-        ...session.variables,
-        ...(request.variables ?? {})
-      };
-
-      const engine = createEngine({
-        cookieStore,
+      // Build engine options using centralized helper
+      const { engineOptions, requestDefaults } = buildEngineOptions({
+        config: projectConfig,
+        cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined,
         onEvent: (event) => {
           config.onEvent?.(session.id, runId, event);
         }
       });
 
+      const engine = createEngine(engineOptions);
+
       let response: Response;
       try {
         response = await engine.runString(selectedRequest.raw, {
-          variables: mergedVariables,
+          variables: projectConfig.variables,
           basePath,
-          timeoutMs: request.timeoutMs,
-          followRedirects: request.followRedirects,
-          validateSSL: request.validateSSL
+          timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+          followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+          validateSSL: request.validateSSL ?? requestDefaults.validateSSL
         });
       } catch (err) {
         throw new ExecuteError(
@@ -579,6 +803,12 @@ export function createService(config: ServiceConfig) {
 
     if (session && cookiesChanged) {
       session.snapshotVersion++;
+
+      // Schedule debounced save for persistent cookies
+      if (session.cookieJarPath) {
+        scheduleCookieJarSave(session.cookieJarPath, session.cookieJar);
+      }
+
       config.onEvent?.(session.id, runId, {
         type: 'sessionUpdated',
         variablesChanged: false,
@@ -586,7 +816,7 @@ export function createService(config: ServiceConfig) {
       });
     }
 
-    const resolved = getResolvedPaths(httpFilePath);
+    const resolved = getResolvedPaths(httpFilePath, resolvedConfig);
 
     return {
       runId,
@@ -720,6 +950,7 @@ export function createService(config: ServiceConfig) {
   return {
     health,
     capabilities,
+    getConfig,
     parse: parseRequest,
     execute,
     createSession,
