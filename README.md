@@ -10,6 +10,7 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 | Package | Description |
 |---------|-------------|
 | [@t-req/core](./packages/core) | Core HTTP request parsing and execution library |
+| [@t-req/app](./packages/app) | CLI for scaffolding, executing, and serving t-req projects |
 | [@t-req/ui](./packages/ui) | Shared UI components and Tailwind CSS configuration |
 
 ## Documentation
@@ -62,6 +63,7 @@ t-req/
 ├── examples/          # Usage examples
 ├── packages/
 │   ├── core/          # @t-req/core - HTTP parsing & execution
+│   ├── app/           # @t-req/app - CLI tool
 │   └── ui/            # @t-req/ui - UI components & theming
 ├── .changeset/        # Changesets for versioning
 └── ...

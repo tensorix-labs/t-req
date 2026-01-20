@@ -1,0 +1,17 @@
+# @name listUsers
+GET https://api.example.com/users
+Accept: application/json
+
+###
+
+# @name getUser
+GET https://api.example.com/users/1
+Accept: application/json
+
+###
+
+# @name createUser
+POST https://api.example.com/users
+Content-Type: application/json
+
+{"name": "New User", "email": "new@example.com"}

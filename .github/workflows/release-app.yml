@@ -1,0 +1,77 @@
+name: Release App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g., 0.1.0)"
+        required: true
+        type: string
+      dry-run:
+        description: "Dry run (don't actually publish)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    name: Build and Publish App
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install
+        working-directory: packages/app
+
+      - name: Update version
+        run: |
+          cd packages/app
+          bun -e "
+            const pkg = await Bun.file('package.json').json();
+            pkg.version = '${{ inputs.version }}';
+            pkg.optionalDependencies = {
+              '@t-req/app-darwin-arm64': '${{ inputs.version }}',
+              '@t-req/app-darwin-x64': '${{ inputs.version }}',
+              '@t-req/app-linux-arm64': '${{ inputs.version }}',
+              '@t-req/app-linux-x64': '${{ inputs.version }}',
+              '@t-req/app-windows-x64': '${{ inputs.version }}',
+            };
+            await Bun.write('package.json', JSON.stringify(pkg, null, 2));
+          "
+
+      - name: Build and Publish
+        run: |
+          cd packages/app
+          if [ "${{ inputs.dry-run }}" = "true" ]; then
+            bun run script/publish.ts --dry-run
+          else
+            bun run script/publish.ts
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry-run }}
+        run: |
+          gh release create app-v${{ inputs.version }} \
+            --title "App v${{ inputs.version }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
