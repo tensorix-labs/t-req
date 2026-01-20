@@ -1,0 +1,80 @@
+{
+  "name": "@t-req/app",
+  "version": "0.1.0",
+  "description": "CLI for t-req - scaffold, execute, and serve HTTP request projects",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tensorix-labs/t-req",
+    "directory": "packages/app"
+  },
+  "homepage": "https://github.com/tensorix-labs/t-req#readme",
+  "bugs": {
+    "url": "https://github.com/tensorix-labs/t-req/issues"
+  },
+  "keywords": [
+    "http",
+    "api",
+    "testing",
+    "requests",
+    "cli",
+    "scaffold",
+    "http-client",
+    "api-testing",
+    "http-file",
+    "rest-client",
+    "http-server",
+    "language-agnostic"
+  ],
+  "author": "tensorix labs",
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0.0"
+  },
+  "type": "module",
+  "bin": {
+    "treq": "./bin/treq"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun run script/build.ts",
+    "build:single": "bun run script/build.ts --single",
+    "dev": "bun run src/index.ts",
+    "clean": "rm -rf dist",
+    "publish:cli": "bun run script/publish.ts",
+    "publish:cli:dry": "bun run script/publish.ts --dry-run",
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "check-types": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "^1.0.10",
+    "@types/bun": "latest",
+    "@types/yargs": "^17.0.33"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "@hono/zod-openapi": "^1.2.0",
+    "@hono/zod-validator": "^0.7.6",
+    "@t-req/core": "^0.1.0",
+    "hono": "^4.11.4",
+    "yargs": "^17.7.2",
+    "zod": "^4.3.5"
+  },
+  "optionalDependencies": {
+    "@t-req/app-darwin-arm64": "0.1.0",
+    "@t-req/app-darwin-x64": "0.1.0",
+    "@t-req/app-linux-arm64": "0.1.0",
+    "@t-req/app-linux-x64": "0.1.0",
+    "@t-req/app-windows-x64": "0.1.0"
+  }
+}

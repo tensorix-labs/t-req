@@ -68,11 +68,11 @@ const client = createClient({
 
 ```http
 GET https://api.example.com/admin
-Authorization: Basic {{$basicAuth({{username}}, {{password}})}}
+Authorization: Basic {{$basicAuth(["{{username}}", "{{password}}"])}}
 ```
 
-> **Note:** Variables inside resolver calls are interpolated first. The expression
-> `{{$basicAuth({{username}}, {{password}})}}` first becomes `{{$basicAuth(admin, secret)}}`,
+> **Note:** Variables inside resolver calls are interpolated first. With JSON-args, the expression
+> `{{$basicAuth(["{{username}}", "{{password}}"])}}` becomes `{{$basicAuth(["admin", "secret"])}}`,
 > then the resolver is called with literal strings `"admin"` and `"secret"`.
 
 Or pre-encode in the variable:

@@ -268,7 +268,9 @@ const interp = createInterpolator({
 });
 
 const result = await interp.interpolate(
-  'KEY={{$env(API_KEY)}}&t={{$timestamp()}}&r={{$random(1,10)}}',
+  // Resolver args: prefer JSON-array args for unambiguous parsing.
+  // Example: {{$random([1,10])}}
+  'KEY={{$env(API_KEY)}}&t={{$timestamp([])}}&r={{$random([1,10])}}',
   {}
 );
 ```
@@ -340,9 +342,125 @@ const engine = createEngine({
 await engine.runString('GET https://example.com\n');
 ```
 
-## Config (`treq.config.ts`)
+## Config (JSON/JSONC-first)
 
-Define typed config:
+The CLI/server config system is **JSON/JSONC-first**:
+
+- Preferred: `treq.jsonc`, `treq.json`
+- Legacy (deprecated): `treq.config.ts`, `treq.config.js`, `treq.config.mjs`
+
+### `treq.jsonc` example
+
+```jsonc
+{
+  "variables": {
+    "baseUrl": "http://localhost:3000",
+    "apiKey": "{env:API_KEY}"
+  },
+  "defaults": {
+    "timeoutMs": 30000,
+    "headers": {
+      "Accept": "application/json"
+    }
+  },
+  // Uncomment to persist cookies between runs:
+  // "cookies": {
+  //   "enabled": true,
+  //   "jarPath": ".treq/cookies.json"
+  // },
+  "profiles": {
+    "dev": {
+      "variables": { "baseUrl": "http://localhost:3000" },
+      "defaults": { "validateSSL": false }
+    },
+    "prod": {
+      "variables": { "baseUrl": "https://api.example.com" }
+    }
+  }
+}
+```
+
+### Config shape (what each field means)
+
+Top-level keys in `treq.jsonc` / `treq.json`:
+
+- **`variables`** (`Record<string, unknown>`): default variables available to `.http` files (`{{var}}`).
+- **`defaults`**:
+  - **`timeoutMs`** (`number`, default: `30000`)
+  - **`followRedirects`** (`boolean`, default: `true`)
+  - **`validateSSL`** (`boolean`, default: `true`)
+  - **`proxy`** (`string`, optional)
+  - **`headers`** (`Record<string, string>`, default: `{}`): merged as *header defaults* (request headers win).
+- **`cookies`**:
+  - **`enabled`** (`boolean`, default: `true`)
+  - **`jarPath`** (`string`, optional): enables persistence (path is relative to the project root).
+  - **mode** (derived):
+    - `disabled` if `enabled=false`
+    - `memory` if `enabled=true` and no `jarPath`
+    - `persistent` if `enabled=true` and `jarPath` is set
+- **`resolvers`** (`Record<string, Resolver | CommandResolverDef>`):
+  - In TS/JS legacy configs, values can be **functions**.
+  - In JSON/JSONC configs, define **command resolvers** (see below).
+- **`profiles`** (`Record<string, { variables/defaults/cookies/resolvers }>`): named overlays.
+- **`security`**:
+  - **`allowExternalFiles`** (`boolean`, default: `false`): allow `{file:...}` to read outside the workspace.
+
+Resolution order (last wins):
+
+- **variables**: `file < profile < overrides`
+- **defaults/cookies/resolvers/security**: `file < profile < overrides`
+
+### Substitutions
+
+- `{env:VAR}` injects `process.env.VAR` (or `""` if missing)
+- `{file:path}` injects the file contents (with `.trimEnd()` applied)
+  - Relative paths resolve from the config file directory
+  - By default, file reads are workspace-scoped (server-safe); you can opt out via `security.allowExternalFiles`
+
+### Command resolvers (JSON/JSONC-friendly plugins)
+
+JSON/JSONC can’t represent resolver functions, so you can define command resolvers:
+
+```jsonc
+{
+  "resolvers": {
+    "$hmacSign": {
+      "type": "command",
+      "command": ["ruby", ".treq/plugins/hmac.rb"],
+      "timeoutMs": 2000
+    }
+  }
+}
+```
+
+They run with `cwd = projectRoot` and communicate over NDJSON:
+
+- stdin: `{"resolver":"$hmacSign","args":["payload"]}\n`
+- stdout: `{"value":"<string>"}\n`
+
+Resolver argument syntax in templates:
+
+- Prefer JSON-array args: `{{$hmacSign(["{{body}}"])}}`
+- Fallback: if the text in `(...)` is not valid JSON, it becomes a single string arg
+- v1 restriction: resolver args cannot contain resolver calls (variables are OK)
+
+### Resolving config (single source of truth)
+
+If you're building tooling (like the CLI/server), use `resolveProjectConfig()` to get a **resolved** engine-ready config plus metadata:
+
+```typescript
+import { resolveProjectConfig } from '@t-req/core/config';
+
+const { config, meta } = await resolveProjectConfig({
+  startDir: process.cwd(),
+  profile: 'dev',
+});
+
+console.log(meta.configPath, meta.layersApplied, meta.warnings);
+console.log(config.defaults, Object.keys(config.resolvers));
+```
+
+### Legacy TS config (deprecated)
 
 ```typescript
 // treq.config.ts
@@ -354,7 +472,7 @@ export default defineConfig({
 });
 ```
 
-Load and apply it in Node/Bun tooling:
+You can still load legacy `treq.config.*` via `loadConfig()`, but new projects should prefer `treq.jsonc`.
 
 ```typescript
 import { loadConfig, mergeConfig } from '@t-req/core/config';

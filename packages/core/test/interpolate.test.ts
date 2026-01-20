@@ -88,7 +88,7 @@ describe('interpolate', () => {
 
   test('resolver with multiple arguments', () => {
     const result = interpolate(
-      '{{$join(a, b, c)}}',
+      '{{$join(["a","b","c"])}}',
       {},
       {
         resolvers: { $join: (...args) => args.join('-') }
@@ -99,7 +99,7 @@ describe('interpolate', () => {
 
   test('resolver with numeric arguments', () => {
     const result = interpolate(
-      '{{$range(5, 10)}}',
+      '{{$range([5, 10])}}',
       {},
       {
         resolvers: { $range: (min, max) => `${min}-${max}` }

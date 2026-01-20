@@ -1,15 +1,77 @@
 import type { InterpolateOptions, Interpolator } from './types';
 
-// Pattern to match {{variable}} or {{$resolver(arg)}}
-const VARIABLE_PATTERN = /\{\{([^}]+)\}\}/g;
-const RESOLVER_PATTERN = /^\$(\w+)\(([^)]*)\)$/;
+type TemplatePart =
+  | { type: 'text'; value: string }
+  | { type: 'expr'; expression: string; raw: string };
 
-/**
- * Parse comma-separated arguments from a resolver argument string
- */
-function parseResolverArgs(argString: string): string[] {
-  if (!argString.trim()) return [];
-  return argString.split(',').map((arg) => arg.trim());
+function isWord(s: string): boolean {
+  return /^[A-Za-z0-9_]+$/.test(s);
+}
+
+function splitTemplate(input: string): TemplatePart[] {
+  const parts: TemplatePart[] = [];
+  let i = 0;
+  let textStart = 0;
+
+  while (i < input.length) {
+    const c = input[i];
+    const n = input[i + 1];
+
+    if (c === '{' && n === '{') {
+      if (i > textStart) {
+        parts.push({ type: 'text', value: input.slice(textStart, i) });
+      }
+
+      const start = i;
+      i += 2; // consume {{
+
+      let depth = 1;
+      let expr = '';
+
+      while (i < input.length) {
+        const cc = input[i];
+        const nn = input[i + 1];
+
+        if (cc === '{' && nn === '{') {
+          depth++;
+          expr += '{{';
+          i += 2;
+          continue;
+        }
+
+        if (cc === '}' && nn === '}') {
+          depth--;
+          if (depth === 0) {
+            i += 2; // consume final }}
+            break;
+          }
+          expr += '}}';
+          i += 2;
+          continue;
+        }
+
+        expr += cc;
+        i++;
+      }
+
+      if (depth !== 0) {
+        throw new Error('Unterminated interpolation: missing "}}"');
+      }
+
+      const raw = input.slice(start, i);
+      parts.push({ type: 'expr', expression: expr, raw });
+      textStart = i;
+      continue;
+    }
+
+    i++;
+  }
+
+  if (textStart < input.length) {
+    parts.push({ type: 'text', value: input.slice(textStart) });
+  }
+
+  return parts;
 }
 
 /**
@@ -32,6 +94,76 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
+function parseResolverCall(expression: string): { resolverKey: string; argText: string } | null {
+  const trimmed = expression.trim();
+  if (!trimmed.startsWith('$')) return null;
+  if (!trimmed.endsWith(')')) return null;
+
+  const openIdx = trimmed.indexOf('(');
+  if (openIdx === -1) return null;
+
+  const name = trimmed.slice(1, openIdx).trim();
+  if (!name || !isWord(name)) return null;
+
+  const argText = trimmed.slice(openIdx + 1, -1);
+  return { resolverKey: `$${name}`, argText };
+}
+
+function interpolateVariablesOnly(
+  str: string,
+  variables: Record<string, unknown>,
+  undefinedBehavior: NonNullable<InterpolateOptions['undefinedBehavior']>
+): string {
+  const parts = splitTemplate(str);
+  if (parts.length === 1 && parts[0]?.type === 'text') return str;
+
+  let out = '';
+  for (const part of parts) {
+    if (part.type === 'text') {
+      out += part.value;
+      continue;
+    }
+
+    const expr = part.expression.trim();
+    if (parseResolverCall(expr)) {
+      throw new Error(`Resolver calls are not allowed inside resolver args: ${part.raw}`);
+    }
+
+    const value = getNestedValue(variables, expr);
+    if (value === undefined) {
+      if (undefinedBehavior === 'throw') {
+        throw new Error(`Undefined variable: ${expr}`);
+      }
+      out += undefinedBehavior === 'keep' ? part.raw : '';
+      continue;
+    }
+
+    out += String(value);
+  }
+
+  return out;
+}
+
+function parseResolverArgsFromText(
+  argText: string,
+  variables: Record<string, unknown>,
+  undefinedBehavior: NonNullable<InterpolateOptions['undefinedBehavior']>
+): string[] {
+  const interpolated = interpolateVariablesOnly(argText, variables, undefinedBehavior).trim();
+  if (!interpolated) return [];
+
+  try {
+    const parsed = JSON.parse(interpolated) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((v) => String(v));
+    }
+  } catch {
+    // Fallback below
+  }
+
+  return [interpolated];
+}
+
 /**
  * Interpolate variables into a string synchronously
  */
@@ -42,45 +174,52 @@ function interpolateString(
 ): string {
   const { resolvers = {}, undefinedBehavior = 'throw' } = options;
 
-  return str.replace(VARIABLE_PATTERN, (match, expression: string) => {
-    const trimmedExpr = expression.trim();
+  const parts = splitTemplate(str);
+  if (parts.length === 1 && parts[0]?.type === 'text') return str;
 
-    // Check for resolver pattern: $resolver(arg)
-    const resolverMatch = trimmedExpr.match(RESOLVER_PATTERN);
-    if (resolverMatch) {
-      const [, resolverName, arg] = resolverMatch;
-      const resolver = resolvers[`$${resolverName}`];
+  let out = '';
+  for (const part of parts) {
+    if (part.type === 'text') {
+      out += part.value;
+      continue;
+    }
 
+    const parsed = parseResolverCall(part.expression);
+    if (parsed) {
+      const resolver = resolvers[parsed.resolverKey];
       if (resolver) {
-        const args = parseResolverArgs(arg ?? '');
+        const args = parseResolverArgsFromText(parsed.argText, variables, undefinedBehavior);
         const result = resolver(...args);
         if (result instanceof Promise) {
           throw new Error(
-            `Resolver $${resolverName} returned a Promise. Use createInterpolator() for async resolvers.`
+            `Resolver ${parsed.resolverKey} returned a Promise. Use createInterpolator() for async resolvers.`
           );
         }
-        return String(result);
+        out += String(result);
+        continue;
       }
 
-      // Resolver not found
       if (undefinedBehavior === 'throw') {
-        throw new Error(`Unknown resolver: $${resolverName}`);
+        throw new Error(`Unknown resolver: ${parsed.resolverKey}`);
       }
-      return undefinedBehavior === 'keep' ? match : '';
+      out += undefinedBehavior === 'keep' ? part.raw : '';
+      continue;
     }
 
-    // Regular variable lookup
-    const value = getNestedValue(variables, trimmedExpr);
-
+    const expr = part.expression.trim();
+    const value = getNestedValue(variables, expr);
     if (value === undefined) {
       if (undefinedBehavior === 'throw') {
-        throw new Error(`Undefined variable: ${trimmedExpr}`);
+        throw new Error(`Undefined variable: ${expr}`);
       }
-      return undefinedBehavior === 'keep' ? match : '';
+      out += undefinedBehavior === 'keep' ? part.raw : '';
+      continue;
     }
 
-    return String(value);
-  });
+    out += String(value);
+  }
+
+  return out;
 }
 
 /**
@@ -92,83 +231,47 @@ async function interpolateStringAsync(
   options: InterpolateOptions = {}
 ): Promise<string> {
   const { resolvers = {}, undefinedBehavior = 'throw' } = options;
+  const parts = splitTemplate(str);
+  if (parts.length === 1 && parts[0]?.type === 'text') return str;
 
-  // Find all matches first
-  const matches: Array<{ match: string; expression: string; index: number }> = [];
-  const regex = new RegExp(VARIABLE_PATTERN.source, 'g');
-
-  let match: RegExpExecArray | null = regex.exec(str);
-  while (match !== null) {
-    const expression = match[1];
-    if (expression === undefined) {
-      match = regex.exec(str);
+  let out = '';
+  for (const part of parts) {
+    if (part.type === 'text') {
+      out += part.value;
       continue;
     }
-    matches.push({
-      match: match[0],
-      expression,
-      index: match.index
-    });
-    match = regex.exec(str);
-  }
 
-  if (matches.length === 0) {
-    return str;
-  }
-
-  // Resolve all values (potentially async)
-  const resolvedValues = await Promise.all(
-    matches.map(async ({ match, expression }) => {
-      const trimmedExpr = expression.trim();
-
-      // Check for resolver pattern: $resolver(arg)
-      const resolverMatch = trimmedExpr.match(RESOLVER_PATTERN);
-      if (resolverMatch) {
-        const [, resolverName, arg] = resolverMatch;
-        const resolver = resolvers[`$${resolverName}`];
-
-        if (resolver) {
-          const args = parseResolverArgs(arg ?? '');
-          const result = await resolver(...args);
-          return String(result);
-        }
-
-        // Resolver not found
-        if (undefinedBehavior === 'throw') {
-          throw new Error(`Unknown resolver: $${resolverName}`);
-        }
-        return undefinedBehavior === 'keep' ? match : '';
+    const parsed = parseResolverCall(part.expression);
+    if (parsed) {
+      const resolver = resolvers[parsed.resolverKey];
+      if (resolver) {
+        const args = parseResolverArgsFromText(parsed.argText, variables, undefinedBehavior);
+        const result = await resolver(...args);
+        out += String(result);
+        continue;
       }
 
-      // Regular variable lookup
-      const value = getNestedValue(variables, trimmedExpr);
-
-      if (value === undefined) {
-        if (undefinedBehavior === 'throw') {
-          throw new Error(`Undefined variable: ${trimmedExpr}`);
-        }
-        return undefinedBehavior === 'keep' ? match : '';
+      if (undefinedBehavior === 'throw') {
+        throw new Error(`Unknown resolver: ${parsed.resolverKey}`);
       }
+      out += undefinedBehavior === 'keep' ? part.raw : '';
+      continue;
+    }
 
-      return String(value);
-    })
-  );
+    const expr = part.expression.trim();
+    const value = getNestedValue(variables, expr);
+    if (value === undefined) {
+      if (undefinedBehavior === 'throw') {
+        throw new Error(`Undefined variable: ${expr}`);
+      }
+      out += undefinedBehavior === 'keep' ? part.raw : '';
+      continue;
+    }
 
-  // Build result string
-  let result = '';
-  let lastIndex = 0;
-
-  for (let i = 0; i < matches.length; i++) {
-    const entry = matches[i];
-    if (!entry) continue;
-    const { match, index } = entry;
-    result += str.slice(lastIndex, index);
-    result += resolvedValues[i];
-    lastIndex = index + match.length;
+    out += String(value);
   }
 
-  result += str.slice(lastIndex);
-  return result;
+  return out;
 }
 
 /**
