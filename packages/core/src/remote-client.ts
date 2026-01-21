@@ -148,8 +148,9 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
   let initialized = false;
   let initPromise: Promise<void> | undefined;
 
-  // Track pending variable sync operations to ensure they complete before next request
-  let pendingVariableSync: Promise<void> | undefined;
+  // Serialize variable sync operations so rapid updates cannot race.
+  // This chain is awaited before each execution.
+  let variableSyncChain: Promise<void> = Promise.resolve();
 
   const defaultTimeout = config.timeout ?? 30000;
 
@@ -206,17 +207,43 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
     return initPromise;
   }
 
+  function enqueueVariableSync(vars: Record<string, unknown>): void {
+    const doSync = async (): Promise<void> => {
+      if (!sessionId) return;
+      try {
+        const res = await fetch(`${baseUrl}/session/${sessionId}/variables`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ variables: vars, mode: 'merge' })
+        });
+        if (!res.ok) {
+          console.error('Failed to sync variables to server:', res.statusText);
+        }
+      } catch (err) {
+        console.error('Failed to sync variables to server:', err);
+      }
+    };
+
+    // If session exists, sync immediately in-order. If initialization is in flight,
+    // sync once it completes (covers setVariable(s) during ensureInitialized()).
+    if (sessionId) {
+      variableSyncChain = variableSyncChain.catch(() => undefined).then(doSync);
+    } else if (initPromise) {
+      variableSyncChain = variableSyncChain
+        .catch(() => undefined)
+        .then(() => initPromise)
+        .then(doSync);
+    }
+  }
+
   async function executeRequest(
     source: { path?: string; content?: string },
     options: RunOptions = {}
   ): Promise<Response> {
     await ensureInitialized();
 
-    // Await any pending variable sync to ensure server has latest values
-    if (pendingVariableSync) {
-      await pendingVariableSync;
-      pendingVariableSync = undefined;
-    }
+    // Await any queued variable sync to ensure server has latest values
+    await variableSyncChain;
 
     const body: Record<string, unknown> = {
       ...source,
@@ -306,43 +333,13 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
     setVariables(vars: Record<string, unknown>): void {
       variables = { ...variables, ...vars };
 
-      // Sync to server if session exists, tracking the promise for await in executeRequest
-      if (sessionId) {
-        pendingVariableSync = fetch(`${baseUrl}/session/${sessionId}/variables`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ variables: vars, mode: 'merge' })
-        })
-          .then((res) => {
-            if (!res.ok) {
-              console.error('Failed to sync variables to server:', res.statusText);
-            }
-          })
-          .catch((err) => {
-            console.error('Failed to sync variables to server:', err);
-          });
-      }
+      enqueueVariableSync(vars);
     },
 
     setVariable(key: string, value: unknown): void {
       variables[key] = value;
 
-      // Sync to server if session exists, tracking the promise for await in executeRequest
-      if (sessionId) {
-        pendingVariableSync = fetch(`${baseUrl}/session/${sessionId}/variables`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ variables: { [key]: value }, mode: 'merge' })
-        })
-          .then((res) => {
-            if (!res.ok) {
-              console.error('Failed to sync variable to server:', res.statusText);
-            }
-          })
-          .catch((err) => {
-            console.error('Failed to sync variable to server:', err);
-          });
-      }
+      enqueueVariableSync({ [key]: value });
     },
 
     getVariables(): Record<string, unknown> {

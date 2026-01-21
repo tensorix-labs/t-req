@@ -350,6 +350,64 @@ describe('service session CRUD', () => {
     expect(state.variables).toEqual({ token: '[REDACTED]', userId: 1 });
   });
 
+  test('should redact sensitive keys inside arrays of objects', () => {
+    const { sessionId } = service.createSession({
+      variables: {
+        users: [
+          { name: 'Alice', apiToken: 'secret-token-123' },
+          { name: 'Bob', password: 'my-password' }
+        ]
+      }
+    });
+
+    const state = service.getSession(sessionId);
+    expect(state.variables).toEqual({
+      users: [
+        { name: 'Alice', apiToken: '[REDACTED]' },
+        { name: 'Bob', password: '[REDACTED]' }
+      ]
+    });
+  });
+
+  test('should handle deeply nested arrays with sensitive keys', () => {
+    const { sessionId } = service.createSession({
+      variables: {
+        config: {
+          servers: [{ host: 'example.com', connection: { apiKey: 'key-123' } }]
+        }
+      }
+    });
+
+    const state = service.getSession(sessionId);
+    expect(state.variables).toEqual({
+      config: {
+        servers: [{ host: 'example.com', connection: { apiKey: '[REDACTED]' } }]
+      }
+    });
+  });
+
+  test('should handle nested arrays of arrays containing objects', () => {
+    const { sessionId } = service.createSession({
+      variables: {
+        matrix: [[{ name: 'nested', apiToken: 'secret' }], [{ password: 'p' }]]
+      }
+    });
+
+    const state = service.getSession(sessionId);
+    expect(state.variables).toEqual({
+      matrix: [[{ name: 'nested', apiToken: '[REDACTED]' }], [{ password: '[REDACTED]' }]]
+    });
+  });
+
+  test('should preserve primitive array values', () => {
+    const { sessionId } = service.createSession({
+      variables: { tags: ['a', 'b', 'c'], counts: [1, 2, 3] }
+    });
+
+    const state = service.getSession(sessionId);
+    expect(state.variables).toEqual({ tags: ['a', 'b', 'c'], counts: [1, 2, 3] });
+  });
+
   test('should get session state', () => {
     const { sessionId } = service.createSession({ variables: { foo: 'bar' } });
 

@@ -253,17 +253,28 @@ function isSensitiveKey(key: string): boolean {
 }
 
 function sanitizeVariables(variables: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(variables)) {
-    if (isSensitiveKey(key)) {
-      result[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      result[key] = sanitizeVariables(value as Record<string, unknown>);
-    } else {
-      result[key] = value;
+  const seen = new WeakSet<object>();
+
+  const sanitizeValue = (value: unknown): unknown => {
+    if (value === null) return null;
+    if (typeof value !== 'object') return value;
+
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value.map((v) => sanitizeValue(v));
     }
-  }
-  return result;
+
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = isSensitiveKey(k) ? '[REDACTED]' : sanitizeValue(v);
+    }
+    return out;
+  };
+
+  return sanitizeValue(variables) as Record<string, unknown>;
 }
 
 function isSensitiveHeader(name: string): boolean {
