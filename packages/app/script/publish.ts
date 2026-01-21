@@ -29,7 +29,7 @@ console.log();
 
 // Step 1: Build all platform binaries
 console.log('Step 1: Building all platform binaries...');
-await $`bun run build`;
+await $`bun run build:all`;
 console.log();
 
 // Step 2: Smoke test current platform binary

@@ -3,6 +3,7 @@ import { hideBin } from 'yargs/helpers';
 import { initCommand } from './cmd/init';
 import { runCommand } from './cmd/run';
 import { serveCommand } from './cmd/serve';
+import { tuiCommand } from './cmd/tui';
 
 export function cli(args: string[]): void {
   yargs(hideBin(['node', 'cli', ...args]))
@@ -11,6 +12,7 @@ export function cli(args: string[]): void {
     .command(initCommand)
     .command(runCommand)
     .command(serveCommand)
+    .command(tuiCommand)
     .demandCommand(1, 'You need to specify a command')
     .strict()
     .help()
