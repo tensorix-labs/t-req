@@ -2,12 +2,18 @@ import { createRoute, z } from '@hono/zod-openapi';
 import {
   CapabilitiesResponseSchema,
   ConfigSummaryResponseSchema,
+  CreateFlowRequestSchema,
+  CreateFlowResponseSchema,
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
   ExecuteRequestSchema,
   ExecuteResponseSchema,
+  ExecutionDetailSchema,
+  FinishFlowResponseSchema,
   HealthResponseSchema,
+  ListWorkspaceFilesResponseSchema,
+  ListWorkspaceRequestsResponseSchema,
   ParseRequestSchema,
   ParseResponseSchema,
   SessionStateSchema,
@@ -203,7 +209,11 @@ const EventQuerySchema = z.object({
   sessionId: z
     .string()
     .optional()
-    .openapi({ param: { name: 'sessionId', in: 'query' } })
+    .openapi({ param: { name: 'sessionId', in: 'query' } }),
+  flowId: z
+    .string()
+    .optional()
+    .openapi({ param: { name: 'flowId', in: 'query' } })
 });
 
 // Event stream (SSE)
@@ -212,7 +222,8 @@ export const eventRoute = createRoute({
   path: '/event',
   tags: ['Events'],
   summary: 'Event stream (SSE)',
-  description: 'Subscribe to server-sent events for real-time updates',
+  description:
+    'Subscribe to server-sent events for real-time updates. Filter by sessionId or flowId.',
   request: {
     query: EventQuerySchema
   },
@@ -250,6 +261,165 @@ export const configRoute = createRoute({
     200: {
       content: { 'application/json': { schema: ConfigSummaryResponseSchema } },
       description: 'Resolved configuration summary'
+    }
+  }
+});
+
+// ============================================================================
+// Flow Endpoints (Observer Mode)
+// ============================================================================
+
+// Create flow
+export const createFlowRoute = createRoute({
+  method: 'post',
+  path: '/flows',
+  tags: ['Flows'],
+  summary: 'Create a new flow',
+  description: 'Create a new flow to group related request executions for Observer Mode',
+  request: {
+    body: {
+      content: { 'application/json': { schema: CreateFlowRequestSchema } }
+    }
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: CreateFlowResponseSchema } },
+      description: 'Flow created'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Session not found (if sessionId provided)'
+    }
+  }
+});
+
+// Flow param schema
+const FlowIdParamSchema = z.object({
+  flowId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'flowId', in: 'path' }, example: 'flow_abc123' })
+});
+
+// Finish flow
+export const finishFlowRoute = createRoute({
+  method: 'post',
+  path: '/flows/{flowId}/finish',
+  tags: ['Flows'],
+  summary: 'Mark flow as complete',
+  description: 'Mark a flow as complete and get summary statistics',
+  request: {
+    params: FlowIdParamSchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: FinishFlowResponseSchema } },
+      description: 'Flow finished with summary'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Flow not found'
+    }
+  }
+});
+
+// Execution params schema
+const ExecutionParamsSchema = z.object({
+  flowId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'flowId', in: 'path' }, example: 'flow_abc123' }),
+  reqExecId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'reqExecId', in: 'path' }, example: 'exec_def456' })
+});
+
+// Get execution details
+export const getExecutionRoute = createRoute({
+  method: 'get',
+  path: '/flows/{flowId}/executions/{reqExecId}',
+  tags: ['Flows'],
+  summary: 'Get execution details',
+  description: 'Retrieve full request/response details for a specific execution',
+  request: {
+    params: ExecutionParamsSchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ExecutionDetailSchema } },
+      description: 'Execution details'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Flow or execution not found'
+    }
+  }
+});
+
+// ============================================================================
+// Workspace Endpoints
+// ============================================================================
+
+// Workspace files query schema
+const WorkspaceFilesQuerySchema = z.object({
+  ignore: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: 'ignore', in: 'query' },
+      description: 'Comma-separated additional glob patterns to ignore'
+    })
+});
+
+// List workspace files
+export const listWorkspaceFilesRoute = createRoute({
+  method: 'get',
+  path: '/workspace/files',
+  tags: ['Workspace'],
+  summary: 'List .http files',
+  description: 'List all .http files in the workspace',
+  request: {
+    query: WorkspaceFilesQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ListWorkspaceFilesResponseSchema } },
+      description: 'List of .http files'
+    }
+  }
+});
+
+// Workspace requests query schema
+const WorkspaceRequestsQuerySchema = z.object({
+  path: z.string().openapi({
+    param: { name: 'path', in: 'query' },
+    description: 'Path to .http file (relative to workspace)'
+  })
+});
+
+// List requests in file
+export const listWorkspaceRequestsRoute = createRoute({
+  method: 'get',
+  path: '/workspace/requests',
+  tags: ['Workspace'],
+  summary: 'List requests in file',
+  description: 'List all requests in a specific .http file',
+  request: {
+    query: WorkspaceRequestsQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ListWorkspaceRequestsResponseSchema } },
+      description: 'List of requests'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid path'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'File not found'
     }
   }
 });

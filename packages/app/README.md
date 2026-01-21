@@ -136,8 +136,16 @@ treq serve --stdio
 | `GET` | `/session/:id` | Get session state |
 | `PUT` | `/session/:id/variables` | Update session variables |
 | `DELETE` | `/session/:id` | Delete session |
-| `GET` | `/event` | SSE event stream |
+| `POST` | `/flows` | Create a flow (Observer Mode grouping) |
+| `POST` | `/flows/:flowId/finish` | Finish a flow (best-effort; server TTL will also clean up) |
+| `GET` | `/flows/:flowId/executions/:reqExecId` | Fetch stored execution detail (Observer Mode) |
+| `GET` | `/workspace/files` | List `.http` files in workspace |
+| `GET` | `/workspace/requests?path=...` | List requests within a `.http` file |
+| `GET` | `/event?sessionId=...` | SSE event stream filtered by session |
+| `GET` | `/event?flowId=...` | SSE event stream filtered by flow |
 | `GET` | `/doc` | OpenAPI documentation |
+
+> When `--token` auth is enabled, `/event` requires either `sessionId` or `flowId` to prevent cross-session leakage.
 
 #### Example: Python Client
 
@@ -159,7 +167,7 @@ resp, _ := http.Post("http://localhost:4096/execute", "application/json",
     strings.NewReader(`{"content": "GET https://api.example.com/users"}`))
 ```
 
-See `examples/clients/` for complete client examples in Python, Go, and TypeScript.
+See `examples/app/` for complete client examples in Python, Go, and TypeScript.
 
 ### Help
 

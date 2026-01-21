@@ -79,12 +79,12 @@ describe('session variable merge vs replace', () => {
     });
 
     await service.updateSessionVariables(sessionId, {
-      variables: { newKey: 'newValue' },
+      variables: { extra: 'extraValue' },
       mode: 'merge'
     });
 
     const state = service.getSession(sessionId);
-    expect(state.variables).toEqual({ existing: 'value', newKey: 'newValue' });
+    expect(state.variables).toEqual({ existing: 'value', extra: 'extraValue' });
   });
 
   test('replace mode should remove old keys', async () => {

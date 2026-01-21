@@ -7,6 +7,8 @@ export type EventEnvelope = {
   ts: number;
   runId: string;
   sessionId?: string;
+  flowId?: string;
+  reqExecId?: string;
   seq: number;
   payload: { type: string } & Record<string, unknown>;
 };
@@ -18,6 +20,7 @@ export type EventEnvelope = {
 export type EventSubscriber = {
   id: string;
   sessionId?: string;
+  flowId?: string;
   send: (event: EventEnvelope) => void;
   close: () => void;
 };
@@ -62,10 +65,11 @@ export function createEventManager() {
   function subscribe(
     sessionId: string | undefined,
     send: (event: EventEnvelope) => void,
-    close: () => void
+    close: () => void,
+    flowId?: string
   ): string {
     const id = generateId();
-    subscribers.set(id, { id, sessionId, send, close });
+    subscribers.set(id, { id, sessionId, flowId, send, close });
     return id;
   }
 
@@ -78,18 +82,34 @@ export function createEventManager() {
     runId: string,
     event: { type: string } & Record<string, unknown>
   ): void {
+    // Extract flowId and reqExecId from the event if present
+    const eventFlowId = event.flowId as string | undefined;
+    const eventReqExecId = event.reqExecId as string | undefined;
+    const eventSeq = typeof event.seq === 'number' ? event.seq : undefined;
+
     const envelope: EventEnvelope = {
       type: event.type,
       ts: Date.now(),
       runId,
       sessionId,
-      seq: getNextSeq(runId),
+      flowId: eventFlowId,
+      reqExecId: eventReqExecId,
+      // Prefer flow-scoped seq when provided by producer (service).
+      // Fallback to run-scoped sequencing for legacy non-flow events.
+      seq: eventSeq ?? getNextSeq(runId),
       payload: event
     };
 
-    // Send to all subscribers that match the session (or all if no session filter)
+    // Send to subscribers that match the filters
     for (const subscriber of subscribers.values()) {
-      if (subscriber.sessionId === undefined || subscriber.sessionId === sessionId) {
+      // Check session filter
+      const sessionMatches =
+        subscriber.sessionId === undefined || subscriber.sessionId === sessionId;
+
+      // Check flow filter
+      const flowMatches = subscriber.flowId === undefined || subscriber.flowId === eventFlowId;
+
+      if (sessionMatches && flowMatches) {
         try {
           subscriber.send(envelope);
         } catch {

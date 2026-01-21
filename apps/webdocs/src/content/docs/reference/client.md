@@ -1,6 +1,6 @@
 ---
 title: Client
-description: API reference for createClient and the Client interface
+description: API reference for createClient, createRemoteClient, and the Client interface
 ---
 
 The Client is the primary interface for executing HTTP requests in @t-req/core.
@@ -40,6 +40,45 @@ interface RequestDefaults {
   validateSSL?: boolean;
 }
 ```
+
+## createRemoteClient
+
+Creates a client that routes requests through `treq serve` (the `@t-req/app` server) instead of executing locally. This is primarily used for **Observer Mode** (TUI / event streaming / execution store) while keeping the same high-level API (`run`, `runString`, `setVariable(s)`).
+
+```typescript
+import { createRemoteClient } from '@t-req/core';
+
+const client = createRemoteClient({
+  serverUrl: 'http://localhost:4096',
+  // Optional bearer token if the server requires it:
+  // token: process.env.TREQ_TOKEN,
+  variables: { baseUrl: 'https://api.example.com' }
+});
+
+await client.run('./auth/login.http');
+client.setVariable('token', '...');
+await client.close(); // finishes the flow (best-effort; server TTL still applies)
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `serverUrl` | `string` | Base URL for the server (e.g. `http://localhost:4096`). |
+| `token` | `string` | Bearer token (if the server is started with `--token`). |
+| `variables` | `Record<string, unknown>` | Initial variables (synced to the server session). |
+| `flowLabel` | `string` | Optional flow label (shown in Observer Mode). |
+| `flowMeta` | `Record<string, unknown>` | Optional flow metadata. |
+| `profile` | `string` | Optional server config profile. |
+| `timeout` | `number` | Default timeout in milliseconds. |
+
+### Additional Methods
+
+Remote clients also expose:
+
+- `close(): Promise<void>`
+- `getSessionId(): string | undefined`
+- `getFlowId(): string | undefined`
 
 ## Client Methods
 

@@ -9,12 +9,17 @@ import { createEventManager, type EventEnvelope } from './events';
 import {
   capabilitiesRoute,
   configRoute,
+  createFlowRoute,
   createSessionRoute,
   deleteSessionRoute,
   eventRoute,
   executeRoute,
+  finishFlowRoute,
+  getExecutionRoute,
   getSessionRoute,
   healthRoute,
+  listWorkspaceFilesRoute,
+  listWorkspaceRequestsRoute,
   parseRoute,
   updateSessionVariablesRoute
 } from './openapi';
@@ -185,16 +190,55 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
+  // Flow Endpoints (Observer Mode)
+  // ============================================================================
+
+  app.openapi(createFlowRoute, (c) => {
+    const request = c.req.valid('json');
+    const result = service.createFlow(request);
+    return c.json(result, 201);
+  });
+
+  app.openapi(finishFlowRoute, (c) => {
+    const { flowId } = c.req.valid('param');
+    const result = service.finishFlow(flowId);
+    return c.json(result, 200);
+  });
+
+  app.openapi(getExecutionRoute, (c) => {
+    const { flowId, reqExecId } = c.req.valid('param');
+    const result = service.getExecution(flowId, reqExecId);
+    return c.json(result, 200);
+  });
+
+  // ============================================================================
+  // Workspace Endpoints
+  // ============================================================================
+
+  app.openapi(listWorkspaceFilesRoute, async (c) => {
+    const { ignore } = c.req.valid('query');
+    const additionalIgnore = ignore ? ignore.split(',').map((p) => p.trim()) : undefined;
+    const result = await service.listWorkspaceFiles(additionalIgnore);
+    return c.json(result, 200);
+  });
+
+  app.openapi(listWorkspaceRequestsRoute, async (c) => {
+    const { path } = c.req.valid('query');
+    const result = await service.listWorkspaceRequests(path);
+    return c.json(result, 200);
+  });
+
+  // ============================================================================
   // Event Streaming (SSE)
   // ============================================================================
 
   app.openapi(eventRoute, async (c) => {
-    const { sessionId } = c.req.valid('query');
+    const { sessionId, flowId } = c.req.valid('query');
 
-    // Require sessionId when auth is enabled (prevents cross-session leakage)
-    if (config.token && !sessionId) {
+    // Require sessionId or flowId when auth is enabled (prevents cross-session leakage)
+    if (config.token && !sessionId && !flowId) {
       throw new ValidationError(
-        'sessionId query parameter is required when authentication is enabled'
+        'sessionId or flowId query parameter is required when authentication is enabled'
       );
     }
 
@@ -213,11 +257,11 @@ export function createApp(config: ServerConfig) {
         stream.close();
       };
 
-      subscriberId = eventManager.subscribe(sessionId, send, close);
+      subscriberId = eventManager.subscribe(sessionId, send, close, flowId);
 
       // Send initial connection event
       stream.writeSSE({
-        data: JSON.stringify({ connected: true, sessionId }),
+        data: JSON.stringify({ connected: true, sessionId, flowId }),
         event: 'connected'
       });
 
@@ -287,6 +331,8 @@ export function createApp(config: ServerConfig) {
       { name: 'System', description: 'System endpoints for health checks and capabilities' },
       { name: 'Requests', description: 'Parse and execute HTTP requests from .http files' },
       { name: 'Sessions', description: 'Manage stateful sessions with variables and cookies' },
+      { name: 'Flows', description: 'Observer Mode - track and correlate request executions' },
+      { name: 'Workspace', description: 'Workspace discovery - list .http files and requests' },
       { name: 'Events', description: 'Real-time event streaming via Server-Sent Events' }
     ],
     externalDocs: {

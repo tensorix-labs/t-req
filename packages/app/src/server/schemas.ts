@@ -112,6 +112,10 @@ export const ExecuteRequestSchema = z
     profile: z.string().max(100).optional(),
     variables: z.record(z.string(), z.unknown()).optional(),
 
+    // Flow tracking (for Observer Mode)
+    flowId: z.string().max(100).optional(),
+    reqLabel: z.string().max(256).optional(),
+
     // Options
     timeoutMs: z.number().int().min(100).max(300000).optional(),
     basePath: z.string().max(MAX_PATH_LENGTH).optional(),
@@ -132,6 +136,10 @@ export const ResponseHeaderSchema = z.object({
 
 export const ExecuteResponseSchema = z.object({
   runId: z.string(),
+
+  // Flow tracking (for Observer Mode)
+  reqExecId: z.string().optional(),
+  flowId: z.string().optional(),
 
   session: z
     .object({
@@ -217,7 +225,13 @@ export const EventTypeSchema = z.enum([
   'fetchStarted',
   'fetchFinished',
   'error',
-  'sessionUpdated'
+  'sessionUpdated',
+  // Flow-level events
+  'flowStarted',
+  'flowFinished',
+  // Execution-level events
+  'requestQueued',
+  'executionFailed'
 ]);
 
 export const BaseEventSchema = z.object({
@@ -304,6 +318,151 @@ export const ErrorResponseSchema = z.object({
 });
 
 // ============================================================================
+// Flow & Execution Schemas
+// ============================================================================
+
+const MAX_LABEL_LENGTH = 256;
+const MAX_META_SIZE = 10;
+
+export const CreateFlowRequestSchema = z.object({
+  sessionId: z.string().max(100).optional(),
+  label: z.string().max(MAX_LABEL_LENGTH).optional(),
+  meta: z
+    .record(z.string(), z.unknown())
+    .refine((obj) => Object.keys(obj).length <= MAX_META_SIZE, {
+      message: `meta object cannot have more than ${MAX_META_SIZE} keys`
+    })
+    .optional()
+});
+
+export const CreateFlowResponseSchema = z.object({
+  flowId: z.string()
+});
+
+export const FlowSummarySchema = z.object({
+  total: z.number(),
+  succeeded: z.number(),
+  failed: z.number(),
+  durationMs: z.number()
+});
+
+export const FinishFlowResponseSchema = z.object({
+  flowId: z.string(),
+  summary: FlowSummarySchema
+});
+
+export const ExecutionSourceSchema = z.object({
+  kind: z.enum(['file', 'string']),
+  path: z.string().optional(),
+  requestIndex: z.number().optional(),
+  requestName: z.string().optional()
+});
+
+export const ExecutionTimingSchema = z.object({
+  startTime: z.number(),
+  endTime: z.number().optional(),
+  durationMs: z.number().optional()
+});
+
+export const ExecutionStatusSchema = z.enum(['pending', 'running', 'success', 'failed']);
+
+export const ExecutionErrorSchema = z.object({
+  stage: z.string(),
+  message: z.string()
+});
+
+export const ExecutionDetailSchema = z.object({
+  reqExecId: z.string(),
+  flowId: z.string(),
+  sessionId: z.string().optional(),
+
+  // Request identity
+  reqLabel: z.string().optional(),
+  source: ExecutionSourceSchema.optional(),
+  rawHttpBlock: z.string().optional(),
+
+  // Resolved request
+  method: z.string().optional(),
+  urlTemplate: z.string().optional(),
+  urlResolved: z.string().optional(),
+  headers: z.array(ResponseHeaderSchema).optional(),
+  bodyPreview: z.string().optional(),
+
+  // Timing
+  timing: ExecutionTimingSchema,
+
+  // Response (same shape as /execute response)
+  response: z
+    .object({
+      status: z.number(),
+      statusText: z.string(),
+      headers: z.array(ResponseHeaderSchema),
+      body: z.string().optional(),
+      encoding: z.enum(['utf-8', 'base64']),
+      truncated: z.boolean(),
+      bodyBytes: z.number()
+    })
+    .optional(),
+
+  // Status
+  status: ExecutionStatusSchema,
+  error: ExecutionErrorSchema.optional()
+});
+
+// Flow-level event payloads
+export const FlowStartedPayloadSchema = z.object({
+  flowId: z.string(),
+  sessionId: z.string().optional(),
+  label: z.string().optional(),
+  ts: z.number()
+});
+
+export const FlowFinishedPayloadSchema = z.object({
+  flowId: z.string(),
+  summary: FlowSummarySchema
+});
+
+// Request queued event payload
+export const RequestQueuedPayloadSchema = z.object({
+  reqLabel: z.string().optional(),
+  source: ExecutionSourceSchema.optional()
+});
+
+// Execution failed event payload
+export const ExecutionFailedPayloadSchema = z.object({
+  stage: z.string(),
+  message: z.string()
+});
+
+// ============================================================================
+// Workspace Schemas
+// ============================================================================
+
+export const WorkspaceFileSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  requestCount: z.number(),
+  lastModified: z.number()
+});
+
+export const ListWorkspaceFilesResponseSchema = z.object({
+  files: z.array(WorkspaceFileSchema),
+  workspaceRoot: z.string()
+});
+
+export const WorkspaceRequestSchema = z.object({
+  index: z.number(),
+  name: z.string().optional(),
+  method: z.string(),
+  url: z.string()
+});
+
+export const ListWorkspaceRequestsResponseSchema = z.object({
+  path: z.string(),
+  requests: z.array(WorkspaceRequestSchema)
+});
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -326,3 +485,20 @@ export type UpdateVariablesResponse = z.infer<typeof UpdateVariablesResponseSche
 export type EventType = z.infer<typeof EventTypeSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type ConfigSummaryResponse = z.infer<typeof ConfigSummaryResponseSchema>;
+
+// Flow & Execution types
+export type CreateFlowRequest = z.infer<typeof CreateFlowRequestSchema>;
+export type CreateFlowResponse = z.infer<typeof CreateFlowResponseSchema>;
+export type FlowSummary = z.infer<typeof FlowSummarySchema>;
+export type FinishFlowResponse = z.infer<typeof FinishFlowResponseSchema>;
+export type ExecutionSource = z.infer<typeof ExecutionSourceSchema>;
+export type ExecutionTiming = z.infer<typeof ExecutionTimingSchema>;
+export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>;
+export type ExecutionError = z.infer<typeof ExecutionErrorSchema>;
+export type ExecutionDetail = z.infer<typeof ExecutionDetailSchema>;
+
+// Workspace types
+export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
+export type ListWorkspaceFilesResponse = z.infer<typeof ListWorkspaceFilesResponseSchema>;
+export type WorkspaceRequest = z.infer<typeof WorkspaceRequestSchema>;
+export type ListWorkspaceRequestsResponse = z.infer<typeof ListWorkspaceRequestsResponseSchema>;

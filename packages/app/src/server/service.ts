@@ -19,6 +19,10 @@ import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from './dia
 import {
   ContentOrPathRequiredError,
   ExecuteError,
+  ExecutionNotFoundError,
+  FileNotFoundError,
+  FlowLimitReachedError,
+  FlowNotFoundError,
   NoRequestsFoundError,
   ParseError,
   PathOutsideWorkspaceError,
@@ -29,19 +33,31 @@ import {
 import type {
   CapabilitiesResponse,
   ConfigSummaryResponse,
+  CreateFlowRequest,
+  CreateFlowResponse,
   CreateSessionRequest,
   CreateSessionResponse,
   Diagnostic,
   ExecuteRequest,
   ExecuteResponse,
+  ExecutionDetail,
+  ExecutionSource,
+  ExecutionStatus,
+  FinishFlowResponse,
+  FlowSummary,
   HealthResponse,
+  ListWorkspaceFilesResponse,
+  ListWorkspaceRequestsResponse,
   ParsedRequestInfo,
   ParseRequest,
   ParseResponse,
   ResolvedPaths,
+  ResponseHeader,
   SessionState,
   UpdateVariablesRequest,
-  UpdateVariablesResponse
+  UpdateVariablesResponse,
+  WorkspaceFile,
+  WorkspaceRequest
 } from './schemas';
 import { PROTOCOL_VERSION } from './schemas';
 
@@ -81,12 +97,87 @@ export type Session = {
   cookieJarPath?: string;
 };
 
+// Flow represents a logical grouping of request executions
+export type Flow = {
+  id: string;
+  sessionId?: string;
+  label?: string;
+  meta?: Record<string, unknown>;
+  createdAt: number;
+  lastActivityAt: number;
+  finished: boolean;
+  executions: Map<string, StoredExecution>;
+  // Sequence counter for events within this flow
+  seq: number;
+};
+
+// Stored execution data for the execution store
+export type StoredExecution = {
+  reqExecId: string;
+  flowId: string;
+  sessionId?: string;
+  reqLabel?: string;
+  source?: ExecutionSource;
+  rawHttpBlock?: string;
+  method?: string;
+  urlTemplate?: string;
+  urlResolved?: string;
+  headers?: ResponseHeader[];
+  bodyPreview?: string;
+  timing: {
+    startTime: number;
+    endTime?: number;
+    durationMs?: number;
+  };
+  response?: {
+    status: number;
+    statusText: string;
+    headers: ResponseHeader[];
+    body?: string;
+    encoding: 'utf-8' | 'base64';
+    truncated: boolean;
+    bodyBytes: number;
+  };
+  status: ExecutionStatus;
+  error?: { stage: string; message: string };
+};
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
+
+// Flow retention settings
+const MAX_FLOWS = 100;
+const MAX_EXECUTIONS_PER_FLOW = 500;
+const FLOW_TTL_MS = 5 * 60 * 1000; // 5 minutes inactivity
+
+// Default ignore patterns for workspace file discovery
+const DEFAULT_WORKSPACE_IGNORE_PATTERNS = [
+  '.git',
+  'node_modules',
+  '.treq',
+  'dist',
+  'build',
+  'target',
+  'vendor',
+  '__pycache__',
+  '.next',
+  '.nuxt',
+  'coverage'
+];
+
+// Sensitive header patterns for redaction
+const SENSITIVE_HEADER_PATTERNS = [
+  /^authorization$/i,
+  /^cookie$/i,
+  /^x-api-key$/i,
+  /^x-auth-token$/i,
+  /^proxy-authorization$/i,
+  /^www-authenticate$/i
+];
 
 // ============================================================================
 // Utility Functions
@@ -163,17 +254,47 @@ function isSensitiveKey(key: string): boolean {
 }
 
 function sanitizeVariables(variables: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(variables)) {
-    if (isSensitiveKey(key)) {
-      result[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      result[key] = sanitizeVariables(value as Record<string, unknown>);
-    } else {
-      result[key] = value;
+  const seen = new WeakSet<object>();
+
+  const sanitizeValue = (value: unknown): unknown => {
+    if (value === null) return null;
+    if (typeof value !== 'object') return value;
+
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value.map((v) => sanitizeValue(v));
     }
-  }
-  return result;
+
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = isSensitiveKey(k) ? '[REDACTED]' : sanitizeValue(v);
+    }
+    return out;
+  };
+
+  return sanitizeValue(variables) as Record<string, unknown>;
+}
+
+function isSensitiveHeader(name: string): boolean {
+  return SENSITIVE_HEADER_PATTERNS.some((pattern) => pattern.test(name));
+}
+
+function sanitizeHeaders(headers: ResponseHeader[]): ResponseHeader[] {
+  return headers.map((h) => ({
+    name: h.name,
+    value: isSensitiveHeader(h.name) ? '[REDACTED]' : h.value
+  }));
+}
+
+function generateFlowId(): string {
+  return `flow_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+function generateReqExecId(): string {
+  return `exec_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 function contentTypeIndicatesFormData(headers: unknown): boolean {
@@ -232,6 +353,7 @@ function restoreCookieJarFromData(
 
 export function createService(config: ServiceConfig) {
   const sessions = new Map<string, Session>();
+  const flows = new Map<string, Flow>();
   const sessionTtlMs = config.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const nowMs = config.now ?? Date.now;
   const bumpTime = (prev: number): number => {
@@ -239,12 +361,19 @@ export function createService(config: ServiceConfig) {
     return n > prev ? n : prev + 1;
   };
 
-  // Session cleanup interval
+  // Session and flow cleanup interval
   const cleanupInterval = setInterval(() => {
     const now = nowMs();
+    // Clean up stale sessions
     for (const [id, session] of sessions) {
       if (now - session.lastUsedAt > sessionTtlMs) {
         sessions.delete(id);
+      }
+    }
+    // Clean up inactive flows (flows without activity for FLOW_TTL_MS)
+    for (const [id, flow] of flows) {
+      if (now - flow.lastActivityAt > FLOW_TTL_MS) {
+        flows.delete(id);
       }
     }
   }, CLEANUP_INTERVAL_MS);
@@ -260,6 +389,47 @@ export function createService(config: ServiceConfig) {
     if (oldest) {
       sessions.delete(oldest.id);
     }
+  }
+
+  // Evict oldest flow when limit reached
+  function evictOldestFlow(): boolean {
+    let oldest: Flow | null = null;
+    for (const flow of flows.values()) {
+      if (!flow.finished) continue;
+      if (!oldest || flow.lastActivityAt < oldest.lastActivityAt) {
+        oldest = flow;
+      }
+    }
+    if (oldest) {
+      flows.delete(oldest.id);
+      return true;
+    }
+    return false;
+  }
+
+  // Get next sequence number for a flow
+  function getFlowSeq(flowId: string): number {
+    const flow = flows.get(flowId);
+    if (!flow) return 0;
+    flow.seq++;
+    return flow.seq;
+  }
+
+  // Emit a flow-scoped event
+  function emitFlowEvent(
+    flow: Flow,
+    runId: string,
+    reqExecId: string | undefined,
+    event: { type: string } & Record<string, unknown>
+  ): void {
+    const seq = getFlowSeq(flow.id);
+    config.onEvent?.(flow.sessionId, runId, {
+      ...event,
+      flowId: flow.id,
+      reqExecId,
+      seq,
+      ts: nowMs()
+    });
   }
 
   function getResolvedPaths(
@@ -425,6 +595,49 @@ export function createService(config: ServiceConfig) {
     const runId = generateId();
     const startTime = Date.now();
 
+    // Flow tracking - generate reqExecId if flowId is provided
+    const flowId = request.flowId;
+    const flow = flowId ? flows.get(flowId) : undefined;
+    const reqExecId = flow ? generateReqExecId() : undefined;
+
+    // Validate flow exists if flowId provided
+    if (flowId && !flow) {
+      throw new FlowNotFoundError(flowId);
+    }
+
+    // Execution tracker - mutable state updated by engine events
+    const execTracker = {
+      urlResolved: undefined as string | undefined,
+      status: 'pending' as ExecutionStatus,
+      error: undefined as { stage: string; message: string } | undefined,
+      failureEmitted: false
+    };
+
+    const failExecution = (stage: string, message: string) => {
+      execTracker.status = 'failed';
+      execTracker.error = { stage, message };
+
+      if (flow && reqExecId) {
+        const exec = flow.executions.get(reqExecId);
+        if (exec) {
+          exec.status = 'failed';
+          exec.error = execTracker.error;
+          const endTime = Date.now();
+          exec.timing.endTime = endTime;
+          exec.timing.durationMs = endTime - startTime;
+        }
+
+        if (!execTracker.failureEmitted) {
+          execTracker.failureEmitted = true;
+          emitFlowEvent(flow, runId, reqExecId, {
+            type: 'executionFailed',
+            stage,
+            message
+          });
+        }
+      }
+    };
+
     let content: string;
     let httpFilePath: string | undefined;
     let basePath: string;
@@ -518,18 +731,102 @@ export function createService(config: ServiceConfig) {
       throw new NoRequestsFoundError();
     }
 
+    // Build execution source info
+    const executionSource: ExecutionSource | undefined = request.path
+      ? {
+          kind: 'file' as const,
+          path: request.path,
+          requestIndex: selectedIndex,
+          requestName: request.requestName
+        }
+      : {
+          kind: 'string' as const,
+          requestIndex: selectedIndex,
+          requestName: request.requestName
+        };
+
+    // Emit requestQueued and create pending execution record if flow tracking enabled
+    if (flow && reqExecId) {
+      // Create pending execution record
+      const pendingExecution: StoredExecution = {
+        reqExecId,
+        flowId: flow.id,
+        sessionId: request.sessionId,
+        reqLabel: request.reqLabel ?? request.path,
+        source: executionSource,
+        rawHttpBlock: selectedRequest.raw,
+        method: selectedRequest.method,
+        urlTemplate: selectedRequest.url,
+        urlResolved: undefined, // Will be set by fetchStarted event
+        headers: Object.entries(selectedRequest.headers).map(([name, value]) => ({ name, value })),
+        bodyPreview: selectedRequest.body?.slice(0, 1000),
+        timing: {
+          startTime,
+          endTime: undefined,
+          durationMs: undefined
+        },
+        response: undefined,
+        status: 'pending',
+        error: undefined
+      };
+
+      storeExecution(flow.id, pendingExecution);
+
+      // Emit requestQueued event
+      emitFlowEvent(flow, runId, reqExecId, {
+        type: 'requestQueued',
+        reqLabel: request.reqLabel ?? request.path,
+        source: executionSource
+      });
+    }
+
+    // Create flow-aware event handler that captures urlResolved and updates execution status
+    const createFlowEventHandler = (sessionId: string | undefined) => {
+      return (event: { type: string } & Record<string, unknown>) => {
+        // Capture resolved URL from fetchStarted
+        if (event.type === 'fetchStarted' && typeof event.url === 'string') {
+          execTracker.urlResolved = event.url;
+          execTracker.status = 'running';
+
+          // Update stored execution with resolved URL and running status
+          if (flow && reqExecId) {
+            const exec = flow.executions.get(reqExecId);
+            if (exec) {
+              exec.urlResolved = event.url;
+              exec.status = 'running';
+            }
+          }
+        }
+
+        // Capture errors
+        if (event.type === 'error') {
+          const stage = String(event.stage ?? 'unknown');
+          const message = String(event.message ?? 'Unknown error');
+          failExecution(stage, message);
+        }
+
+        // Emit to subscribers with flow context
+        if (flow && reqExecId) {
+          emitFlowEvent(flow, runId, reqExecId, event);
+        } else {
+          // Legacy non-flow event emission
+          config.onEvent?.(sessionId, runId, event);
+        }
+      };
+    };
+
     const runStateless = async (): Promise<{
       response: Response;
       session?: Session;
       cookiesChanged: boolean;
     }> => {
+      const eventHandler = createFlowEventHandler(undefined);
+
       if (!projectConfig.cookies.enabled) {
         // No cookies at all
         const { engineOptions, requestDefaults } = buildEngineOptions({
           config: projectConfig,
-          onEvent: (event) => {
-            config.onEvent?.(undefined, runId, event);
-          }
+          onEvent: eventHandler
         });
 
         const engine = createEngine(engineOptions);
@@ -565,9 +862,7 @@ export function createService(config: ServiceConfig) {
           const { engineOptions, requestDefaults } = buildEngineOptions({
             config: projectConfig,
             cookieStore,
-            onEvent: (event) => {
-              config.onEvent?.(undefined, runId, event);
-            }
+            onEvent: eventHandler
           });
 
           const engine = createEngine(engineOptions);
@@ -598,9 +893,7 @@ export function createService(config: ServiceConfig) {
       const { engineOptions, requestDefaults } = buildEngineOptions({
         config: projectConfig,
         cookieStore,
-        onEvent: (event) => {
-          config.onEvent?.(undefined, runId, event);
-        }
+        onEvent: eventHandler
       });
 
       const engine = createEngine(engineOptions);
@@ -667,13 +960,12 @@ export function createService(config: ServiceConfig) {
         }
       };
 
-      // Build engine options using centralized helper
+      // Build engine options using centralized helper with flow-aware event handler
+      const sessionEventHandler = createFlowEventHandler(session.id);
       const { engineOptions, requestDefaults } = buildEngineOptions({
         config: projectConfig,
         cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined,
-        onEvent: (event) => {
-          config.onEvent?.(session.id, runId, event);
-        }
+        onEvent: sessionEventHandler
       });
 
       const engine = createEngine(engineOptions);
@@ -697,14 +989,30 @@ export function createService(config: ServiceConfig) {
     };
 
     const sessionId = request.sessionId;
-    const { response, session, cookiesChanged } =
-      sessionId !== undefined
-        ? await (async () => {
-            const s = sessions.get(sessionId);
-            if (!s) throw new SessionNotFoundError(sessionId);
-            return await withSessionLock(s, async () => await runInSession(s));
-          })()
-        : await runStateless();
+    let response: Response;
+    let session: Session | undefined;
+    let cookiesChanged: boolean;
+
+    try {
+      const result =
+        sessionId !== undefined
+          ? await (async () => {
+              const s = sessions.get(sessionId);
+              if (!s) throw new SessionNotFoundError(sessionId);
+              return await withSessionLock(s, async () => await runInSession(s));
+            })()
+          : await runStateless();
+
+      response = result.response;
+      session = result.session;
+      cookiesChanged = result.cookiesChanged;
+    } catch (err) {
+      // Ensure the execution record is finalized as failed for Observer Mode.
+      // This covers error paths where the engine did not emit an `error` event.
+      const message = err instanceof Error ? err.message : String(err);
+      failExecution('execute', message);
+      throw err;
+    }
 
     const endTime = Date.now();
 
@@ -818,8 +1126,52 @@ export function createService(config: ServiceConfig) {
 
     const resolved = getResolvedPaths(httpFilePath, resolvedConfig);
 
+    const responseData = {
+      status: fetchResponse.status,
+      statusText: fetchResponse.statusText,
+      headers: responseHeaders,
+      bodyMode,
+      body,
+      encoding,
+      truncated,
+      bodyBytes
+    };
+
+    // Update stored execution with final response data if flow tracking is enabled
+    if (flow && reqExecId) {
+      const exec = flow.executions.get(reqExecId);
+      if (exec) {
+        // Update with captured urlResolved from fetchStarted event
+        exec.urlResolved = execTracker.urlResolved ?? selectedRequest.url;
+
+        // Update timing
+        exec.timing.endTime = endTime;
+        exec.timing.durationMs = endTime - startTime;
+
+        // Store response
+        exec.response = {
+          status: fetchResponse.status,
+          statusText: fetchResponse.statusText,
+          headers: responseHeaders,
+          body,
+          encoding,
+          truncated,
+          bodyBytes
+        };
+
+        // Set final status: use tracker status if failed, otherwise success
+        exec.status = execTracker.status === 'failed' ? 'failed' : 'success';
+        exec.error = execTracker.error;
+
+        // Update flow activity
+        flow.lastActivityAt = nowMs();
+      }
+    }
+
     return {
       runId,
+      ...(reqExecId ? { reqExecId } : {}),
+      ...(flowId ? { flowId } : {}),
       ...(session
         ? {
             session: {
@@ -835,16 +1187,7 @@ export function createService(config: ServiceConfig) {
         url: selectedRequest.url
       },
       resolved,
-      response: {
-        status: fetchResponse.status,
-        statusText: fetchResponse.statusText,
-        headers: responseHeaders,
-        bodyMode,
-        body,
-        encoding,
-        truncated,
-        bodyBytes
-      },
+      response: responseData,
       limits: {
         maxBodyBytes: config.maxBodyBytes
       },
@@ -892,7 +1235,7 @@ export function createService(config: ServiceConfig) {
 
     return {
       sessionId: session.id,
-      variables: session.variables,
+      variables: sanitizeVariables(session.variables),
       cookieCount: cookies.length,
       createdAt: session.createdAt,
       lastUsedAt: session.lastUsedAt,
@@ -941,10 +1284,257 @@ export function createService(config: ServiceConfig) {
     sessions.delete(sessionId);
   }
 
-  // Cleanup re
+  // ============================================================================
+  // Flow Management
+  // ============================================================================
+
+  function createFlow(request: CreateFlowRequest): CreateFlowResponse {
+    // Validate sessionId if provided
+    if (request.sessionId && !sessions.has(request.sessionId)) {
+      throw new SessionNotFoundError(request.sessionId);
+    }
+
+    // Evict oldest flow when limit reached
+    if (flows.size >= MAX_FLOWS) {
+      const evicted = evictOldestFlow();
+      if (!evicted) {
+        throw new FlowLimitReachedError(MAX_FLOWS);
+      }
+    }
+
+    const flowId = generateFlowId();
+    const now = nowMs();
+
+    const flow: Flow = {
+      id: flowId,
+      sessionId: request.sessionId,
+      label: request.label,
+      meta: request.meta,
+      createdAt: now,
+      lastActivityAt: now,
+      finished: false,
+      executions: new Map(),
+      seq: 0
+    };
+
+    flows.set(flowId, flow);
+
+    // Emit flowStarted event
+    const runId = `flow-${flowId}`;
+    emitFlowEvent(flow, runId, undefined, {
+      type: 'flowStarted',
+      flowId,
+      sessionId: request.sessionId,
+      label: request.label,
+      ts: now
+    });
+
+    return { flowId };
+  }
+
+  function finishFlow(flowId: string): FinishFlowResponse {
+    const flow = flows.get(flowId);
+    if (!flow) {
+      throw new FlowNotFoundError(flowId);
+    }
+
+    flow.finished = true;
+    flow.lastActivityAt = nowMs();
+
+    // Calculate summary
+    let total = 0;
+    let succeeded = 0;
+    let failed = 0;
+    let earliestStart: number | undefined;
+    let latestEnd: number | undefined;
+
+    for (const exec of flow.executions.values()) {
+      total++;
+      if (exec.status === 'success') succeeded++;
+      if (exec.status === 'failed') failed++;
+
+      if (earliestStart === undefined || exec.timing.startTime < earliestStart) {
+        earliestStart = exec.timing.startTime;
+      }
+      if (exec.timing.endTime !== undefined) {
+        if (latestEnd === undefined || exec.timing.endTime > latestEnd) {
+          latestEnd = exec.timing.endTime;
+        }
+      }
+    }
+
+    const durationMs =
+      earliestStart !== undefined && latestEnd !== undefined ? latestEnd - earliestStart : 0;
+
+    const summary: FlowSummary = { total, succeeded, failed, durationMs };
+
+    // Emit flowFinished event
+    const runId = `flow-${flowId}`;
+    emitFlowEvent(flow, runId, undefined, {
+      type: 'flowFinished',
+      flowId,
+      summary
+    });
+
+    return { flowId, summary };
+  }
+
+  function getExecution(flowId: string, reqExecId: string): ExecutionDetail {
+    const flow = flows.get(flowId);
+    if (!flow) {
+      throw new FlowNotFoundError(flowId);
+    }
+
+    const exec = flow.executions.get(reqExecId);
+    if (!exec) {
+      throw new ExecutionNotFoundError(flowId, reqExecId);
+    }
+
+    // Return sanitized execution detail
+    return {
+      reqExecId: exec.reqExecId,
+      flowId: exec.flowId,
+      sessionId: exec.sessionId,
+      reqLabel: exec.reqLabel,
+      source: exec.source,
+      rawHttpBlock: exec.rawHttpBlock,
+      method: exec.method,
+      urlTemplate: exec.urlTemplate,
+      urlResolved: exec.urlResolved,
+      headers: exec.headers ? sanitizeHeaders(exec.headers) : undefined,
+      bodyPreview: exec.bodyPreview,
+      timing: exec.timing,
+      response: exec.response
+        ? {
+            ...exec.response,
+            headers: sanitizeHeaders(exec.response.headers)
+          }
+        : undefined,
+      status: exec.status,
+      error: exec.error
+    };
+  }
+
+  // Store an execution in a flow
+  function storeExecution(flowId: string, execution: StoredExecution): void {
+    const flow = flows.get(flowId);
+    if (!flow) return;
+
+    // Evict oldest executions if over limit
+    if (flow.executions.size >= MAX_EXECUTIONS_PER_FLOW) {
+      // Find oldest execution by startTime
+      let oldest: StoredExecution | null = null;
+      for (const exec of flow.executions.values()) {
+        if (!oldest || exec.timing.startTime < oldest.timing.startTime) {
+          oldest = exec;
+        }
+      }
+      if (oldest) {
+        flow.executions.delete(oldest.reqExecId);
+      }
+    }
+
+    flow.executions.set(execution.reqExecId, execution);
+    flow.lastActivityAt = nowMs();
+  }
+
+  // ============================================================================
+  // Workspace Discovery
+  // ============================================================================
+
+  async function listWorkspaceFiles(
+    additionalIgnore?: string[]
+  ): Promise<ListWorkspaceFilesResponse> {
+    const glob = new Bun.Glob('**/*.http');
+    const ignorePatterns = [...DEFAULT_WORKSPACE_IGNORE_PATTERNS, ...(additionalIgnore ?? [])];
+
+    const files: WorkspaceFile[] = [];
+
+    for await (const path of glob.scan({
+      cwd: config.workspaceRoot,
+      onlyFiles: true
+    })) {
+      // Check if path matches any ignore pattern
+      const shouldIgnore = ignorePatterns.some((pattern) => {
+        // Simple check: path starts with pattern or contains /pattern/
+        return path.startsWith(`${pattern}/`) || path.includes(`/${pattern}/`) || path === pattern;
+      });
+
+      if (shouldIgnore) continue;
+
+      const fullPath = resolve(config.workspaceRoot, path);
+      try {
+        const file = Bun.file(fullPath);
+        const stat = await file.stat();
+        if (!stat) continue;
+
+        // Parse to get request count
+        const content = await file.text();
+        let requestCount = 0;
+        try {
+          const requests = parse(content);
+          requestCount = requests.length;
+        } catch {
+          // File may be malformed, still list it with 0 requests
+        }
+
+        files.push({
+          path,
+          name: path.split('/').pop() ?? path,
+          requestCount,
+          lastModified: stat.mtime?.getTime() ?? Date.now()
+        });
+      } catch {
+        // Skip files we can't read
+      }
+    }
+
+    // Sort by lastModified descending
+    files.sort((a, b) => b.lastModified - a.lastModified);
+
+    return {
+      files,
+      workspaceRoot: config.workspaceRoot
+    };
+  }
+
+  async function listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse> {
+    if (!isPathSafe(config.workspaceRoot, path)) {
+      throw new PathOutsideWorkspaceError(path);
+    }
+
+    const fullPath = resolve(config.workspaceRoot, path);
+    const file = Bun.file(fullPath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      throw new FileNotFoundError(path);
+    }
+
+    const content = await file.text();
+    let parsedRequests: ReturnType<typeof parse>;
+
+    try {
+      parsedRequests = parse(content);
+    } catch (err) {
+      throw new ParseError(err instanceof Error ? err.message : String(err));
+    }
+
+    const requests: WorkspaceRequest[] = parsedRequests.map((req, index) => ({
+      index,
+      name: req.name,
+      method: req.method,
+      url: req.url
+    }));
+
+    return { path, requests };
+  }
+
+  // Cleanup
   function dispose(): void {
     clearInterval(cleanupInterval);
     sessions.clear();
+    flows.clear();
   }
 
   return {
@@ -957,9 +1547,17 @@ export function createService(config: ServiceConfig) {
     getSession,
     updateSessionVariables,
     deleteSession,
+    // Flow management
+    createFlow,
+    finishFlow,
+    getExecution,
+    // Workspace discovery
+    listWorkspaceFiles,
+    listWorkspaceRequests,
     dispose,
     // For testing
-    getSessions: () => sessions
+    getSessions: () => sessions,
+    getFlows: () => flows
   };
 }
 
