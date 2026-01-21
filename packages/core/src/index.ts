@@ -23,6 +23,7 @@ export {
 // Interpolation
 export { createInterpolator, interpolate } from './interpolate';
 export { parse, parseFile, parseFileWithIO } from './parser';
+export { createRemoteClient, type RemoteClient, type RemoteClientConfig } from './remote-client';
 // Runtime adapters
 export { createAutoTransport, createFetchTransport } from './runtime';
 

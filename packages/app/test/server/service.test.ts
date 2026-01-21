@@ -34,7 +34,8 @@ describe('service.parse', () => {
 
   test('should parse content from string', async () => {
     const result = await service.parse({
-      content: 'GET https://api.example.com/users\n'
+      content: 'GET https://api.example.com/users\n',
+      includeDiagnostics: false
     });
 
     expect(result.requests).toHaveLength(1);
@@ -49,7 +50,7 @@ describe('service.parse', () => {
       'POST https://api.example.com/users\nContent-Type: application/json\n\n{"name": "test"}'
     );
 
-    const result = await service.parse({ path: 'api/users.http' });
+    const result = await service.parse({ path: 'api/users.http', includeDiagnostics: false });
 
     expect(result.requests).toHaveLength(1);
     expect(result.requests[0]?.request?.method).toBe('POST');
@@ -58,19 +59,21 @@ describe('service.parse', () => {
   });
 
   test('should reject when neither content nor path provided', async () => {
-    await expect(service.parse({})).rejects.toBeInstanceOf(ContentOrPathRequiredError);
+    await expect(service.parse({ includeDiagnostics: false })).rejects.toBeInstanceOf(
+      ContentOrPathRequiredError
+    );
   });
 
   test('should reject paths with .. traversal segments', async () => {
-    await expect(service.parse({ path: '../etc/passwd' })).rejects.toBeInstanceOf(
-      PathOutsideWorkspaceError
-    );
+    await expect(
+      service.parse({ path: '../etc/passwd', includeDiagnostics: false })
+    ).rejects.toBeInstanceOf(PathOutsideWorkspaceError);
   });
 
   test('should reject absolute paths', async () => {
-    await expect(service.parse({ path: '/etc/passwd' })).rejects.toBeInstanceOf(
-      PathOutsideWorkspaceError
-    );
+    await expect(
+      service.parse({ path: '/etc/passwd', includeDiagnostics: false })
+    ).rejects.toBeInstanceOf(PathOutsideWorkspaceError);
   });
 
   test('should parse multiple requests', async () => {
@@ -86,7 +89,7 @@ Content-Type: application/json
 
 {"data": "test"}
 `;
-    const result = await service.parse({ content });
+    const result = await service.parse({ content, includeDiagnostics: false });
 
     expect(result.requests).toHaveLength(2);
     expect(result.requests[0]?.request?.name).toBe('first');
@@ -105,14 +108,15 @@ Content-Type: text/plain
 test content
 --boundary--
 `;
-    const result = await service.parse({ content });
+    const result = await service.parse({ content, includeDiagnostics: false });
 
     expect(result.requests[0]?.request?.hasFormData).toBe(true);
   });
 
   test('should include resolved paths in response', async () => {
     const result = await service.parse({
-      content: 'GET https://example.com\n'
+      content: 'GET https://example.com\n',
+      includeDiagnostics: false
     });
 
     expect(result.resolved.workspaceRoot).toBe(tmp.path);
@@ -342,7 +346,8 @@ describe('service session CRUD', () => {
     });
 
     const state = service.getSession(sessionId);
-    expect(state.variables).toEqual({ token: 'abc123', userId: 1 });
+    // Note: 'token' is redacted for security, non-sensitive keys returned as-is
+    expect(state.variables).toEqual({ token: '[REDACTED]', userId: 1 });
   });
 
   test('should get session state', () => {

@@ -94,6 +94,27 @@ export class ContentOrPathRequiredError extends TreqError {
   }
 }
 
+export class FlowNotFoundError extends TreqError {
+  constructor(id: string) {
+    super('FLOW_NOT_FOUND', `Flow '${id}' not found`);
+    this.name = 'FlowNotFoundError';
+  }
+}
+
+export class ExecutionNotFoundError extends TreqError {
+  constructor(flowId: string, reqExecId: string) {
+    super('EXECUTION_NOT_FOUND', `Execution '${reqExecId}' not found in flow '${flowId}'`);
+    this.name = 'ExecutionNotFoundError';
+  }
+}
+
+export class FileNotFoundError extends TreqError {
+  constructor(path: string) {
+    super('FILE_NOT_FOUND', `File '${path}' not found`);
+    this.name = 'FileNotFoundError';
+  }
+}
+
 // ============================================================================
 // Status Code Mapping - OpenCode pattern
 // ============================================================================
@@ -108,6 +129,9 @@ type HttpStatusCode = 400 | 403 | 404 | 429 | 500;
 export function getStatusForError(err: Error): HttpStatusCode {
   if (err instanceof SessionNotFoundError) return 404;
   if (err instanceof RequestNotFoundError) return 404;
+  if (err instanceof FlowNotFoundError) return 404;
+  if (err instanceof ExecutionNotFoundError) return 404;
+  if (err instanceof FileNotFoundError) return 404;
   if (err instanceof PathOutsideWorkspaceError) return 403;
   if (err instanceof SessionLimitReachedError) return 429;
   if (err instanceof ValidationError) return 400;

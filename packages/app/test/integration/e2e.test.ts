@@ -166,8 +166,9 @@ Content-Type: application/json
     });
 
     // Verify session state
+    // Note: token is redacted in API response for security, baseUrl is returned as-is
     const { data: sessionState } = await server.get<SessionState>(`/session/${sessionId}`);
-    expect(sessionState.variables.token).toBe('jwt-token-123');
+    expect(sessionState.variables.token).toBe('[REDACTED]');
     expect(sessionState.variables.baseUrl).toBe('https://api.example.com');
 
     // Step 4: List users using the token from session

@@ -309,7 +309,8 @@ describe('session endpoints', () => {
 
       const { data: getState } = await server.get<SessionState>(`/session/${createData.sessionId}`);
 
-      expect(getState.variables).toEqual({ token: 'abc123', userId: 42 });
+      // Note: 'token' is redacted for security, non-sensitive keys returned as-is
+      expect(getState.variables).toEqual({ token: '[REDACTED]', userId: 42 });
     });
   });
 

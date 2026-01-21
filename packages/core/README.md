@@ -179,6 +179,33 @@ client.setVariables({ a: 1, b: 2 });
 console.log(client.getVariables());
 ```
 
+### Remote Client (via `treq serve`)
+
+If you want **Observer Mode** (TUI / event streaming / execution store) without rewriting your existing scripts, use `createRemoteClient()` to route requests through the `@t-req/app` server (`treq serve`).
+
+This keeps the same high-level API as `createClient()` (`run`, `runString`, `setVariable(s)`), but executes via HTTP and creates a **server session + flow** on first use so the run can be observed.
+
+```typescript
+import { createRemoteClient } from '@t-req/core';
+
+const client = createRemoteClient({
+  serverUrl: 'http://localhost:4096',
+  // Optional bearer token if the server requires it:
+  // token: process.env.TREQ_TOKEN,
+  variables: { baseUrl: 'https://api.example.com' }
+});
+
+await client.run('./auth/login.http');
+client.setVariable('token', '...');
+await client.close(); // finishes the flow (best-effort; server TTL still applies)
+```
+
+Additional remote-only methods:
+
+- `close(): Promise<void>`
+- `getSessionId(): string | undefined`
+- `getFlowId(): string | undefined`
+
 ### Response
 
 `client.run()` returns a native [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) object:
