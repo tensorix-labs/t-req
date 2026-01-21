@@ -1,32 +1,61 @@
 import { useKeyboard } from '@opentui/solid';
-import { createEffect, createMemo, createSignal } from 'solid-js';
+import { createEffect, createMemo, createSignal, on, onCleanup, untrack } from 'solid-js';
 import { theme, rgba } from './theme';
-import { Header } from './components/header';
-import { Footer } from './components/footer';
+import { CommandDialog } from './components/command-dialog';
+import { DebugConsoleDialog } from './components/debug-console-dialog';
 import { FileTree } from './components/file-tree';
 import { RequestList } from './components/request-list';
-import { useExit, useSDK, useStore } from './context';
+import { useDialog, useExit, useKeybind, useSDK, useStore } from './context';
+import { normalizeKey } from './util/normalize-key';
+import { getStatusDisplay } from './util/status-display';
 
 export function App() {
   const sdk = useSDK();
   const store = useStore();
   const exit = useExit();
+  const dialog = useDialog();
+  const keybind = useKeybind();
 
   // Track in-flight fetch paths to prevent duplicate requests (reactive for UI)
   const [loadingPaths, setLoadingPaths] = createSignal<Set<string>>(new Set());
 
   // Keyboard handling
   useKeyboard((event) => {
-    switch (event.name) {
-      case 'q':
-        void exit();
-        break;
+    if (dialog.stack.length > 0) return;
+
+    if (keybind.match('debug_console', event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      dialog.replace(() => <DebugConsoleDialog />);
+      return;
+    }
+
+    if (keybind.match('command_list', event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      dialog.replace(() => <CommandDialog />);
+      return;
+    }
+
+    if (keybind.match('quit', event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      void exit();
+      return;
+    }
+
+    const key = normalizeKey(event);
+    switch (key.name) {
       case 'j':
       case 'down':
+        event.preventDefault();
+        event.stopPropagation();
         store.selectNext();
         break;
       case 'k':
       case 'up':
+        event.preventDefault();
+        event.stopPropagation();
         store.selectPrevious();
         break;
       case 'return': {
@@ -88,11 +117,34 @@ export function App() {
     }
   }
 
-  // Auto-load requests when selection changes to a file
-  createEffect(() => {
-    const selected = store.selectedNode();
-    if (selected && !selected.node.isDir) {
-      loadRequestsForFile(selected.node.path);
+  // Auto-load requests when selection changes to a file (debounced)
+  // Uses on() to explicitly track only selectedNode, with a 50ms debounce
+  // to prevent load during rapid j/k navigation
+  let loadTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  createEffect(
+    on(
+      () => store.selectedNode(),
+      (selected) => {
+        // Clear any pending load
+        if (loadTimeout) {
+          clearTimeout(loadTimeout);
+          loadTimeout = undefined;
+        }
+
+        if (selected && !selected.node.isDir) {
+          // Debounce: wait 50ms before loading
+          loadTimeout = setTimeout(() => {
+            untrack(() => loadRequestsForFile(selected.node.path));
+          }, 50);
+        }
+      }
+    )
+  );
+
+  onCleanup(() => {
+    if (loadTimeout) {
+      clearTimeout(loadTimeout);
     }
   });
 
@@ -108,6 +160,8 @@ export function App() {
     return loadingPaths().has(path);
   });
 
+  const statusDisplay = createMemo(() => getStatusDisplay(store.connectionStatus()));
+
   return (
     <box
       flexDirection="column"
@@ -115,14 +169,8 @@ export function App() {
       height="100%"
       backgroundColor={rgba(theme.background)}
     >
-      <Header
-        serverUrl={sdk.serverUrl}
-        connectionStatus={store.connectionStatus()}
-        error={store.error()}
-      />
-
       <box flexGrow={1} flexDirection="row">
-        <box width="50%">
+        <box width="50%" flexShrink={0} paddingRight={1}>
           <FileTree
             nodes={store.flattenedVisible()}
             selectedIndex={store.selectedIndex()}
@@ -131,9 +179,9 @@ export function App() {
           />
         </box>
 
-        <box width={1} backgroundColor={rgba(theme.borderSubtle)} />
+        <box width={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />
 
-        <box flexGrow={1}>
+        <box flexGrow={1} flexShrink={0}>
           <RequestList
             requests={store.selectedFileRequests()}
             selectedFile={selectedFilePath()}
@@ -142,24 +190,17 @@ export function App() {
         </box>
       </box>
 
-      <Footer workspacePath={store.workspaceRoot()} />
-
-      <box height={1} paddingLeft={2} flexDirection="row" gap={2}>
-        <box flexDirection="row">
-          <text fg={rgba(theme.text)}>j/k</text>
-          <text fg={rgba(theme.textMuted)}> navigate</text>
-        </box>
-        <box flexDirection="row">
-          <text fg={rgba(theme.text)}>Enter</text>
-          <text fg={rgba(theme.textMuted)}> select</text>
-        </box>
-        <box flexDirection="row">
-          <text fg={rgba(theme.text)}>h/l</text>
-          <text fg={rgba(theme.textMuted)}> collapse/expand</text>
-        </box>
-        <box flexDirection="row">
-          <text fg={rgba(theme.text)}>q</text>
-          <text fg={rgba(theme.textMuted)}> quit</text>
+      <box height={1} paddingLeft={2} paddingRight={2} flexDirection="row" justifyContent="space-between">
+        <text fg={rgba(theme.text)}>t-req 🦖</text>
+        <box flexDirection="row" gap={2}>
+          <box flexDirection="row">
+            <text fg={rgba(theme.text)}>{keybind.print('command_list')}</text>
+            <text fg={rgba(theme.textMuted)}> commands</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={rgba(statusDisplay().color)}>{statusDisplay().icon}</text>
+            <text fg={rgba(theme.textMuted)}>{statusDisplay().text}</text>
+          </box>
         </box>
       </box>
     </box>

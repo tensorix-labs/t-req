@@ -38,7 +38,7 @@ if (singlePlatform && filteredTargets.length === 0) {
 }
 
 // OpenTUI relies on platform-specific packages like @opentui/core-darwin-x64.
-// For cross-target builds, ensure all variants are installed (OpenCode approach).
+// For cross-target builds, ensure all variants are installed
 // For single-platform builds (dev/test), skip the expensive cross-install.
 if (!skipInstall && !singlePlatform) {
   const opentuiCoreVersion = pkg.dependencies['@opentui/core'];

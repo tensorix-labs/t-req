@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal } from 'solid-js';
+import { createEffect, createMemo, createSignal, on } from 'solid-js';
 import type { WorkspaceFile, WorkspaceRequest } from './sdk';
 
 // ============================================================================
@@ -217,15 +217,20 @@ export function createStore(): TuiStore {
   });
 
   // Effect: clamp selection index when list shrinks (e.g., after collapsing dirs)
-  createEffect(() => {
-    const len = flattenedVisible().length;
-    const idx = selectedIndex();
-    if (len > 0 && idx >= len) {
-      setSelectedIndex(len - 1);
-    } else if (len === 0 && idx !== 0) {
-      setSelectedIndex(0);
-    }
-  });
+  // Uses on() to only track length changes, not selection changes, avoiding double-updates
+  createEffect(
+    on(
+      () => flattenedVisible().length,
+      (len) => {
+        const idx = selectedIndex(); // Read without tracking
+        if (len > 0 && idx >= len) {
+          setSelectedIndex(len - 1);
+        } else if (len === 0 && idx !== 0) {
+          setSelectedIndex(0);
+        }
+      }
+    )
+  );
 
   // Actions
   const toggleDir = (path: string) => {

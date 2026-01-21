@@ -1,21 +1,10 @@
 import type { ConnectionStatus } from '../store';
 import { theme, rgba } from '../theme';
+import { getStatusDisplay } from '../util/status-display';
 
 export interface HeaderProps {
-  serverUrl: string;
   connectionStatus: ConnectionStatus;
   error?: string;
-}
-
-function getStatusDisplay(status: ConnectionStatus): { icon: string; text: string; color: string } {
-  switch (status) {
-    case 'connected':
-      return { icon: '\u25CF', text: 'connected', color: theme.success };
-    case 'connecting':
-      return { icon: '\u25CB', text: 'connecting', color: theme.warning };
-    case 'error':
-      return { icon: '\u2717', text: 'error', color: theme.error };
-  }
 }
 
 export function Header(props: HeaderProps) {
@@ -29,9 +18,8 @@ export function Header(props: HeaderProps) {
       flexDirection="row"
       justifyContent="space-between"
       alignItems="center"
-      backgroundColor={rgba(theme.background)}
     >
-      <text fg={rgba(theme.textMuted)}>{props.serverUrl}</text>
+      <text fg={rgba(theme.text)}>t-req 🦖</text>
       <box flexDirection="row" gap={1}>
         <text fg={rgba(status().color)}>{status().icon}</text>
         <text fg={rgba(theme.textMuted)}>{status().text}</text>

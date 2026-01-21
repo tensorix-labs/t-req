@@ -18,21 +18,23 @@ export function FileTree(props: FileTreeProps) {
     const idx = props.selectedIndex;
     if (!scrollRef || idx < 0) return;
 
-    const children = scrollRef.getChildren();
-    const target = children.find((c) => c.id === `file-${idx}`);
-    if (target) {
-      // Calculate if target is visible in scroll viewport
-      const targetY = target.y - scrollRef.y;
-      const viewportHeight = scrollRef.height;
-      if (targetY < 0 || targetY >= viewportHeight) {
-        // scrollTo takes a single position object or number (for y)
-        scrollRef.scrollTo({ x: 0, y: target.y - scrollRef.y });
-      }
+    // Each row is height=1, so index equals Y position in scroll content
+    const viewportHeight = scrollRef.height;
+    const scrollTop = scrollRef.scrollTop;
+    const scrollBottom = scrollTop + viewportHeight;
+
+    // Check if selected item is outside visible range
+    if (idx < scrollTop) {
+      // Item is above viewport - scroll up
+      scrollRef.scrollBy(idx - scrollTop);
+    } else if (idx + 1 > scrollBottom) {
+      // Item is below viewport - scroll down
+      scrollRef.scrollBy(idx + 1 - scrollBottom);
     }
   });
 
   return (
-    <box flexGrow={1} flexDirection="column" backgroundColor={rgba(theme.backgroundPanel)}>
+    <box flexGrow={1} flexShrink={0} flexDirection="column" backgroundColor={rgba(theme.backgroundPanel)}>
       <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
         <text fg={rgba(theme.primary)} attributes={1}>
           Files

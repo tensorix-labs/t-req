@@ -2,7 +2,15 @@ import { render } from '@opentui/solid';
 import { App } from './app';
 import { createSDK } from './sdk';
 import { createStore } from './store';
-import { ExitProvider, SDKProvider, StoreProvider, type ExitFn } from './context';
+import {
+  DialogProvider,
+  ExitProvider,
+  KeybindProvider,
+  LogProvider,
+  SDKProvider,
+  StoreProvider,
+  type ExitFn
+} from './context';
 
 export interface TuiConfig {
   serverUrl: string;
@@ -53,13 +61,19 @@ export async function startTui(config: TuiConfig): Promise<void> {
       <SDKProvider sdk={sdk}>
         <StoreProvider store={store}>
           <ExitProvider register={(fn) => (exitFn = fn)}>
-            <App />
+            <KeybindProvider>
+              <LogProvider>
+                <DialogProvider>
+                  <App />
+                </DialogProvider>
+              </LogProvider>
+            </KeybindProvider>
           </ExitProvider>
         </StoreProvider>
       </SDKProvider>
     ),
     {
-      targetFps: 30,
+      targetFps: 60,
       exitOnCtrlC: false
     }
   );
