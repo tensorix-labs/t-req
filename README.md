@@ -54,8 +54,6 @@ const response = await client.run('./auth/login.http');
 const { token } = await response.json();
 ```
 
-Want observability (SSE events / flows / execution details) for a TUI or desktop app? Start the server with `treq serve` (`@t-req/app`) and use `createRemoteClient()` from `@t-req/core` to route runs through the server.
-
 ## Monorepo Structure
 
 ```

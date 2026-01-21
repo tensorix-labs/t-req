@@ -21,6 +21,7 @@ import {
   ExecuteError,
   ExecutionNotFoundError,
   FileNotFoundError,
+  FlowLimitReachedError,
   FlowNotFoundError,
   NoRequestsFoundError,
   ParseError,
@@ -391,16 +392,19 @@ export function createService(config: ServiceConfig) {
   }
 
   // Evict oldest flow when limit reached
-  function evictOldestFlow(): void {
+  function evictOldestFlow(): boolean {
     let oldest: Flow | null = null;
     for (const flow of flows.values()) {
+      if (!flow.finished) continue;
       if (!oldest || flow.lastActivityAt < oldest.lastActivityAt) {
         oldest = flow;
       }
     }
     if (oldest) {
       flows.delete(oldest.id);
+      return true;
     }
+    return false;
   }
 
   // Get next sequence number for a flow
@@ -1292,7 +1296,10 @@ export function createService(config: ServiceConfig) {
 
     // Evict oldest flow when limit reached
     if (flows.size >= MAX_FLOWS) {
-      evictOldestFlow();
+      const evicted = evictOldestFlow();
+      if (!evicted) {
+        throw new FlowLimitReachedError(MAX_FLOWS);
+      }
     }
 
     const flowId = generateFlowId();
