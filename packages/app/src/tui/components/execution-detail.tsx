@@ -118,33 +118,20 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
             <>
               {/* Request Summary */}
               <box id="request-summary" flexDirection="column" marginBottom={1}>
+                {/* Line 1: METHOD URL */}
                 <box flexDirection="row">
-                  <text fg={rgba(theme.textMuted)}>Status: </text>
-                  <text fg={rgba(getStatusColor(execution.status))}>
-                    {execution.status.toUpperCase()}
+                  <text fg={rgba(getMethodColor(execution.method ?? 'GET'))} attributes={1}>
+                    {execution.method ?? 'GET'}
                   </text>
+                  <text fg={rgba(theme.text)}> {execution.urlResolved ?? execution.urlTemplate ?? ''}</text>
                 </box>
-                <box flexDirection="row">
-                  <text fg={rgba(theme.textMuted)}>Method: </text>
-                  <text fg={rgba(getMethodColor(execution.method ?? 'GET'))}>
-                    {execution.method ?? 'N/A'}
-                  </text>
-                </box>
-                <box flexDirection="row">
-                  <text fg={rgba(theme.textMuted)}>URL: </text>
-                  <text fg={rgba(theme.text)}>{execution.urlResolved ?? execution.urlTemplate ?? 'N/A'}</text>
-                </box>
+                {/* Line 2: Label */}
                 <Show when={execution.reqLabel}>
-                  <box flexDirection="row">
-                    <text fg={rgba(theme.textMuted)}>Label: </text>
-                    <text fg={rgba(theme.text)}>{execution.reqLabel}</text>
-                  </box>
+                  <text fg={rgba(theme.textMuted)}>{execution.reqLabel}</text>
                 </Show>
+                {/* Line 3: Duration */}
                 <Show when={execution.timing.durationMs !== undefined}>
-                  <box flexDirection="row">
-                    <text fg={rgba(theme.textMuted)}>Duration: </text>
-                    <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs)}</text>
-                  </box>
+                  <text fg={rgba(theme.textMuted)}>{formatDuration(execution.timing.durationMs)}</text>
                 </Show>
               </box>
 

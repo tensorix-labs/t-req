@@ -67,6 +67,7 @@ export function Panel(props: PanelProps) {
     <box
       width={props.width}
       flexGrow={props.flexGrow}
+      flexShrink={props.width ? 0 : undefined}
       flexDirection="column"
       overflow="hidden"
     >
@@ -146,6 +147,14 @@ export function StatusBar(props: StatusBarProps) {
         </Show>
       </box>
       <box flexDirection="row" gap={2}>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)}>tab</text>
+          <text fg={rgba(theme.textMuted)}>switch panel</text>
+        </box>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)}>ctrl+h</text>
+          <text fg={rgba(theme.textMuted)}>hide panel</text>
+        </box>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>{keybind.print('file_picker')}</text>
           <text fg={rgba(theme.textMuted)}> tree</text>

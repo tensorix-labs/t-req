@@ -25,6 +25,12 @@ export interface KeyboardCommandsOptions {
   onNavigateDown?: () => void;
   /** Handler for navigation up (k/up) */
   onNavigateUp?: () => void;
+  /** Handler for Tab key (panel toggle) */
+  onTabPress?: () => void;
+  /** Handler for Ctrl+H (hide/show panel) */
+  onToggleHide?: () => void;
+  /** Handler for Enter key */
+  onEnter?: () => void;
 }
 
 /**
@@ -39,7 +45,8 @@ export function useKeyboardCommands(options: KeyboardCommandsOptions): void {
   const keybind = useKeybind();
   const observer = useObserver();
 
-  const { commands, onCancel, onNavigateDown, onNavigateUp } = options;
+  const { commands, onCancel, onNavigateDown, onNavigateUp, onTabPress, onToggleHide, onEnter } =
+    options;
 
   useKeyboard((event) => {
     // Skip when dialog is open
@@ -74,13 +81,37 @@ export function useKeyboardCommands(options: KeyboardCommandsOptions): void {
         event.preventDefault();
         event.stopPropagation();
         onNavigateDown?.();
-        break;
+        return;
       case 'k':
       case 'up':
         event.preventDefault();
         event.stopPropagation();
         onNavigateUp?.();
-        break;
+        return;
+    }
+
+    // 4. Handle Tab for panel toggle
+    if (key.name === 'tab') {
+      event.preventDefault();
+      event.stopPropagation();
+      onTabPress?.();
+      return;
+    }
+
+    // 5. Handle Ctrl+H for hide/show panel
+    if (key.ctrl && key.name === 'h') {
+      event.preventDefault();
+      event.stopPropagation();
+      onToggleHide?.();
+      return;
+    }
+
+    // 6. Handle Enter key
+    if (key.name === 'return') {
+      event.preventDefault();
+      event.stopPropagation();
+      onEnter?.();
+      return;
     }
   });
 }
