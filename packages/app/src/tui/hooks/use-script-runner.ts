@@ -6,7 +6,7 @@
  * process spawning, stdout/stderr callbacks, and cleanup.
  */
 
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 import { type Accessor, createSignal } from 'solid-js';
 import { useObserver, useSDK, useStore } from '../context';
 import {

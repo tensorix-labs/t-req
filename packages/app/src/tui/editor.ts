@@ -2,10 +2,10 @@
  * Editor integration for viewing execution details in $EDITOR.
  */
 
+import { unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { CliRenderer } from '@opentui/core';
-import { unlink, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import type { ExecutionDetail } from './sdk';
 
 /**

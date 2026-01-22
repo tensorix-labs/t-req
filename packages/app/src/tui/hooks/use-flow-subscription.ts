@@ -42,10 +42,14 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
     switch (event.type) {
       case 'requestQueued': {
         // Create execution with pending status
+        const reqExecId = event.reqExecId;
+        const flowId = event.flowId;
+        if (!reqExecId || !flowId) return;
+
         const payload = event.payload as { reqLabel?: string; source?: unknown };
         observer.addExecution({
-          reqExecId: event.reqExecId!,
-          flowId: event.flowId!,
+          reqExecId,
+          flowId,
           sessionId: event.sessionId,
           reqLabel: payload.reqLabel,
           status: 'pending',
@@ -55,8 +59,11 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
       }
       case 'fetchStarted': {
         // Update execution to running status
+        const reqExecId = event.reqExecId;
+        if (!reqExecId) return;
+
         const payload = event.payload as { method?: string; url?: string };
-        observer.updateExecution(event.reqExecId!, {
+        observer.updateExecution(reqExecId, {
           status: 'running',
           method: payload.method,
           urlResolved: payload.url
@@ -65,10 +72,13 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
       }
       case 'fetchFinished': {
         // Update execution to success
+        const reqExecId = event.reqExecId;
+        if (!reqExecId) return;
+
         const payload = event.payload as { status?: number };
         const endTime = event.ts;
-        const exec = observer.state.executionsById[event.reqExecId!];
-        observer.updateExecution(event.reqExecId!, {
+        const exec = observer.state.executionsById[reqExecId];
+        observer.updateExecution(reqExecId, {
           status: 'success',
           statusCode: payload.status,
           timing: {
@@ -82,10 +92,13 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
       }
       case 'executionFailed': {
         // Update execution to failed
+        const reqExecId = event.reqExecId;
+        if (!reqExecId) return;
+
         const payload = event.payload as { stage?: string; message?: string };
         const endTime = event.ts;
-        const exec = observer.state.executionsById[event.reqExecId!];
-        observer.updateExecution(event.reqExecId!, {
+        const exec = observer.state.executionsById[reqExecId];
+        observer.updateExecution(reqExecId, {
           status: 'failed' as ExecutionStatus,
           error: {
             stage: payload.stage ?? 'unknown',
