@@ -35,9 +35,10 @@ import type { Client, RunOptions } from './types';
 export interface RemoteClientConfig {
   /**
    * URL of the treq server.
+   * If not provided, will try to read from TREQ_SERVER environment variable.
    * @example 'http://localhost:4096'
    */
-  serverUrl: string;
+  serverUrl?: string;
 
   /**
    * Initial variables for the session.
@@ -67,8 +68,16 @@ export interface RemoteClientConfig {
 
   /**
    * Bearer token for authentication (if server requires it).
+   * If not provided, will try to read from TREQ_TOKEN environment variable.
    */
   token?: string;
+
+  /**
+   * Flow ID to attach to (for TUI orchestration).
+   * If not provided, will try to read from TREQ_FLOW_ID environment variable.
+   * When present, the client will not create its own flow but will use this one.
+   */
+  flowId?: string;
 }
 
 /**
@@ -135,18 +144,46 @@ interface ExecuteResponse {
 // ============================================================================
 
 /**
+ * Read environment variable safely (works in both Node and Bun).
+ */
+function getEnvVar(name: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[name];
+  }
+  return undefined;
+}
+
+/**
  * Create a remote client that routes through treq serve.
  *
  * The client automatically creates a session and flow on first use,
  * making all requests observable in the TUI.
+ *
+ * When TREQ_SERVER, TREQ_TOKEN, and TREQ_FLOW_ID environment variables
+ * are present (e.g., when spawned by TUI), the client will attach to
+ * the existing flow instead of creating a new one.
  */
-export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
-  const baseUrl = config.serverUrl.replace(/\/$/, '');
+export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClient {
+  // Read from environment variables if not provided in config
+  const serverUrl = config.serverUrl ?? getEnvVar('TREQ_SERVER');
+  const token = config.token ?? getEnvVar('TREQ_TOKEN');
+  const attachedFlowId = config.flowId ?? getEnvVar('TREQ_FLOW_ID');
+
+  if (!serverUrl) {
+    throw new Error(
+      'Remote client requires serverUrl. Provide in config or set TREQ_SERVER environment variable.'
+    );
+  }
+
+  const baseUrl = serverUrl.replace(/\/$/, '');
   let variables: Record<string, unknown> = { ...config.variables };
   let sessionId: string | undefined;
-  let flowId: string | undefined;
+  let flowId: string | undefined = attachedFlowId;
   let initialized = false;
   let initPromise: Promise<void> | undefined;
+
+  // Track if we're attached to an external flow (TUI-created)
+  const isAttachedFlow = !!attachedFlowId;
 
   // Serialize variable sync operations so rapid updates cannot race.
   // This chain is awaited before each execution.
@@ -157,8 +194,8 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
-  if (config.token) {
-    headers['Authorization'] = `Bearer ${config.token}`;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   // Initialize session and flow on first request
@@ -167,7 +204,7 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
-      // 1. Create session
+      // 1. Create session (always needed for variables/cookies)
       const sessionRes = await fetch(`${baseUrl}/session`, {
         method: 'POST',
         headers,
@@ -182,24 +219,27 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
       const sessionData = (await sessionRes.json()) as CreateSessionResponse;
       sessionId = sessionData.sessionId;
 
-      // 2. Create flow with sessionId
-      const flowRes = await fetch(`${baseUrl}/flows`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          sessionId,
-          label: config.flowLabel,
-          meta: config.flowMeta
-        })
-      });
+      // 2. Create flow with sessionId ONLY if not attached to an existing flow
+      if (!isAttachedFlow) {
+        const flowRes = await fetch(`${baseUrl}/flows`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            sessionId,
+            label: config.flowLabel,
+            meta: config.flowMeta
+          })
+        });
 
-      if (!flowRes.ok) {
-        const error = await flowRes.text();
-        throw new Error(`Failed to create flow: ${error}`);
+        if (!flowRes.ok) {
+          const error = await flowRes.text();
+          throw new Error(`Failed to create flow: ${error}`);
+        }
+
+        const flowData = (await flowRes.json()) as CreateFlowResponse;
+        flowId = flowData.flowId;
       }
-
-      const flowData = (await flowRes.json()) as CreateFlowResponse;
-      flowId = flowData.flowId;
+      // If attached flow, flowId is already set from environment/config
 
       initialized = true;
     })();
@@ -347,7 +387,8 @@ export function createRemoteClient(config: RemoteClientConfig): RemoteClient {
     },
 
     async close(): Promise<void> {
-      if (!flowId) return;
+      // Only finish the flow if we created it (not when attached to TUI's flow)
+      if (!flowId || isAttachedFlow) return;
 
       try {
         await fetch(`${baseUrl}/flows/${flowId}/finish`, {

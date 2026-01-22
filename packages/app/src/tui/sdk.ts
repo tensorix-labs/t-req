@@ -1,5 +1,5 @@
 /**
- * TUI SDK - HTTP client for workspace APIs only.
+ * TUI SDK - HTTP client for workspace and observer APIs.
  * Architecture constraint: no direct filesystem access, all data via server.
  */
 
@@ -33,12 +33,138 @@ export interface HealthResponse {
   version: string;
 }
 
+// Flow types
+export interface CreateFlowResponse {
+  flowId: string;
+}
+
+export interface FlowSummary {
+  total: number;
+  succeeded: number;
+  failed: number;
+  durationMs: number;
+}
+
+export interface FinishFlowResponse {
+  flowId: string;
+  summary: FlowSummary;
+}
+
+export interface ResponseHeader {
+  name: string;
+  value: string;
+}
+
+export interface ExecutionSource {
+  kind: 'file' | 'string';
+  path?: string;
+  requestIndex?: number;
+  requestName?: string;
+}
+
+export interface ExecutionDetail {
+  reqExecId: string;
+  flowId: string;
+  sessionId?: string;
+  reqLabel?: string;
+  source?: ExecutionSource;
+  rawHttpBlock?: string;
+  method?: string;
+  urlTemplate?: string;
+  urlResolved?: string;
+  headers?: ResponseHeader[];
+  bodyPreview?: string;
+  timing: {
+    startTime: number;
+    endTime?: number;
+    durationMs?: number;
+  };
+  response?: {
+    status: number;
+    statusText: string;
+    headers: ResponseHeader[];
+    body?: string;
+    encoding: 'utf-8' | 'base64';
+    truncated: boolean;
+    bodyBytes: number;
+  };
+  status: 'pending' | 'running' | 'success' | 'failed';
+  error?: {
+    stage: string;
+    message: string;
+  };
+}
+
+// SSE Event types
+export interface EventEnvelope {
+  type: string;
+  ts: number;
+  runId: string;
+  sessionId?: string;
+  flowId?: string;
+  reqExecId?: string;
+  seq: number;
+  payload: Record<string, unknown>;
+}
+
+export interface ExecuteRequestParams {
+  path?: string;
+  content?: string;
+  requestIndex?: number;
+  requestName?: string;
+  flowId?: string;
+  sessionId?: string;
+  reqLabel?: string;
+}
+
+export interface ExecuteResponse {
+  runId: string;
+  reqExecId?: string;
+  flowId?: string;
+  request: {
+    index: number;
+    name?: string;
+    method: string;
+    url: string;
+  };
+  response: {
+    status: number;
+    statusText: string;
+    headers: ResponseHeader[];
+    body?: string;
+    encoding: 'utf-8' | 'base64';
+    truncated: boolean;
+    bodyBytes: number;
+  };
+  timing: {
+    startTime: number;
+    endTime: number;
+    durationMs: number;
+  };
+}
+
 export interface SDK {
   serverUrl: string;
   token?: string;
   health(): Promise<HealthResponse>;
   listWorkspaceFiles(): Promise<ListWorkspaceFilesResponse>;
   listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse>;
+
+  // Flow management
+  createFlow(label?: string): Promise<CreateFlowResponse>;
+  finishFlow(flowId: string): Promise<FinishFlowResponse>;
+  getExecution(flowId: string, reqExecId: string): Promise<ExecutionDetail>;
+
+  // Request execution
+  executeRequest(flowId: string, path: string, requestIndex: number): Promise<ExecuteResponse>;
+
+  // SSE subscription
+  subscribeEvents(
+    flowId: string,
+    onEvent: (event: EventEnvelope) => void,
+    onError: (error: Error) => void,
+    onClose: () => void
+  ): () => void; // Returns unsubscribe function
 }
 
 export class SDKError extends Error {
@@ -123,6 +249,138 @@ export function createSDK(serverUrl: string, token?: string): SDK {
     async listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse> {
       const encodedPath = encodeURIComponent(path);
       return request<ListWorkspaceRequestsResponse>(`/workspace/requests?path=${encodedPath}`);
+    },
+
+    async createFlow(label?: string): Promise<CreateFlowResponse> {
+      return request<CreateFlowResponse>('/flows', {
+        method: 'POST',
+        body: JSON.stringify({ label })
+      });
+    },
+
+    async finishFlow(flowId: string): Promise<FinishFlowResponse> {
+      return request<FinishFlowResponse>(`/flows/${encodeURIComponent(flowId)}/finish`, {
+        method: 'POST'
+      });
+    },
+
+    async getExecution(flowId: string, reqExecId: string): Promise<ExecutionDetail> {
+      return request<ExecutionDetail>(
+        `/flows/${encodeURIComponent(flowId)}/executions/${encodeURIComponent(reqExecId)}`
+      );
+    },
+
+    async executeRequest(
+      flowId: string,
+      path: string,
+      requestIndex: number
+    ): Promise<ExecuteResponse> {
+      return request<ExecuteResponse>('/execute', {
+        method: 'POST',
+        body: JSON.stringify({
+          path,
+          requestIndex,
+          flowId
+        })
+      });
+    },
+
+    subscribeEvents(
+      flowId: string,
+      onEvent: (event: EventEnvelope) => void,
+      onError: (error: Error) => void,
+      onClose: () => void
+    ): () => void {
+      let aborted = false;
+      const controller = new AbortController();
+
+      const url = new URL(`/event?flowId=${encodeURIComponent(flowId)}`, baseUrl);
+
+      // Start SSE subscription using fetch streaming
+      (async () => {
+        try {
+          const headers: Record<string, string> = {
+            Accept: 'text/event-stream'
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = (await fetch(url.toString(), {
+            headers,
+            signal: controller.signal
+          })) as unknown as {
+            ok: boolean;
+            status: number;
+            body: ReadableStream<Uint8Array> | null;
+          };
+
+          if (!response.ok) {
+            throw new SDKError(`SSE connection failed: ${response.status}`, response.status);
+          }
+
+          if (!response.body) {
+            throw new SDKError('SSE connection has no body');
+          }
+
+          // Parse SSE stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (!aborted) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Process complete SSE messages
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+
+            let eventType = '';
+            let eventData = '';
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                eventData = line.slice(5).trim();
+              } else if (line === '') {
+                // End of message - process it
+                if (eventData && eventType !== 'heartbeat' && eventType !== 'connected') {
+                  try {
+                    const parsed = JSON.parse(eventData) as EventEnvelope;
+                    onEvent(parsed);
+                  } catch {
+                    // Ignore parse errors
+                  }
+                }
+                eventType = '';
+                eventData = '';
+              }
+            }
+          }
+
+          if (!aborted) {
+            onClose();
+          }
+        } catch (err) {
+          if (!aborted) {
+            if (err instanceof Error && err.name === 'AbortError') {
+              onClose();
+            } else {
+              onError(err instanceof Error ? err : new Error(String(err)));
+            }
+          }
+        }
+      })();
+
+      // Return unsubscribe function
+      return () => {
+        aborted = true;
+        controller.abort();
+      };
     }
   };
 }

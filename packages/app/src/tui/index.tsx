@@ -1,5 +1,6 @@
 import { render } from '@opentui/solid';
 import { App } from './app';
+import { createObserverStore } from './observer-store';
 import { createSDK } from './sdk';
 import { createStore } from './store';
 import {
@@ -7,6 +8,7 @@ import {
   ExitProvider,
   KeybindProvider,
   LogProvider,
+  ObserverProvider,
   SDKProvider,
   StoreProvider,
   type ExitFn
@@ -20,6 +22,7 @@ export interface TuiConfig {
 export async function startTui(config: TuiConfig): Promise<void> {
   const sdk = createSDK(config.serverUrl, config.token);
   const store = createStore();
+  const observerStore = createObserverStore();
 
   let exiting = false;
   let exitFn: ExitFn | undefined;
@@ -60,15 +63,17 @@ export async function startTui(config: TuiConfig): Promise<void> {
     () => (
       <SDKProvider sdk={sdk}>
         <StoreProvider store={store}>
-          <ExitProvider register={(fn) => (exitFn = fn)}>
-            <KeybindProvider>
-              <LogProvider>
-                <DialogProvider>
-                  <App />
-                </DialogProvider>
-              </LogProvider>
-            </KeybindProvider>
-          </ExitProvider>
+          <ObserverProvider store={observerStore}>
+            <ExitProvider register={(fn) => (exitFn = fn)}>
+              <KeybindProvider>
+                <LogProvider>
+                  <DialogProvider>
+                    <App />
+                  </DialogProvider>
+                </LogProvider>
+              </KeybindProvider>
+            </ExitProvider>
+          </ObserverProvider>
         </StoreProvider>
       </SDKProvider>
     ),
@@ -83,5 +88,5 @@ export async function startTui(config: TuiConfig): Promise<void> {
 
   // Keep process alive (ExitProvider exits the process).
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  return new Promise(() => { });
+  return new Promise(() => {});
 }

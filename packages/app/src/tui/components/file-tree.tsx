@@ -78,12 +78,16 @@ function FileTreeRow(props: FileTreeRowProps) {
   const { node, isExpanded } = props.flatNode;
   const indent = '  '.repeat(node.depth);
 
-  // Icon for directories (expanded/collapsed)
+  // Icon for directories (expanded/collapsed) and file types
   const icon = () => {
     if (node.isDir) {
       return isExpanded ? '\u25BC ' : '> ';
     }
-    return '  '; // File has no icon, just spacing
+    // Show different icons for file types
+    if (node.fileType === 'script') {
+      return '\u25B7 '; // ▷ for runnable scripts
+    }
+    return '  '; // HTTP and other files have no icon, just spacing
   };
 
   // Display name with trailing / for directories
@@ -94,9 +98,9 @@ function FileTreeRow(props: FileTreeRowProps) {
     return node.name;
   };
 
-  // Request count badge for files
+  // Badge for files - request count for HTTP files, nothing for scripts
   const badge = () => {
-    if (!node.isDir && node.requestCount !== undefined && node.requestCount > 0) {
+    if (!node.isDir && node.fileType === 'http' && node.requestCount !== undefined && node.requestCount > 0) {
       return ` (${node.requestCount})`;
     }
     return '';

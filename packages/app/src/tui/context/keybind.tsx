@@ -4,7 +4,7 @@ import { createContext, createMemo, onCleanup, useContext, type JSX } from 'soli
 import { Keybind } from '../util/keybind';
 import { normalizeKey } from '../util/normalize-key';
 
-export type KeybindAction = 'command_list' | 'debug_console' | 'quit';
+export type KeybindAction = 'command_list' | 'debug_console' | 'file_picker' | 'quit' | 'open_in_editor';
 
 export type KeyEventSnapshot = {
   at: number;
@@ -34,7 +34,9 @@ export type KeybindContextValue = {
 const DEFAULTS: Record<KeybindAction, string> = {
   command_list: 'ctrl+p',
   debug_console: 'ctrl+`',
-  quit: 'ctrl+c'
+  file_picker: 'ctrl+t',
+  quit: 'ctrl+c',
+  open_in_editor: 'ctrl+e'
 };
 
 const KeybindContext = createContext<KeybindContextValue>();
@@ -56,7 +58,9 @@ export function KeybindProvider(props: { children: JSX.Element }) {
     return {
       command_list: Keybind.parse(DEFAULTS.command_list),
       debug_console: Keybind.parse(DEFAULTS.debug_console),
-      quit: Keybind.parse(DEFAULTS.quit)
+      file_picker: Keybind.parse(DEFAULTS.file_picker),
+      quit: Keybind.parse(DEFAULTS.quit),
+      open_in_editor: Keybind.parse(DEFAULTS.open_in_editor)
     } satisfies Record<KeybindAction, Keybind.Info[]>;
   });
 
@@ -111,7 +115,7 @@ export function KeybindProvider(props: { children: JSX.Element }) {
   };
 
   // No resources to cleanup; keep placeholder for future overrides.
-  onCleanup(() => {});
+  onCleanup(() => { });
 
   return <KeybindContext.Provider value={value}>{props.children}</KeybindContext.Provider>;
 }

@@ -1,4 +1,4 @@
-POST https://api.example.com/users
+POST https://dummyjson.com/posts/add
 Content-Type: application/json
 
 {"name": "John Doe", "email": "john@example.com"}
