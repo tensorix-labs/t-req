@@ -178,14 +178,6 @@ export class SDKError extends Error {
   }
 }
 
-// Type for fetch response to work around type conflicts
-interface FetchResponse {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  json(): Promise<unknown>;
-}
-
 /**
  * Create an SDK instance for communicating with the treq server.
  */
@@ -204,13 +196,13 @@ export function createSDK(serverUrl: string, token?: string): SDK {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = (await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
       ...options,
       headers: {
         ...headers,
         ...options?.headers
       }
-    })) as unknown as FetchResponse;
+    });
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -306,14 +298,10 @@ export function createSDK(serverUrl: string, token?: string): SDK {
             headers['Authorization'] = `Bearer ${token}`;
           }
 
-          const response = (await fetch(url.toString(), {
+          const response = await fetch(url.toString(), {
             headers,
             signal: controller.signal
-          })) as unknown as {
-            ok: boolean;
-            status: number;
-            body: ReadableStream<Uint8Array> | null;
-          };
+          });
 
           if (!response.ok) {
             throw new SDKError(`SSE connection failed: ${response.status}`, response.status);

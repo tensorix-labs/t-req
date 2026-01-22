@@ -55,9 +55,7 @@ async function waitForHealthWithRetry(
 
   for (let attempt = 0; attempt < options.maxRetries; attempt++) {
     try {
-      const response = (await fetch(`${serverUrl}/health`, { headers })) as unknown as {
-        ok: boolean;
-      };
+      const response = await fetch(`${serverUrl}/health`, { headers });
       if (response.ok) {
         return;
       }

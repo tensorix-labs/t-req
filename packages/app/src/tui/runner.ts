@@ -87,7 +87,7 @@ async function findNearestNodeModules(startDir: string): Promise<string | undefi
  */
 async function commandExists(command: string): Promise<boolean> {
   try {
-    const proc = spawn(['which', command], {
+    const proc = spawn([process.platform === 'win32' ? 'where' : 'which', command], {
       stdout: 'pipe',
       stderr: 'pipe'
     });
