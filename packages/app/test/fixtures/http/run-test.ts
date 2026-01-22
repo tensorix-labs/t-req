@@ -9,9 +9,10 @@ const client = createRemoteClient({
   }
 });
 console.log('Running simple GET request...');
+await client.run('./post-json.http');
+
 await client.run('./simple-get.http');
 // await client.run('./simple-get.http');
-// await client.run('./post-json.http');
 
 console.log('Simple GET request completed');
 await client.close();

@@ -7,7 +7,8 @@
  * - Executions (live updates from SSE, selection)
  */
 
-import { type Accessor, createMemo, createSignal } from 'solid-js';
+import { type Accessor, createMemo } from 'solid-js';
+import { createStore, produce, reconcile, type SetStoreFunction } from 'solid-js/store';
 
 export type SSEStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
@@ -41,46 +42,39 @@ export interface RunningScriptInfo {
   startedAt: number;
 }
 
+export interface ObserverState {
+  flowId: string | undefined;
+  sseStatus: SSEStatus;
+  lastFlowSeq: number;
+  runningScript: RunningScriptInfo | undefined;
+  stdoutLines: string[];
+  stderrLines: string[];
+  exitCode: number | null | undefined;
+  executionsById: Record<string, ExecutionSummary>;
+  executionOrder: string[];
+  selectedReqExecId: string | undefined;
+}
+
 export interface ObserverStore {
-  // Flow state
-  flowId: Accessor<string | undefined>;
-  setFlowId: (id: string | undefined) => void;
-  sseStatus: Accessor<SSEStatus>;
-  setSseStatus: (status: SSEStatus) => void;
-  lastFlowSeq: Accessor<number>;
-  setLastFlowSeq: (seq: number) => void;
+  // Direct state access (reactive)
+  state: ObserverState;
+  setState: SetStoreFunction<ObserverState>;
 
-  // Runner state
-  runningScript: Accessor<RunningScriptInfo | undefined>;
-  setRunningScript: (script: RunningScriptInfo | undefined) => void;
-  stdoutLines: Accessor<string[]>;
+  // Complex mutations (keep as methods)
   appendStdout: (data: string) => void;
-  stderrLines: Accessor<string[]>;
   appendStderr: (data: string) => void;
-  exitCode: Accessor<number | null | undefined>;
-  setExitCode: (code: number | null | undefined) => void;
   clearOutput: () => void;
-
-  // Executions
-  executionsById: Accessor<Record<string, ExecutionSummary>>;
-  executionOrder: Accessor<string[]>;
-  selectedReqExecId: Accessor<string | undefined>;
-  setSelectedReqExecId: (id: string | undefined) => void;
-
-  // Execution mutations
   addExecution: (exec: ExecutionSummary) => void;
   updateExecution: (reqExecId: string, updates: Partial<ExecutionSummary>) => void;
   clearExecutions: () => void;
 
-  // Derived
+  // Derived (still memos)
   selectedExecution: Accessor<ExecutionSummary | undefined>;
   executionsList: Accessor<ExecutionSummary[]>;
 
-  // Selection navigation
+  // Navigation & reset
   selectNextExecution: () => void;
   selectPreviousExecution: () => void;
-
-  // Reset all state for new run
   reset: () => void;
 }
 
@@ -90,184 +84,155 @@ export interface ObserverStore {
 
 const MAX_OUTPUT_LINES = 1000;
 
+function createInitialState(): ObserverState {
+  return {
+    flowId: undefined,
+    sseStatus: 'idle',
+    lastFlowSeq: 0,
+    runningScript: undefined,
+    stdoutLines: [],
+    stderrLines: [],
+    exitCode: undefined,
+    executionsById: {},
+    executionOrder: [],
+    selectedReqExecId: undefined
+  };
+}
+
 export function createObserverStore(): ObserverStore {
-  // Flow state
-  const [flowId, setFlowId] = createSignal<string | undefined>(undefined);
-  const [sseStatus, setSseStatus] = createSignal<SSEStatus>('idle');
-  const [lastFlowSeq, setLastFlowSeq] = createSignal<number>(0);
-
-  // Runner state
-  const [runningScript, setRunningScript] = createSignal<RunningScriptInfo | undefined>(undefined);
-  const [stdoutLines, setStdoutLines] = createSignal<string[]>([]);
-  const [stderrLines, setStderrLines] = createSignal<string[]>([]);
-  const [exitCode, setExitCode] = createSignal<number | null | undefined>(undefined);
-
-  // Executions
-  const [executionsById, setExecutionsById] = createSignal<Record<string, ExecutionSummary>>({});
-  const [executionOrder, setExecutionOrder] = createSignal<string[]>([]);
-  const [selectedReqExecId, setSelectedReqExecId] = createSignal<string | undefined>(undefined);
+  const [state, setState] = createStore<ObserverState>(createInitialState());
 
   // Helper to append output while limiting lines
   const appendStdout = (data: string) => {
-    setStdoutLines((prev) => {
-      // Split incoming data into lines, preserving partial lines
-      const newLines = data.split('\n');
-      const combined = [...prev];
+    setState(
+      produce((s) => {
+        // Split incoming data into lines, preserving partial lines
+        const newLines = data.split('\n');
 
-      // If the last line didn't end with newline, append to it
-      if (combined.length > 0 && !prev[prev.length - 1]?.endsWith('\n')) {
-        combined[combined.length - 1] = (combined[combined.length - 1] ?? '') + newLines[0];
-        combined.push(...newLines.slice(1));
-      } else {
-        combined.push(...newLines);
-      }
+        // If the last line didn't end with newline, append to it
+        if (s.stdoutLines.length > 0 && !s.stdoutLines[s.stdoutLines.length - 1]?.endsWith('\n')) {
+          s.stdoutLines[s.stdoutLines.length - 1] += newLines.shift() ?? '';
+        }
+        s.stdoutLines.push(...newLines);
 
-      // Limit lines
-      if (combined.length > MAX_OUTPUT_LINES) {
-        return combined.slice(-MAX_OUTPUT_LINES);
-      }
-      return combined;
-    });
+        // Limit lines
+        if (s.stdoutLines.length > MAX_OUTPUT_LINES) {
+          s.stdoutLines.splice(0, s.stdoutLines.length - MAX_OUTPUT_LINES);
+        }
+      })
+    );
   };
 
   const appendStderr = (data: string) => {
-    setStderrLines((prev) => {
-      const newLines = data.split('\n');
-      const combined = [...prev];
+    setState(
+      produce((s) => {
+        const newLines = data.split('\n');
 
-      if (combined.length > 0 && !prev[prev.length - 1]?.endsWith('\n')) {
-        combined[combined.length - 1] = (combined[combined.length - 1] ?? '') + newLines[0];
-        combined.push(...newLines.slice(1));
-      } else {
-        combined.push(...newLines);
-      }
+        if (s.stderrLines.length > 0 && !s.stderrLines[s.stderrLines.length - 1]?.endsWith('\n')) {
+          s.stderrLines[s.stderrLines.length - 1] += newLines.shift() ?? '';
+        }
+        s.stderrLines.push(...newLines);
 
-      if (combined.length > MAX_OUTPUT_LINES) {
-        return combined.slice(-MAX_OUTPUT_LINES);
-      }
-      return combined;
-    });
+        if (s.stderrLines.length > MAX_OUTPUT_LINES) {
+          s.stderrLines.splice(0, s.stderrLines.length - MAX_OUTPUT_LINES);
+        }
+      })
+    );
   };
 
   const clearOutput = () => {
-    setStdoutLines([]);
-    setStderrLines([]);
-    setExitCode(undefined);
+    setState('stdoutLines', []);
+    setState('stderrLines', []);
+    setState('exitCode', undefined);
   };
 
   // Execution mutations
   const addExecution = (exec: ExecutionSummary) => {
-    setExecutionsById((prev) => ({
-      ...prev,
-      [exec.reqExecId]: exec
-    }));
-    setExecutionOrder((prev) => [...prev, exec.reqExecId]);
+    setState('executionsById', exec.reqExecId, exec);
+    setState('executionOrder', (prev) => [...prev, exec.reqExecId]);
 
     // Auto-select first execution
-    if (selectedReqExecId() === undefined) {
-      setSelectedReqExecId(exec.reqExecId);
+    if (state.selectedReqExecId === undefined) {
+      setState('selectedReqExecId', exec.reqExecId);
     }
   };
 
   const updateExecution = (reqExecId: string, updates: Partial<ExecutionSummary>) => {
-    setExecutionsById((prev) => {
-      const existing = prev[reqExecId];
-      if (!existing) return prev;
-      return {
-        ...prev,
-        [reqExecId]: { ...existing, ...updates }
-      };
-    });
+    setState(
+      produce((s) => {
+        const existing = s.executionsById[reqExecId];
+        if (!existing) return;
+        Object.assign(existing, updates);
+      })
+    );
   };
 
   const clearExecutions = () => {
-    setExecutionsById({});
-    setExecutionOrder([]);
-    setSelectedReqExecId(undefined);
+    setState('executionsById', {});
+    setState('executionOrder', []);
+    setState('selectedReqExecId', undefined);
   };
 
   // Derived
   const selectedExecution = createMemo(() => {
-    const id = selectedReqExecId();
+    const id = state.selectedReqExecId;
     if (!id) return undefined;
-    return executionsById()[id];
+    return state.executionsById[id];
   });
 
   const executionsList = createMemo(() => {
-    const byId = executionsById();
-    return executionOrder()
-      .map((id) => byId[id])
+    return state.executionOrder
+      .map((id) => state.executionsById[id])
       .filter(Boolean) as ExecutionSummary[];
   });
 
   // Selection navigation
   const selectNextExecution = () => {
-    const order = executionOrder();
-    const currentId = selectedReqExecId();
+    const order = state.executionOrder;
+    const currentId = state.selectedReqExecId;
     if (order.length === 0) return;
 
     if (!currentId) {
-      setSelectedReqExecId(order[0]);
+      setState('selectedReqExecId', order[0]);
       return;
     }
 
     const currentIndex = order.indexOf(currentId);
     if (currentIndex < order.length - 1) {
-      setSelectedReqExecId(order[currentIndex + 1]);
+      setState('selectedReqExecId', order[currentIndex + 1]);
     }
   };
 
   const selectPreviousExecution = () => {
-    const order = executionOrder();
-    const currentId = selectedReqExecId();
+    const order = state.executionOrder;
+    const currentId = state.selectedReqExecId;
     if (order.length === 0) return;
 
     if (!currentId) {
-      setSelectedReqExecId(order[order.length - 1]);
+      setState('selectedReqExecId', order[order.length - 1]);
       return;
     }
 
     const currentIndex = order.indexOf(currentId);
     if (currentIndex > 0) {
-      setSelectedReqExecId(order[currentIndex - 1]);
+      setState('selectedReqExecId', order[currentIndex - 1]);
     }
   };
 
   // Reset all state
   const reset = () => {
-    setFlowId(undefined);
-    setSseStatus('idle');
-    setLastFlowSeq(0);
-    setRunningScript(undefined);
-    clearOutput();
-    clearExecutions();
+    setState(reconcile(createInitialState()));
   };
 
   return {
-    // Flow state
-    flowId,
-    setFlowId,
-    sseStatus,
-    setSseStatus,
-    lastFlowSeq,
-    setLastFlowSeq,
+    // State access
+    state,
+    setState,
 
-    // Runner state
-    runningScript,
-    setRunningScript,
-    stdoutLines,
+    // Mutations
     appendStdout,
-    stderrLines,
     appendStderr,
-    exitCode,
-    setExitCode,
     clearOutput,
-
-    // Executions
-    executionsById,
-    executionOrder,
-    selectedReqExecId,
-    setSelectedReqExecId,
     addExecution,
     updateExecution,
     clearExecutions,

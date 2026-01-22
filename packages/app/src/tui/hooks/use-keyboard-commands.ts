@@ -1,0 +1,86 @@
+/**
+ * useKeyboardCommands Hook
+ *
+ * Implements a declarative command-action registry pattern for keyboard handling.
+ * Separates keybind-action mapping from imperative if/else chains.
+ */
+
+import { useKeyboard } from '@opentui/solid';
+import type { KeybindAction } from '../context';
+import { useDialog, useKeybind, useObserver } from '../context';
+import { normalizeKey } from '../util/normalize-key';
+
+export interface CommandAction {
+  action: () => void | Promise<void>;
+}
+
+export type CommandRegistry = Partial<Record<KeybindAction, CommandAction>>;
+
+export interface KeyboardCommandsOptions {
+  /** Registry of keybind actions */
+  commands: CommandRegistry;
+  /** Handler for cancel action (Escape/Ctrl+C when script running) */
+  onCancel?: () => void;
+  /** Handler for navigation down (j/down) */
+  onNavigateDown?: () => void;
+  /** Handler for navigation up (k/up) */
+  onNavigateUp?: () => void;
+}
+
+/**
+ * Sets up keyboard handling with a declarative command registry.
+ * Handles:
+ * 1. Keybind-mapped commands (file_picker, quit, etc.)
+ * 2. Cancel action when script is running
+ * 3. Navigation keys (j/k/up/down)
+ */
+export function useKeyboardCommands(options: KeyboardCommandsOptions): void {
+  const dialog = useDialog();
+  const keybind = useKeybind();
+  const observer = useObserver();
+
+  const { commands, onCancel, onNavigateDown, onNavigateUp } = options;
+
+  useKeyboard((event) => {
+    // Skip when dialog is open
+    if (dialog.stack.length > 0) return;
+
+    // 1. Check command registry
+    for (const [actionName, command] of Object.entries(commands)) {
+      if (keybind.match(actionName as KeybindAction, event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        void command.action();
+        return;
+      }
+    }
+
+    const key = normalizeKey(event);
+
+    // 2. Handle cancel (Escape/Ctrl+C when script running)
+    if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+      if (observer.state.runningScript && onCancel) {
+        event.preventDefault();
+        event.stopPropagation();
+        onCancel();
+        return;
+      }
+    }
+
+    // 3. Handle navigation
+    switch (key.name) {
+      case 'j':
+      case 'down':
+        event.preventDefault();
+        event.stopPropagation();
+        onNavigateDown?.();
+        break;
+      case 'k':
+      case 'up':
+        event.preventDefault();
+        event.stopPropagation();
+        onNavigateUp?.();
+        break;
+    }
+  });
+}
