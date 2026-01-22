@@ -7,6 +7,8 @@ import type { WorkspaceFile, WorkspaceRequest } from './sdk';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'error';
 
+export type FileType = 'http' | 'script' | 'other';
+
 export interface TreeNode {
   name: string;
   path: string; // Cumulative path for stable keys
@@ -14,6 +16,35 @@ export interface TreeNode {
   children?: TreeNode[];
   depth: number;
   requestCount?: number; // For files, show badge
+  fileType?: FileType; // File type for non-directories
+}
+
+// Script file extensions
+const SCRIPT_EXTENSIONS = new Set(['.ts', '.js', '.mts', '.mjs']);
+const HTTP_EXTENSIONS = new Set(['.http']);
+
+/**
+ * Determine the file type from a file path.
+ */
+export function getFileType(path: string): FileType {
+  const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+  if (HTTP_EXTENSIONS.has(ext)) return 'http';
+  if (SCRIPT_EXTENSIONS.has(ext)) return 'script';
+  return 'other';
+}
+
+/**
+ * Check if a file path is a runnable script.
+ */
+export function isRunnableScript(path: string): boolean {
+  return getFileType(path) === 'script';
+}
+
+/**
+ * Check if a file path is an HTTP file.
+ */
+export function isHttpFile(path: string): boolean {
+  return getFileType(path) === 'http';
 }
 
 export interface FlatNode {
@@ -97,7 +128,8 @@ function buildTree(files: WorkspaceFile[]): TreeNode[] {
           isDir: !isLast,
           depth: i,
           children: isLast ? undefined : [],
-          requestCount: isLast ? file.requestCount : undefined
+          requestCount: isLast ? file.requestCount : undefined,
+          fileType: isLast ? getFileType(currentPath) : undefined
         };
         parentMap.set(part, node);
 

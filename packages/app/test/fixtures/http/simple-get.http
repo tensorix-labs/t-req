@@ -1,2 +1,2 @@
-GET https://api.example.com/users
+GET {{baseUrl}}/get
 Accept: application/json

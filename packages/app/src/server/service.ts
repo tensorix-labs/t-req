@@ -1445,22 +1445,26 @@ export function createService(config: ServiceConfig) {
   async function listWorkspaceFiles(
     additionalIgnore?: string[]
   ): Promise<ListWorkspaceFilesResponse> {
-    const glob = new Bun.Glob('**/*.http');
+    // Scan for .http files and script files (.ts, .js, .mts, .mjs)
+    const httpGlob = new Bun.Glob('**/*.http');
+    const scriptGlob = new Bun.Glob('**/*.{ts,js,mts,mjs}');
     const ignorePatterns = [...DEFAULT_WORKSPACE_IGNORE_PATTERNS, ...(additionalIgnore ?? [])];
 
     const files: WorkspaceFile[] = [];
 
-    for await (const path of glob.scan({
+    // Helper to check if path should be ignored
+    const shouldIgnorePath = (path: string): boolean => {
+      return ignorePatterns.some((pattern) => {
+        return path.startsWith(`${pattern}/`) || path.includes(`/${pattern}/`) || path === pattern;
+      });
+    };
+
+    // Scan .http files
+    for await (const path of httpGlob.scan({
       cwd: config.workspaceRoot,
       onlyFiles: true
     })) {
-      // Check if path matches any ignore pattern
-      const shouldIgnore = ignorePatterns.some((pattern) => {
-        // Simple check: path starts with pattern or contains /pattern/
-        return path.startsWith(`${pattern}/`) || path.includes(`/${pattern}/`) || path === pattern;
-      });
-
-      if (shouldIgnore) continue;
+      if (shouldIgnorePath(path)) continue;
 
       const fullPath = resolve(config.workspaceRoot, path);
       try {
@@ -1482,6 +1486,31 @@ export function createService(config: ServiceConfig) {
           path,
           name: path.split('/').pop() ?? path,
           requestCount,
+          lastModified: stat.mtime?.getTime() ?? Date.now()
+        });
+      } catch {
+        // Skip files we can't read
+      }
+    }
+
+    // Scan script files (TS/JS)
+    for await (const path of scriptGlob.scan({
+      cwd: config.workspaceRoot,
+      onlyFiles: true
+    })) {
+      if (shouldIgnorePath(path)) continue;
+
+      const fullPath = resolve(config.workspaceRoot, path);
+      try {
+        const file = Bun.file(fullPath);
+        const stat = await file.stat();
+        if (!stat) continue;
+
+        // Scripts don't have a request count - use 0
+        files.push({
+          path,
+          name: path.split('/').pop() ?? path,
+          requestCount: 0,
           lastModified: stat.mtime?.getTime() ?? Date.now()
         });
       } catch {

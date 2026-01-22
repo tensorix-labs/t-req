@@ -1,6 +1,7 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { initCommand } from './cmd/init';
+import { openCommand } from './cmd/open';
 import { runCommand } from './cmd/run';
 import { serveCommand } from './cmd/serve';
 import { tuiCommand } from './cmd/tui';
@@ -10,6 +11,7 @@ export function cli(args: string[]): void {
     .scriptName('treq')
     .usage('$0 <command> [options]')
     .command(initCommand)
+    .command(openCommand)
     .command(runCommand)
     .command(serveCommand)
     .command(tuiCommand)

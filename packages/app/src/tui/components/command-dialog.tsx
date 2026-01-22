@@ -4,6 +4,7 @@ import { useExit } from '../context/exit';
 import { useKeybind } from '../context/keybind';
 import { DebugConsoleDialog } from './debug-console-dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
+import { FileRequestPicker } from './file-request-picker';
 
 export type Command = {
   title: string;
@@ -23,6 +24,12 @@ export function CommandDialog(): JSX.Element {
       value: 'debug_console',
       keybind: keybind.print('debug_console'),
       onSelect: (d) => d.replace(() => <DebugConsoleDialog />)
+    },
+    {
+      title: 'View Workspace Tree',
+      value: 'workspace_tree',
+      keybind: keybind.print('file_picker'),
+      onSelect: (d) => d.replace(() => <FileRequestPicker />)
     },
     {
       title: 'Exit',

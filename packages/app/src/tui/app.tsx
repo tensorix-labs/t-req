@@ -1,208 +1,299 @@
-import { useKeyboard } from '@opentui/solid';
-import { createEffect, createMemo, createSignal, on, onCleanup, untrack } from 'solid-js';
-import { theme, rgba } from './theme';
+import type { CliRenderer } from '@opentui/core';
+import { useRenderer } from '@opentui/solid';
+import { createMemo, createSignal, Match, onCleanup, Show, Switch } from 'solid-js';
 import { CommandDialog } from './components/command-dialog';
 import { DebugConsoleDialog } from './components/debug-console-dialog';
+import { ExecutionList } from './components/execution-list';
+import { FileRequestPicker } from './components/file-request-picker';
 import { FileTree } from './components/file-tree';
-import { RequestList } from './components/request-list';
-import { useDialog, useExit, useKeybind, useSDK, useStore } from './context';
-import { normalizeKey } from './util/normalize-key';
-import { getStatusDisplay } from './util/status-display';
+import { ExecutionDetailView } from './components/execution-detail';
+import { RunnerSelectDialog } from './components/runner-select';
+import { ScriptOutput } from './components/script-output';
+import { useDialog, useExit, useObserver, useSDK, useStore } from './context';
+import { isRunnableScript, isHttpFile } from './store';
+import { rgba, theme } from './theme';
+import {
+  useExecutionDetail,
+  useFlowSubscription,
+  useScriptRunner,
+  useWorkspace,
+  useRequestExecution,
+  useKeyboardCommands
+} from './hooks';
+import {
+  FullScreenLayout,
+  SplitPanel,
+  Panel,
+  Section,
+  HorizontalDivider,
+  VerticalDivider,
+  StatusBar
+} from './layouts';
+import { openInEditor } from './editor';
+
+type LeftPanelMode = 'tree' | 'executions';
 
 export function App() {
   const sdk = useSDK();
-  const store = useStore();
+  const observer = useObserver();
   const exit = useExit();
   const dialog = useDialog();
-  const keybind = useKeybind();
+  const renderer = useRenderer();
+  const store = useStore();
 
-  // Track in-flight fetch paths to prevent duplicate requests (reactive for UI)
-  const [loadingPaths, setLoadingPaths] = createSignal<Set<string>>(new Set());
+  // Custom hooks encapsulate business logic
+  const workspace = useWorkspace();
+  const requestExecution = useRequestExecution();
+  const flowSubscription = useFlowSubscription();
+  const { detail: executionDetail, isLoading: loadingDetail } = useExecutionDetail();
 
-  // Keyboard handling
-  useKeyboard((event) => {
-    if (dialog.stack.length > 0) return;
-
-    if (keybind.match('debug_console', event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      dialog.replace(() => <DebugConsoleDialog />);
-      return;
-    }
-
-    if (keybind.match('command_list', event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      dialog.replace(() => <CommandDialog />);
-      return;
-    }
-
-    if (keybind.match('quit', event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      void exit();
-      return;
-    }
-
-    const key = normalizeKey(event);
-    switch (key.name) {
-      case 'j':
-      case 'down':
-        event.preventDefault();
-        event.stopPropagation();
-        store.selectNext();
-        break;
-      case 'k':
-      case 'up':
-        event.preventDefault();
-        event.stopPropagation();
-        store.selectPrevious();
-        break;
-      case 'return': {
-        const selected = store.selectedNode();
-        if (selected) {
-          if (selected.node.isDir) {
-            store.toggleDir(selected.node.path);
-          } else {
-            // Load requests for selected file
-            loadRequestsForFile(selected.node.path);
-          }
-        }
-        break;
-      }
-      case 'h':
-      case 'left': {
-        const selected = store.selectedNode();
-        if (selected?.node.isDir && selected.isExpanded) {
-          store.collapseDir(selected.node.path);
-        }
-        break;
-      }
-      case 'l':
-      case 'right': {
-        const selected = store.selectedNode();
-        if (selected?.node.isDir && !selected.isExpanded) {
-          store.expandDir(selected.node.path);
-        }
-        break;
-      }
+  const scriptRunner = useScriptRunner({
+    onRunnerDialogNeeded: (scriptPath, onSelect) => {
+      dialog.replace(() => (
+        <RunnerSelectDialog scriptPath={scriptPath} onSelect={onSelect} />
+      ));
     }
   });
 
-  // Load requests when a file is selected
-  async function loadRequestsForFile(path: string) {
-    // Check if already loaded or currently loading
-    if (store.requestsByPath()[path] || loadingPaths().has(path)) {
-      return;
-    }
+  // Left panel mode state
+  const [leftPanelMode, setLeftPanelMode] = createSignal<LeftPanelMode>('tree');
+  const [panelHidden, setPanelHidden] = createSignal(false);
 
-    setLoadingPaths((prev) => {
-      const next = new Set(prev);
-      next.add(path);
-      return next;
-    });
-    try {
-      const response = await sdk.listWorkspaceRequests(path);
-      store.setRequestsForPath(path, response.requests);
-    } catch (_e) {
-      // Silently fail - requests panel will show empty
-      // Set empty array to prevent retry on re-select
-      store.setRequestsForPath(path, []);
-    } finally {
-      setLoadingPaths((prev) => {
-        const next = new Set(prev);
-        next.delete(path);
-        return next;
-      });
+  // Tab toggles between tree and executions
+  const togglePanelMode = () => {
+    setLeftPanelMode((mode) => (mode === 'tree' ? 'executions' : 'tree'));
+  };
+
+  // Ctrl+H toggles panel visibility
+  const togglePanelHidden = () => {
+    setPanelHidden((hidden) => !hidden);
+  };
+
+  // Derived state
+  const isRunning = createMemo(() => !!observer.state.runningScript);
+
+  // File execution handler - delegates to appropriate executor
+  function handleFileExecute(filePath: string) {
+    if (isRunnableScript(filePath)) {
+      void scriptRunner.runScript(filePath);
+    } else if (isHttpFile(filePath)) {
+      void executeFirstRequest(filePath);
     }
   }
 
-  // Auto-load requests when selection changes to a file (debounced)
-  // Uses on() to explicitly track only selectedNode, with a 50ms debounce
-  // to prevent load during rapid j/k navigation
-  let loadTimeout: ReturnType<typeof setTimeout> | undefined;
+  // Execute first request in an HTTP file
+  async function executeFirstRequest(filePath: string) {
+    const requests = await workspace.loadRequests(filePath);
+    const firstRequest = requests?.[0];
+    if (firstRequest) {
+      void requestExecution.executeRequest(filePath, firstRequest.index);
+    }
+  }
 
-  createEffect(
-    on(
-      () => store.selectedNode(),
-      (selected) => {
-        // Clear any pending load
-        if (loadTimeout) {
-          clearTimeout(loadTimeout);
-          loadTimeout = undefined;
-        }
+  // Cleanup handler
+  async function cleanupAndExit() {
+    scriptRunner.cleanup();
+    flowSubscription.cleanup();
+    // Best-effort finish flow
+    const flowId = observer.state.flowId;
+    if (flowId) {
+      try {
+        await sdk.finishFlow(flowId);
+      } catch {
+        // Ignore errors
+      }
+    }
+    void exit();
+  }
 
-        if (selected && !selected.node.isDir) {
-          // Debounce: wait 50ms before loading
-          loadTimeout = setTimeout(() => {
-            untrack(() => loadRequestsForFile(selected.node.path));
-          }, 50);
+  // Command registry - declarative action mapping
+  useKeyboardCommands({
+    commands: {
+      debug_console: {
+        action: () => dialog.replace(() => <DebugConsoleDialog />)
+      },
+      command_list: {
+        action: () => dialog.replace(() => <CommandDialog />)
+      },
+      file_picker: {
+        action: () => dialog.replace(() => (
+          <FileRequestPicker
+            onSelect={workspace.navigateToFile}
+            onExecute={handleFileExecute}
+          />
+        ))
+      },
+      quit: {
+        action: cleanupAndExit
+      },
+      open_in_editor: {
+        action: () => {
+          const detail = executionDetail();
+          if (detail) {
+            void openInEditor(detail, renderer as CliRenderer);
+          }
         }
       }
-    )
-  );
-
-  onCleanup(() => {
-    if (loadTimeout) {
-      clearTimeout(loadTimeout);
+    },
+    onCancel: scriptRunner.cancelScript,
+    onNavigateDown: () => {
+      if (leftPanelMode() === 'tree') {
+        store.selectNext();
+      } else {
+        observer.selectNextExecution();
+      }
+    },
+    onNavigateUp: () => {
+      if (leftPanelMode() === 'tree') {
+        store.selectPrevious();
+      } else {
+        observer.selectPreviousExecution();
+      }
+    },
+    onTabPress: togglePanelMode,
+    onToggleHide: togglePanelHidden,
+    onEnter: () => {
+      if (leftPanelMode() === 'tree') {
+        const selectedNode = store.selectedNode();
+        if (selectedNode) {
+          if (selectedNode.node.isDir) {
+            store.toggleDir(selectedNode.node.path);
+          } else {
+            handleFileExecute(selectedNode.node.path);
+            setLeftPanelMode('executions');
+          }
+        }
+      }
     }
   });
 
-  // Get the selected file path for the request list
-  const selectedFilePath = () => {
-    const selected = store.selectedNode();
-    return selected && !selected.node.isDir ? selected.node.path : undefined;
-  };
-
-  const requestListLoading = createMemo(() => {
-    const path = selectedFilePath();
-    if (!path) return false;
-    return loadingPaths().has(path);
+  // Cleanup on unmount
+  onCleanup(() => {
+    scriptRunner.cleanup();
+    flowSubscription.cleanup();
   });
 
-  const statusDisplay = createMemo(() => getStatusDisplay(store.connectionStatus()));
-
+  // Render - semantic layout structure
   return (
-    <box
-      flexDirection="column"
-      width="100%"
-      height="100%"
-      backgroundColor={rgba(theme.background)}
-    >
-      <box flexGrow={1} flexDirection="row">
-        <box width="50%" flexShrink={0} paddingRight={1}>
-          <FileTree
-            nodes={store.flattenedVisible()}
-            selectedIndex={store.selectedIndex()}
-            onSelect={store.setSelectedIndex}
-            onToggle={store.toggleDir}
-          />
-        </box>
+    <FullScreenLayout>
+      <SplitPanel>
+        <Show when={!panelHidden()}>
+          <Panel width="40%">
+            <Switch>
+              <Match when={leftPanelMode() === 'tree'}>
+                <FileTree
+                  nodes={store.flattenedVisible()}
+                  selectedIndex={store.selectedIndex()}
+                  onSelect={store.setSelectedIndex}
+                  onToggle={store.toggleDir}
+                />
+              </Match>
+              <Match when={leftPanelMode() === 'executions'}>
+                <Section height="50%">
+                  <Show
+                    when={observer.state.flowId}
+                    keyed
+                    fallback={
+                      <box
+                        flexGrow={1}
+                        flexDirection="column"
+                        overflow="hidden"
+                        backgroundColor={rgba(theme.backgroundPanel)}
+                      >
+                        <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                          <text fg={rgba(theme.primary)} attributes={1}>
+                            Executions
+                          </text>
+                        </box>
+                        <box paddingLeft={2}>
+                          <text fg={rgba(theme.textMuted)}>No executions yet</text>
+                        </box>
+                      </box>
+                    }
+                  >
+                    {() => (
+                      <ExecutionList
+                        executions={observer.executionsList()}
+                        selectedId={observer.state.selectedReqExecId}
+                        onSelect={(id) => observer.setState('selectedReqExecId', id)}
+                        isRunning={isRunning()}
+                      />
+                    )}
+                  </Show>
+                </Section>
+                <HorizontalDivider />
+                <Section flexGrow={1}>
+                  <Show
+                    when={observer.state.flowId}
+                    keyed
+                    fallback={
+                      <box
+                        flexGrow={1}
+                        flexDirection="column"
+                        overflow="hidden"
+                        backgroundColor={rgba(theme.backgroundPanel)}
+                      >
+                        <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                          <text fg={rgba(theme.primary)} attributes={1}>
+                            Output
+                          </text>
+                        </box>
+                        <box paddingLeft={2}>
+                          <text fg={rgba(theme.textMuted)}>No output yet</text>
+                        </box>
+                      </box>
+                    }
+                  >
+                    {() => (
+                      <ScriptOutput
+                        stdoutLines={observer.state.stdoutLines}
+                        stderrLines={observer.state.stderrLines}
+                        exitCode={observer.state.exitCode}
+                        isRunning={isRunning()}
+                        scriptPath={observer.state.runningScript?.path}
+                      />
+                    )}
+                  </Show>
+                </Section>
+              </Match>
+            </Switch>
+          </Panel>
+          <VerticalDivider />
+        </Show>
 
-        <box width={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />
+        <Panel flexGrow={1}>
+          <Show
+            when={observer.state.flowId}
+            keyed
+            fallback={
+              <box
+                flexGrow={1}
+                flexDirection="column"
+                overflow="hidden"
+                backgroundColor={rgba(theme.backgroundPanel)}
+              >
+                <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                  <text fg={rgba(theme.primary)} attributes={1}>
+                    Details
+                  </text>
+                </box>
+                <box paddingLeft={2}>
+                  <text fg={rgba(theme.textMuted)}>Select an execution to view details</text>
+                </box>
+              </box>
+            }
+          >
+            {() => (
+              <ExecutionDetailView
+                execution={executionDetail()}
+                isLoading={loadingDetail()}
+              />
+            )}
+          </Show>
+        </Panel>
+      </SplitPanel>
 
-        <box flexGrow={1} flexShrink={0}>
-          <RequestList
-            requests={store.selectedFileRequests()}
-            selectedFile={selectedFilePath()}
-            isLoading={requestListLoading()}
-          />
-        </box>
-      </box>
-
-      <box height={1} paddingLeft={2} paddingRight={2} flexDirection="row" justifyContent="space-between">
-        <text fg={rgba(theme.text)}>t-req 🦖</text>
-        <box flexDirection="row" gap={2}>
-          <box flexDirection="row">
-            <text fg={rgba(theme.text)}>{keybind.print('command_list')}</text>
-            <text fg={rgba(theme.textMuted)}> commands</text>
-          </box>
-          <box flexDirection="row" gap={1}>
-            <text fg={rgba(statusDisplay().color)}>{statusDisplay().icon}</text>
-            <text fg={rgba(theme.textMuted)}>{statusDisplay().text}</text>
-          </box>
-        </box>
-      </box>
-    </box>
+      <StatusBar isRunning={isRunning()} />
+    </FullScreenLayout>
   );
 }
