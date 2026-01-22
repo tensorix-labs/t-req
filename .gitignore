@@ -6,6 +6,9 @@ node_modules
 # Turbo
 .turbo
 
+# SST
+.sst
+
 # Build Outputs
 dist
 out
