@@ -5,7 +5,7 @@
  * Manages the SSE connection lifecycle and updates observer state with execution events.
  */
 
-import { type Accessor, createSignal } from 'solid-js';
+import type { Accessor } from 'solid-js';
 import { useObserver, useSDK } from '../context';
 import type { ExecutionStatus, SSEStatus } from '../observer-store';
 import type { EventEnvelope } from '../sdk';
@@ -26,6 +26,12 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
 
   // Handle SSE events
   function handleSSEEvent(event: EventEnvelope) {
+    // Reject events from different/old flows to prevent duplicates after reset
+    const currentFlowId = observer.state.flowId;
+    if (event.flowId && event.flowId !== currentFlowId) {
+      return;
+    }
+
     const seq = event.seq;
     const lastSeq = observer.state.lastFlowSeq;
 
@@ -106,7 +112,8 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
 
     observer.setState('sseStatus', 'connecting');
 
-    sseUnsubscribe = sdk.subscribeEvents(
+    // Capture the specific unsubscribe function for this subscription
+    const currentUnsubscribe = sdk.subscribeEvents(
       flowId,
       handleSSEEvent,
       (error) => {
@@ -118,12 +125,13 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
       }
     );
 
+    sseUnsubscribe = currentUnsubscribe;
     observer.setState('sseStatus', 'open');
 
-    // Return unsubscribe function
+    // Return a function that unsubscribes THIS specific subscription
     return () => {
-      if (sseUnsubscribe) {
-        sseUnsubscribe();
+      currentUnsubscribe(); // Use captured value, not closure variable
+      if (sseUnsubscribe === currentUnsubscribe) {
         sseUnsubscribe = undefined;
       }
       observer.setState('sseStatus', 'closed');

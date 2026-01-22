@@ -1,6 +1,6 @@
 import type { CliRenderer } from '@opentui/core';
 import { useRenderer } from '@opentui/solid';
-import { createMemo, onCleanup } from 'solid-js';
+import { createMemo, onCleanup, Show } from 'solid-js';
 import { CommandDialog } from './components/command-dialog';
 import { DebugConsoleDialog } from './components/debug-console-dialog';
 import { ExecutionList } from './components/execution-list';
@@ -10,6 +10,7 @@ import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { useDialog, useExit, useObserver, useSDK } from './context';
 import { isRunnableScript, isHttpFile } from './store';
+import { rgba, theme } from './theme';
 import {
   useExecutionDetail,
   useFlowSubscription,
@@ -134,22 +135,70 @@ export function App() {
         {/* Left Panel: Executions + Output */}
         <Panel width="50%">
           <Section height="50%">
-            <ExecutionList
-              executions={observer.executionsList()}
-              selectedId={observer.state.selectedReqExecId}
-              onSelect={(id) => observer.setState('selectedReqExecId', id)}
-              isRunning={isRunning()}
-            />
+            <Show
+              when={observer.state.flowId}
+              keyed
+              fallback={
+                <box
+                  flexGrow={1}
+                  flexDirection="column"
+                  overflow="hidden"
+                  backgroundColor={rgba(theme.backgroundPanel)}
+                >
+                  <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Executions
+                    </text>
+                  </box>
+                  <box paddingLeft={2}>
+                    <text fg={rgba(theme.textMuted)}>No executions yet</text>
+                  </box>
+                </box>
+              }
+            >
+              {() => (
+                <ExecutionList
+                  executions={observer.executionsList()}
+                  selectedId={observer.state.selectedReqExecId}
+                  onSelect={(id) => observer.setState('selectedReqExecId', id)}
+                  isRunning={isRunning()}
+                />
+              )}
+            </Show>
           </Section>
           <HorizontalDivider />
           <Section flexGrow={1}>
-            <ScriptOutput
-              stdoutLines={observer.state.stdoutLines}
-              stderrLines={observer.state.stderrLines}
-              exitCode={observer.state.exitCode}
-              isRunning={isRunning()}
-              scriptPath={observer.state.runningScript?.path}
-            />
+            <Show
+              when={observer.state.flowId}
+              keyed
+              fallback={
+                <box
+                  flexGrow={1}
+                  flexDirection="column"
+                  overflow="hidden"
+                  backgroundColor={rgba(theme.backgroundPanel)}
+                >
+                  <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Output
+                    </text>
+                  </box>
+                  <box paddingLeft={2}>
+                    <text fg={rgba(theme.textMuted)}>No output yet</text>
+                  </box>
+                </box>
+              }
+            >
+              {() => (
+                <ScriptOutput
+                  stdoutLines={observer.state.stdoutLines}
+                  stderrLines={observer.state.stderrLines}
+                  exitCode={observer.state.exitCode}
+                  isRunning={isRunning()}
+                  scriptPath={observer.state.runningScript?.path}
+                />
+              )}
+            </Show>
           </Section>
         </Panel>
 
@@ -157,10 +206,34 @@ export function App() {
 
         {/* Right Panel: Execution Details */}
         <Panel flexGrow={1}>
-          <ExecutionDetailView
-            execution={executionDetail()}
-            isLoading={loadingDetail()}
-          />
+          <Show
+            when={observer.state.flowId}
+            keyed
+            fallback={
+              <box
+                flexGrow={1}
+                flexDirection="column"
+                overflow="hidden"
+                backgroundColor={rgba(theme.backgroundPanel)}
+              >
+                <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                  <text fg={rgba(theme.primary)} attributes={1}>
+                    Details
+                  </text>
+                </box>
+                <box paddingLeft={2}>
+                  <text fg={rgba(theme.textMuted)}>Select an execution to view details</text>
+                </box>
+              </box>
+            }
+          >
+            {() => (
+              <ExecutionDetailView
+                execution={executionDetail()}
+                isLoading={loadingDetail()}
+              />
+            )}
+          </Show>
         </Panel>
       </SplitPanel>
 

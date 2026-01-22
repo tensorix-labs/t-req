@@ -105,6 +105,7 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
       <scrollbox flexGrow={1} paddingLeft={2} paddingRight={1}>
         <Show
           when={props.execution}
+          keyed
           fallback={
             <box id="loading-state">
               <text fg={rgba(theme.textMuted)}>
@@ -113,115 +114,119 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
             </box>
           }
         >
-          {/* Request Summary */}
-          <box id="request-summary" flexDirection="column" marginBottom={1}>
-            <box flexDirection="row">
-              <text fg={rgba(theme.textMuted)}>Status: </text>
-              <text fg={rgba(getStatusColor(props.execution!.status))}>
-                {props.execution!.status.toUpperCase()}
-              </text>
-            </box>
-            <box flexDirection="row">
-              <text fg={rgba(theme.textMuted)}>Method: </text>
-              <text fg={rgba(getMethodColor(props.execution!.method ?? 'GET'))}>
-                {props.execution!.method ?? 'N/A'}
-              </text>
-            </box>
-            <box flexDirection="row">
-              <text fg={rgba(theme.textMuted)}>URL: </text>
-              <text fg={rgba(theme.text)}>{props.execution!.urlResolved ?? props.execution!.urlTemplate ?? 'N/A'}</text>
-            </box>
-            <Show when={props.execution!.reqLabel}>
-              <box flexDirection="row">
-                <text fg={rgba(theme.textMuted)}>Label: </text>
-                <text fg={rgba(theme.text)}>{props.execution!.reqLabel}</text>
+          {(execution: ExecutionDetail) => (
+            <>
+              {/* Request Summary */}
+              <box id="request-summary" flexDirection="column" marginBottom={1}>
+                <box flexDirection="row">
+                  <text fg={rgba(theme.textMuted)}>Status: </text>
+                  <text fg={rgba(getStatusColor(execution.status))}>
+                    {execution.status.toUpperCase()}
+                  </text>
+                </box>
+                <box flexDirection="row">
+                  <text fg={rgba(theme.textMuted)}>Method: </text>
+                  <text fg={rgba(getMethodColor(execution.method ?? 'GET'))}>
+                    {execution.method ?? 'N/A'}
+                  </text>
+                </box>
+                <box flexDirection="row">
+                  <text fg={rgba(theme.textMuted)}>URL: </text>
+                  <text fg={rgba(theme.text)}>{execution.urlResolved ?? execution.urlTemplate ?? 'N/A'}</text>
+                </box>
+                <Show when={execution.reqLabel}>
+                  <box flexDirection="row">
+                    <text fg={rgba(theme.textMuted)}>Label: </text>
+                    <text fg={rgba(theme.text)}>{execution.reqLabel}</text>
+                  </box>
+                </Show>
+                <Show when={execution.timing.durationMs !== undefined}>
+                  <box flexDirection="row">
+                    <text fg={rgba(theme.textMuted)}>Duration: </text>
+                    <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs)}</text>
+                  </box>
+                </Show>
               </box>
-            </Show>
-            <Show when={props.execution!.timing.durationMs !== undefined}>
-              <box flexDirection="row">
-                <text fg={rgba(theme.textMuted)}>Duration: </text>
-                <text fg={rgba(theme.text)}>{formatDuration(props.execution!.timing.durationMs)}</text>
-              </box>
-            </Show>
-          </box>
 
-          {/* Error (if failed) */}
-          <Show when={props.execution!.error}>
-            <box id="error" flexDirection="column" marginBottom={1}>
-              <text fg={rgba(theme.error)} attributes={1}>
-                Error
-              </text>
-              <box flexDirection="row">
-                <text fg={rgba(theme.textMuted)}>Stage: </text>
-                <text fg={rgba(theme.error)}>{props.execution!.error!.stage}</text>
-              </box>
-              <text fg={rgba(theme.error)}>{props.execution!.error!.message}</text>
-            </box>
-          </Show>
+              {/* Error (if failed) */}
+              <Show when={execution.error}>
+                <box id="error" flexDirection="column" marginBottom={1}>
+                  <text fg={rgba(theme.error)} attributes={1}>
+                    Error
+                  </text>
+                  <box flexDirection="row">
+                    <text fg={rgba(theme.textMuted)}>Stage: </text>
+                    <text fg={rgba(theme.error)}>{execution.error!.stage}</text>
+                  </box>
+                  <text fg={rgba(theme.error)}>{execution.error!.message}</text>
+                </box>
+              </Show>
 
-          {/* Response */}
-          <Show when={response()}>
-            <box id="response" flexDirection="column" marginBottom={1}>
-              <text fg={rgba(theme.primary)} attributes={1}>
-                Response
-              </text>
-              <box flexDirection="row">
-                <text fg={rgba(theme.textMuted)}>Status: </text>
-                <text fg={rgba(getHttpStatusColor(response()!.status))}>
-                  {response()!.status} {response()!.statusText}
-                </text>
-              </box>
-              <box flexDirection="row">
-                <text fg={rgba(theme.textMuted)}>Size: </text>
-                <text fg={rgba(theme.text)}>
-                  {response()!.bodyBytes} bytes{response()!.truncated ? ' (truncated)' : ''}
-                </text>
-              </box>
-            </box>
+              {/* Response */}
+              <Show when={response()}>
+                <box id="response" flexDirection="column" marginBottom={1}>
+                  <text fg={rgba(theme.primary)} attributes={1}>
+                    Response
+                  </text>
+                  <box flexDirection="row">
+                    <text fg={rgba(theme.textMuted)}>Status: </text>
+                    <text fg={rgba(getHttpStatusColor(response()!.status))}>
+                      {response()!.status} {response()!.statusText}
+                    </text>
+                  </box>
+                  <box flexDirection="row">
+                    <text fg={rgba(theme.textMuted)}>Size: </text>
+                    <text fg={rgba(theme.text)}>
+                      {response()!.bodyBytes} bytes{response()!.truncated ? ' (truncated)' : ''}
+                    </text>
+                  </box>
+                </box>
 
-            {/* Response Cookies */}
-            <Show when={cookies().length > 0}>
-              <box id="cookies" flexDirection="column" marginBottom={1}>
-                <text fg={rgba(theme.primary)} attributes={1}>
-                  Cookies
-                </text>
-                <For each={cookies()}>
-                  {(cookie) => (
-                    <box flexDirection="row">
-                      <text fg={rgba(theme.text)}>{cookie.value}</text>
-                    </box>
-                  )}
-                </For>
-              </box>
-            </Show>
+                {/* Response Cookies */}
+                <Show when={cookies().length > 0}>
+                  <box id="cookies" flexDirection="column" marginBottom={1}>
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Cookies
+                    </text>
+                    <For each={cookies()}>
+                      {(cookie) => (
+                        <box flexDirection="row">
+                          <text fg={rgba(theme.text)}>{cookie.value}</text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </Show>
 
-            {/* Response Headers */}
-            <Show when={nonCookieHeaders().length > 0}>
-              <box id="headers" flexDirection="column" marginBottom={1}>
-                <text fg={rgba(theme.primary)} attributes={1}>
-                  Headers
-                </text>
-                <For each={nonCookieHeaders()}>
-                  {(header) => (
-                    <box flexDirection="row">
-                      <text fg={rgba(theme.textMuted)}>{header.name}: </text>
-                      <text fg={rgba(theme.text)}>{header.value}</text>
-                    </box>
-                  )}
-                </For>
-              </box>
-            </Show>
+                {/* Response Headers */}
+                <Show when={nonCookieHeaders().length > 0}>
+                  <box id="headers" flexDirection="column" marginBottom={1}>
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Headers
+                    </text>
+                    <For each={nonCookieHeaders()}>
+                      {(header) => (
+                        <box flexDirection="row">
+                          <text fg={rgba(theme.textMuted)}>{header.name}: </text>
+                          <text fg={rgba(theme.text)}>{header.value}</text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </Show>
 
-            {/* Response Body */}
-            <Show when={body()}>
-              <box id="body" flexDirection="column">
-                <text fg={rgba(theme.primary)} attributes={1}>
-                  Body
-                </text>
-                <text fg={rgba(theme.text)}>{body()}</text>
-              </box>
-            </Show>
-          </Show>
+                {/* Response Body */}
+                <Show when={body()}>
+                  <box id="body" flexDirection="column">
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Body
+                    </text>
+                    <text fg={rgba(theme.text)}>{body()}</text>
+                  </box>
+                </Show>
+              </Show>
+            </>
+          )}
         </Show>
       </scrollbox>
     </box>

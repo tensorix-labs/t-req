@@ -79,6 +79,7 @@ export function ExecutionList(props: ExecutionListProps) {
       <scrollbox ref={(r) => (scrollRef = r)} flexGrow={1} paddingLeft={1} paddingRight={1}>
         <Show
           when={props.executions.length > 0}
+          keyed
           fallback={
             <box id="empty-state" paddingLeft={2}>
               <text fg={rgba(theme.textMuted)}>
@@ -87,16 +88,18 @@ export function ExecutionList(props: ExecutionListProps) {
             </box>
           }
         >
-          <For each={props.executions}>
-            {(execution, index) => (
-              <ExecutionRow
-                id={`exec-${index()}`}
-                execution={execution}
-                isSelected={execution.reqExecId === props.selectedId}
-                onSelect={() => props.onSelect(execution.reqExecId)}
-              />
-            )}
-          </For>
+          {() => (
+            <For each={props.executions}>
+              {(execution, index) => (
+                <ExecutionRow
+                  id={`exec-${index()}`}
+                  execution={execution}
+                  isSelected={execution.reqExecId === props.selectedId}
+                  onSelect={() => props.onSelect(execution.reqExecId)}
+                />
+              )}
+            </For>
+          )}
         </Show>
       </scrollbox>
     </box>

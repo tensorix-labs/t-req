@@ -41,9 +41,22 @@ export function useExecutionDetail(): ExecutionDetailReturn {
         const flowId = observer.state.flowId;
         if (!flowId) return;
 
+        // Capture values at fetch start to validate response is still relevant
+        const fetchFlowId = flowId;
+        const fetchExecId = id;
+
         setLoadingDetail(true);
         try {
           const detail = await sdk.getExecution(flowId, id);
+
+          // Validate state hasn't changed during async fetch (prevents stale data after reset)
+          if (
+            observer.state.flowId !== fetchFlowId ||
+            observer.state.selectedReqExecId !== fetchExecId
+          ) {
+            return; // State changed, discard this response
+          }
+
           setExecutionDetail(detail);
         } catch (err) {
           console.error('Failed to load execution detail:', err);
