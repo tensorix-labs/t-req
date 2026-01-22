@@ -46,4 +46,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed ref:** ${{ github.event.inputs.ref }}" >> $GITHUB_STEP_SUMMARY
           echo "**Reason:** ${{ github.event.inputs.reason || 'Not specified' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**URL:** https://docs.t-req.dev" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://docs.t-req.io" >> $GITHUB_STEP_SUMMARY

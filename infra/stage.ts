@@ -3,9 +3,9 @@
  *
  * | Stage        | Webdocs Domain            | Trigger                |
  * |--------------|---------------------------|------------------------|
- * | production   | docs.t-req.io            | Manual dispatch        |
- * | dev          | dev.docs.t-req.io        | Auto on push to main   |
- * | pr-{N}       | pr-{N}.docs.t-req.io     | Auto on PR open/sync   |
+ * | production   | docs.t-req.io             | Manual dispatch        |
+ * | dev          | docs-dev.t-req.io         | Auto on push to main   |
+ * | pr-{N}       | docs-pr-{N}.t-req.io      | Auto on PR open/sync   |
  */
 
 const DOMAIN = 't-req.io';
@@ -23,12 +23,12 @@ export function getWebdocsDomain(): string | undefined {
   }
 
   if (stage === 'dev') {
-    return `dev.docs.${DOMAIN}`;
+    return `docs-dev.${DOMAIN}`;
   }
 
-  // PR preview environments: pr-123 -> pr-123.docs.t-req.io
+  // PR preview environments: pr-123 -> docs-pr-123.t-req.io
   if (stage.startsWith('pr-')) {
-    return `${stage}.docs.${DOMAIN}`;
+    return `docs-${stage}.${DOMAIN}`;
   }
 
   // Personal/local stages don't get a custom domain (use SST's default URL)

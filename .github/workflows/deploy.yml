@@ -55,7 +55,7 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
-            const previewUrl = `https://pr-${prNumber}.docs.t-req.io`;
+            const previewUrl = `https://docs-pr-${prNumber}.t-req.io`;
             const body = `## 🚀 Preview Deployment\n\nYour changes have been deployed to:\n\n**📖 Docs:** ${previewUrl}\n\nThis preview will be automatically removed when the PR is closed.`;
 
             // Find existing comment
