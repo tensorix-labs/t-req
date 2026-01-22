@@ -17,22 +17,6 @@ function formatDuration(ms?: number): string {
 }
 
 /**
- * Get status color
- */
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'success':
-      return theme.success;
-    case 'failed':
-      return theme.error;
-    case 'running':
-      return theme.warning;
-    default:
-      return theme.textMuted;
-  }
-}
-
-/**
  * Get HTTP status color based on code range
  */
 function getHttpStatusColor(status?: number): string {
