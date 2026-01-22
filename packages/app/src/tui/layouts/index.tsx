@@ -51,9 +51,11 @@ export function SplitPanel(props: SplitPanelProps) {
   );
 }
 
+type BoxDimension = number | 'auto' | `${number}%`;
+
 export interface PanelProps {
   children: JSX.Element;
-  width?: string;
+  width?: BoxDimension;
   flexGrow?: number;
 }
 
@@ -75,7 +77,7 @@ export function Panel(props: PanelProps) {
 
 export interface SectionProps {
   children: JSX.Element;
-  height?: string | number;
+  height?: BoxDimension;
   flexGrow?: number;
 }
 
