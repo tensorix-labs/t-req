@@ -192,6 +192,16 @@ async function main(): Promise<void> {
   await $`git fetch origin --tags`.quiet();
   console.log('  Fetched latest tags');
 
+  // Verify local is not behind remote
+  const behindResult = await $`git rev-list --count HEAD..origin/main`.quiet();
+  const behindCount = parseInt(behindResult.text().trim());
+  if (behindCount > 0) {
+    console.error(`Error: Local main is ${behindCount} commit(s) behind origin/main`);
+    console.error('Run: git pull origin main');
+    process.exit(1);
+  }
+  console.log('  Local branch is up to date');
+
   // Release each package
   for (const pkg of packages) {
     await releasePackage(pkg, PACKAGES[pkg], dryRun);

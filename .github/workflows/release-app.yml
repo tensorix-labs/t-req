@@ -178,7 +178,7 @@ jobs:
 
       - name: Publish to npm
         if: ${{ github.event_name == 'push' || !inputs.dry-run }}
-        run: bun run script/publish.ts
+        run: bun run script/publish.ts --skip-build
         working-directory: packages/app
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
