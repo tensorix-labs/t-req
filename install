@@ -1,0 +1,360 @@
+#!/bin/bash
+#
+# t-req installer script
+# Usage: curl -fsSL https://t-req.io/install | bash
+#
+# Options:
+#   --version X.Y.Z    Install specific version (default: latest)
+#   --help             Show this help message
+#
+# Environment variables:
+#   TREQ_INSTALL_DIR   Installation directory (default: ~/.treq)
+#
+
+set -euo pipefail
+
+# Configuration
+GITHUB_REPO="tensorix-labs/t-req"
+INSTALL_DIR="${TREQ_INSTALL_DIR:-$HOME/.treq}"
+BIN_DIR="$INSTALL_DIR/bin"
+BINARY_NAME="treq"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging functions
+info() { echo -e "${BLUE}info${NC}: $1"; }
+success() { echo -e "${GREEN}success${NC}: $1"; }
+warn() { echo -e "${YELLOW}warn${NC}: $1"; }
+error() { echo -e "${RED}error${NC}: $1" >&2; }
+die() { error "$1"; exit 1; }
+
+# Help message
+show_help() {
+    cat << 'EOF'
+t-req installer
+
+Usage:
+    curl -fsSL https://t-req.io/install | bash
+    curl -fsSL https://t-req.io/install | bash -s -- --version 0.1.0
+
+Options:
+    --version X.Y.Z    Install specific version (default: latest)
+    --help             Show this help message
+
+Environment variables:
+    TREQ_INSTALL_DIR   Installation directory (default: ~/.treq)
+
+Examples:
+    # Install latest version
+    curl -fsSL https://t-req.io/install | bash
+
+    # Install specific version
+    curl -fsSL https://t-req.io/install | bash -s -- --version 0.1.0
+
+    # Install to custom directory
+    TREQ_INSTALL_DIR=/opt/treq curl -fsSL https://t-req.io/install | bash
+EOF
+}
+
+# Parse arguments
+VERSION=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version)
+            VERSION="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            die "Unknown option: $1. Use --help for usage."
+            ;;
+    esac
+done
+
+# Detect OS
+detect_os() {
+    local os
+    os="$(uname -s)"
+    case "$os" in
+        Darwin) echo "darwin" ;;
+        Linux) echo "linux" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+        *) die "Unsupported operating system: $os" ;;
+    esac
+}
+
+# Detect architecture
+detect_arch() {
+    local arch
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64|amd64) echo "x64" ;;
+        arm64|aarch64) echo "arm64" ;;
+        *) die "Unsupported architecture: $arch" ;;
+    esac
+}
+
+# Check for Rosetta 2 on Apple Silicon
+check_rosetta() {
+    local os="$1"
+    local arch="$2"
+
+    if [[ "$os" == "darwin" && "$arch" == "x64" ]]; then
+        # Check if we're running under Rosetta
+        if [[ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" == "1" ]]; then
+            warn "Running under Rosetta 2. Consider using native arm64 build for better performance."
+            # Return arm64 to use native build
+            echo "arm64"
+            return
+        fi
+    fi
+    echo "$arch"
+}
+
+# Fetch latest version from GitHub
+fetch_latest_version() {
+    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases"
+    local response
+
+    # Find latest app release (tag starting with app-v)
+    response=$(curl -fsSL "$api_url" 2>/dev/null) || die "Failed to fetch releases from GitHub"
+
+    # Extract latest app-v tag
+    local version
+    version=$(echo "$response" | grep -o '"tag_name": "app-v[^"]*"' | head -1 | sed 's/"tag_name": "app-v\([^"]*\)"/\1/')
+
+    if [[ -z "$version" ]]; then
+        die "Failed to determine latest version. Please specify a version with --version X.Y.Z"
+    fi
+
+    echo "$version"
+}
+
+# Verify checksum
+verify_checksum() {
+    local file="$1"
+    local checksums_file="$2"
+    local archive_name="$3"
+
+    # Extract expected checksum
+    local expected
+    expected=$(grep "$archive_name" "$checksums_file" | awk '{print $1}')
+
+    if [[ -z "$expected" ]]; then
+        warn "Checksum not found for $archive_name, skipping verification"
+        return 0
+    fi
+
+    # Calculate actual checksum
+    local actual
+    if command -v sha256sum &>/dev/null; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum &>/dev/null; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        warn "Neither sha256sum nor shasum available, skipping checksum verification"
+        return 0
+    fi
+
+    if [[ "$expected" != "$actual" ]]; then
+        die "Checksum verification failed!\nExpected: $expected\nActual:   $actual"
+    fi
+
+    success "Checksum verified"
+}
+
+# Download file
+download() {
+    local url="$1"
+    local dest="$2"
+
+    if command -v curl &>/dev/null; then
+        curl -fsSL "$url" -o "$dest"
+    elif command -v wget &>/dev/null; then
+        wget -q "$url" -O "$dest"
+    else
+        die "Neither curl nor wget found. Please install one of them."
+    fi
+}
+
+# Configure shell PATH
+configure_shell() {
+    local shell_name
+    local shell_config
+
+    # Detect shell
+    shell_name="$(basename "${SHELL:-/bin/bash}")"
+
+    case "$shell_name" in
+        bash)
+            if [[ -f "$HOME/.bashrc" ]]; then
+                shell_config="$HOME/.bashrc"
+            elif [[ -f "$HOME/.bash_profile" ]]; then
+                shell_config="$HOME/.bash_profile"
+            else
+                shell_config="$HOME/.bashrc"
+            fi
+            ;;
+        zsh)
+            shell_config="$HOME/.zshrc"
+            ;;
+        fish)
+            shell_config="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            shell_config=""
+            ;;
+    esac
+
+    # GitHub Actions support
+    if [[ -n "${GITHUB_PATH:-}" ]]; then
+        echo "$BIN_DIR" >> "$GITHUB_PATH"
+        info "Added $BIN_DIR to GITHUB_PATH"
+        return
+    fi
+
+    # Check if already in PATH
+    if [[ ":$PATH:" == *":$BIN_DIR:"* ]]; then
+        info "PATH already configured"
+        return
+    fi
+
+    if [[ -z "$shell_config" ]]; then
+        warn "Could not detect shell config file. Add this to your shell config:"
+        echo "  export PATH=\"$BIN_DIR:\$PATH\""
+        return
+    fi
+
+    # Add to shell config if not already present
+    local path_line="export PATH=\"$BIN_DIR:\$PATH\""
+
+    if [[ "$shell_name" == "fish" ]]; then
+        path_line="set -gx PATH \"$BIN_DIR\" \$PATH"
+        mkdir -p "$(dirname "$shell_config")"
+    fi
+
+    if ! grep -q "$BIN_DIR" "$shell_config" 2>/dev/null; then
+        echo "" >> "$shell_config"
+        echo "# t-req" >> "$shell_config"
+        echo "$path_line" >> "$shell_config"
+        info "Added $BIN_DIR to PATH in $shell_config"
+    fi
+}
+
+# Main installation function
+main() {
+    echo ""
+    echo "  t-req installer"
+    echo "  ==============="
+    echo ""
+
+    # Detect platform
+    local os arch
+    os=$(detect_os)
+    arch=$(detect_arch)
+    arch=$(check_rosetta "$os" "$arch")
+
+    info "Detected platform: $os-$arch"
+
+    # Get version
+    if [[ -z "$VERSION" ]]; then
+        info "Fetching latest version..."
+        VERSION=$(fetch_latest_version)
+    fi
+    info "Installing version: $VERSION"
+
+    # Determine archive format and name
+    local archive_ext archive_name
+    if [[ "$os" == "windows" ]]; then
+        archive_ext="zip"
+    else
+        archive_ext="tar.gz"
+    fi
+    archive_name="treq-${VERSION}-${os}-${arch}.${archive_ext}"
+
+    # URLs
+    local base_url="https://github.com/${GITHUB_REPO}/releases/download/app-v${VERSION}"
+    local archive_url="${base_url}/${archive_name}"
+    local checksums_url="${base_url}/SHA256SUMS.txt"
+
+    # Create temp directory
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf '$tmp_dir'" EXIT
+
+    # Download archive
+    info "Downloading $archive_name..."
+    download "$archive_url" "$tmp_dir/$archive_name" || die "Failed to download archive"
+
+    # Download checksums
+    info "Downloading checksums..."
+    download "$checksums_url" "$tmp_dir/SHA256SUMS.txt" || warn "Could not download checksums"
+
+    # Verify checksum
+    if [[ -f "$tmp_dir/SHA256SUMS.txt" ]]; then
+        info "Verifying checksum..."
+        verify_checksum "$tmp_dir/$archive_name" "$tmp_dir/SHA256SUMS.txt" "$archive_name"
+    fi
+
+    # Create install directory
+    mkdir -p "$BIN_DIR"
+
+    # Extract archive
+    info "Extracting..."
+    if [[ "$archive_ext" == "zip" ]]; then
+        unzip -q "$tmp_dir/$archive_name" -d "$tmp_dir/extract"
+    else
+        mkdir -p "$tmp_dir/extract"
+        tar -xzf "$tmp_dir/$archive_name" -C "$tmp_dir/extract"
+    fi
+
+    # Find and install binary
+    local binary_file="$BINARY_NAME"
+    if [[ "$os" == "windows" ]]; then
+        binary_file="$BINARY_NAME.exe"
+    fi
+
+    # Copy binary
+    if [[ -f "$tmp_dir/extract/bin/$binary_file" ]]; then
+        cp "$tmp_dir/extract/bin/$binary_file" "$BIN_DIR/$binary_file"
+    elif [[ -f "$tmp_dir/extract/$binary_file" ]]; then
+        cp "$tmp_dir/extract/$binary_file" "$BIN_DIR/$binary_file"
+    else
+        die "Binary not found in archive"
+    fi
+
+    # Make executable
+    chmod +x "$BIN_DIR/$binary_file"
+
+    success "Installed $BINARY_NAME to $BIN_DIR/$binary_file"
+
+    # Configure PATH
+    configure_shell
+
+    # Verify installation
+    echo ""
+    if [[ ":$PATH:" == *":$BIN_DIR:"* ]] || [[ -n "${GITHUB_PATH:-}" ]]; then
+        info "Verifying installation..."
+        "$BIN_DIR/$binary_file" --version && success "Installation complete!" || warn "Binary installed but version check failed"
+    else
+        success "Installation complete!"
+        echo ""
+        warn "To use treq, either:"
+        echo "  1. Restart your shell, or"
+        echo "  2. Run: export PATH=\"$BIN_DIR:\$PATH\""
+        echo ""
+        echo "  Then run: treq --version"
+    fi
+
+    echo ""
+}
+
+main "$@"

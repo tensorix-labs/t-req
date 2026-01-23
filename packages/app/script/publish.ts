@@ -9,6 +9,7 @@ process.chdir(dir);
 
 const version = pkg.version;
 const dryRun = process.argv.includes('--dry-run');
+const skipBuild = process.argv.includes('--skip-build');
 
 const targets = [
   { os: 'darwin', arch: 'arm64' },
@@ -27,10 +28,15 @@ for (const { os, arch } of targets) {
 console.log(`Publishing @t-req/app v${version}${dryRun ? ' (dry-run)' : ''}`);
 console.log();
 
-// Step 1: Build all platform binaries
-console.log('Step 1: Building all platform binaries...');
-await $`bun run build:all`;
-console.log();
+// Step 1: Build all platform binaries (skip if --skip-build flag is set)
+if (!skipBuild) {
+  console.log('Step 1: Building all platform binaries...');
+  await $`bun run build:all`;
+  console.log();
+} else {
+  console.log('Step 1: Skipping build (--skip-build flag set)');
+  console.log();
+}
 
 // Step 2: Smoke test current platform binary
 const platformMap: Record<string, string> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };

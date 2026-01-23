@@ -13,7 +13,9 @@
     "prepare": "husky",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "turbo run build --filter=@t-req/core --filter=@t-req/app && changeset publish",
+    "release:tag": "bun run script/release.ts",
+    "release:app": "bun run script/release.ts --package app",
+    "release:core": "bun run script/release.ts --package core",
     "sst:dev": "sst dev",
     "sst:deploy": "sst deploy",
     "sst:deploy:prod": "sst deploy --stage production"
