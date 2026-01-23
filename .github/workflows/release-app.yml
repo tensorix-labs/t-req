@@ -1,12 +1,11 @@
 name: Release App
 
 on:
+  push:
+    tags:
+      - "app-v*.*.*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to publish (e.g., 0.1.0)"
-        required: true
-        type: string
       dry-run:
         description: "Dry run (don't actually publish)"
         required: false
@@ -24,6 +23,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Extract version from tag (app-v1.2.3 -> 1.2.3)
+            VERSION="${GITHUB_REF#refs/tags/app-v}"
+          else
+            # For manual trigger, read from package.json
+            VERSION=$(jq -r .version packages/app/package.json)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Verify version matches package.json
+        run: |
+          PKG_VERSION=$(jq -r .version packages/app/package.json)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$PKG_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            echo "The tag must match the committed version. Ensure you've merged the Version Packages PR first."
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -40,38 +65,150 @@ jobs:
         run: bun install
         working-directory: packages/app
 
-      - name: Update version
-        run: |
-          cd packages/app
-          bun -e "
-            const pkg = await Bun.file('package.json').json();
-            pkg.version = '${{ inputs.version }}';
-            pkg.optionalDependencies = {
-              '@t-req/app-darwin-arm64': '${{ inputs.version }}',
-              '@t-req/app-darwin-x64': '${{ inputs.version }}',
-              '@t-req/app-linux-arm64': '${{ inputs.version }}',
-              '@t-req/app-linux-x64': '${{ inputs.version }}',
-              '@t-req/app-windows-x64': '${{ inputs.version }}',
-            };
-            await Bun.write('package.json', JSON.stringify(pkg, null, 2));
-          "
+      - name: Build all platform binaries
+        run: bun run build:all
+        working-directory: packages/app
 
-      - name: Build and Publish
+      - name: Create archives and checksums
+        id: archives
         run: |
-          cd packages/app
-          if [ "${{ inputs.dry-run }}" = "true" ]; then
-            bun run script/publish.ts --dry-run
+          cd packages/app/dist
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Create archives directory
+          mkdir -p archives
+
+          # Create archives for each platform
+          for platform_dir in app-*; do
+            if [[ -d "$platform_dir" ]]; then
+              platform="${platform_dir#app-}"
+
+              if [[ "$platform" == *"windows"* ]]; then
+                # ZIP for Windows
+                archive_name="treq-${VERSION}-${platform}.zip"
+                (cd "$platform_dir" && zip -r "../archives/$archive_name" .)
+              else
+                # tar.gz for Linux/macOS
+                archive_name="treq-${VERSION}-${platform}.tar.gz"
+                tar -czf "archives/$archive_name" -C "$platform_dir" .
+              fi
+
+              echo "Created: $archive_name"
+            fi
+          done
+
+          # Generate SHA256 checksums
+          cd archives
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+          echo "archives_dir=packages/app/dist/archives" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Find previous app tag
+          PREV_TAG=$(git tag --list "app-v*" --sort=-v:refname | grep -v "app-v${VERSION}" | head -1 || echo "")
+
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Generating changelog from $PREV_TAG to app-v${VERSION}"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD -- packages/app)
           else
-            bun run script/publish.ts
+            echo "No previous tag found, generating full changelog"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" -- packages/app | head -20)
           fi
+
+          # Write changelog to file for multiline handling
+          echo "$CHANGELOG" > /tmp/changelog.txt
+
+          # Create release body
+          cat > /tmp/release_body.md << 'BODY_EOF'
+          ## Installation
+
+          ### npm (recommended)
+          ```bash
+          npm install -g @t-req/app
+          ```
+
+          ### curl
+          ```bash
+          curl -fsSL https://t-req.io/install | bash
+          ```
+
+          ### Manual download
+          Download the appropriate archive for your platform from the assets below.
+
+          ## Changes
+          BODY_EOF
+
+          echo "$CHANGELOG" >> /tmp/release_body.md
+
+          echo "Generated release body"
+
+      - name: Create draft release
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        id: create_release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          gh release create "app-v${VERSION}" \
+            --title "App v${VERSION}" \
+            --notes-file /tmp/release_body.md \
+            --draft
+
+          echo "Created draft release app-v${VERSION}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          gh release upload "app-v${VERSION}" \
+            packages/app/dist/archives/*.tar.gz \
+            packages/app/dist/archives/*.zip \
+            packages/app/dist/archives/SHA256SUMS.txt
+
+          echo "Uploaded release assets"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to npm
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        run: bun run script/publish.ts
+        working-directory: packages/app
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create GitHub Release
-        if: ${{ !inputs.dry-run }}
+      - name: Finalize release
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
         run: |
-          gh release create app-v${{ inputs.version }} \
-            --title "App v${{ inputs.version }}" \
-            --generate-notes
+          VERSION="${{ steps.version.outputs.version }}"
+
+          gh release edit "app-v${VERSION}" --draft=false
+
+          echo "Finalized release app-v${VERSION}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dry run summary
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "=== DRY RUN SUMMARY ==="
+          echo "Version: $VERSION"
+          echo ""
+          echo "Archives that would be created:"
+          ls -la packages/app/dist/archives/
+          echo ""
+          echo "Checksums:"
+          cat packages/app/dist/archives/SHA256SUMS.txt
+          echo ""
+          echo "Release body:"
+          cat /tmp/release_body.md
+          echo ""
+          echo "[dry-run] Would create GitHub release app-v${VERSION}"
+          echo "[dry-run] Would publish to npm"
