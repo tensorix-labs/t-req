@@ -11,5 +11,6 @@ export default $config({
   },
   async run() {
     await import('./infra/webdocs.js');
+    await import('./infra/webapp.js');
   }
 });

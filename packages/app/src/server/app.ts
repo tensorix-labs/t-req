@@ -1,3 +1,4 @@
+import { join, resolve } from 'node:path';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { bearerAuth } from 'hono/bearer-auth';
 import { cors } from 'hono/cors';
@@ -40,6 +41,10 @@ export type ServerConfig = {
   corsOrigins?: string[];
   maxBodyBytes: number;
   maxSessions: number;
+  /** Proxy web UI requests to this URL (e.g., https://app.t-req.io) */
+  webUrl?: string;
+  /** Serve web UI from this local directory */
+  webDir?: string;
 };
 
 // ============================================================================
@@ -64,30 +69,30 @@ export function createApp(config: ServerConfig) {
   // Middleware
   // ============================================================================
 
-  // CORS middleware with function-based origin validation
-  if (config.corsOrigins && config.corsOrigins.length > 0) {
-    const allowedOrigins = new Set(config.corsOrigins);
+  // CORS middleware - always enabled for localhost, additional origins via config
+  const allowedOrigins = new Set(config.corsOrigins ?? []);
 
-    app.use(
-      '*',
-      cors({
-        origin: (origin) => {
-          if (!origin) return undefined;
-          // Allow localhost origins by default
-          if (origin.startsWith('http://localhost:')) return origin;
-          if (origin.startsWith('http://127.0.0.1:')) return origin;
-          // Check configured origins
-          if (allowedOrigins.has(origin)) return origin;
-          return undefined; // Deny
-        },
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization'],
-        exposeHeaders: ['Content-Length'],
-        maxAge: 86400,
-        credentials: true
-      })
-    );
-  }
+  app.use(
+    '*',
+    cors({
+      origin: (origin) => {
+        if (!origin) return undefined;
+        // Allow localhost origins by default (for web UI development)
+        if (origin.startsWith('http://localhost:')) return origin;
+        if (origin.startsWith('http://127.0.0.1:')) return origin;
+        // Allow t-req.io domains (hosted web UI)
+        if (origin.endsWith('.t-req.io') || origin === 'https://t-req.io') return origin;
+        // Check configured origins
+        if (allowedOrigins.has(origin)) return origin;
+        return undefined; // Deny
+      },
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization'],
+      exposeHeaders: ['Content-Length'],
+      maxAge: 86400,
+      credentials: true
+    })
+  );
 
   // Bearer auth middleware (if token configured)
   if (config.token) {
@@ -340,6 +345,137 @@ export function createApp(config: ServerConfig) {
       url: 'https://github.com/tensorix-labs/t-req'
     }
   });
+
+  // ============================================================================
+  // Web UI Serving (--web-url or --web-dir)
+  // ============================================================================
+
+  // Define API paths that should NOT be handled by web UI middleware
+  const API_PATHS = new Set([
+    '/health',
+    '/capabilities',
+    '/config',
+    '/parse',
+    '/execute',
+    '/session',
+    '/flows',
+    '/workspace',
+    '/event',
+    '/doc'
+  ]);
+
+  const isApiPath = (pathname: string): boolean => {
+    // Check exact matches and prefix matches (e.g., /session/123)
+    if (API_PATHS.has(pathname)) return true;
+    for (const apiPath of API_PATHS) {
+      if (pathname.startsWith(apiPath + '/')) return true;
+    }
+    return false;
+  };
+
+  // Web UI proxy (--web-url)
+  if (config.webUrl) {
+    const webUrl = config.webUrl.replace(/\/+$/, ''); // Remove trailing slashes
+
+    app.use('*', async (c, next) => {
+      const pathname = new URL(c.req.url).pathname;
+
+      // Skip API paths
+      if (isApiPath(pathname)) {
+        return next();
+      }
+
+      // Proxy to remote web UI
+      const targetUrl = `${webUrl}${pathname}`;
+      try {
+        const response = await fetch(targetUrl, {
+          method: c.req.method,
+          headers: {
+            // Forward relevant headers but not host
+            Accept: c.req.header('Accept') ?? '*/*',
+            'Accept-Encoding': c.req.header('Accept-Encoding') ?? 'gzip, deflate'
+          }
+        });
+
+        // If not found and no file extension, serve index.html for SPA routing
+        if (response.status === 404 && !pathname.includes('.')) {
+          const indexResponse = await fetch(`${webUrl}/index.html`);
+          if (indexResponse.ok) {
+            return new Response(indexResponse.body, {
+              status: 200,
+              headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-cache'
+              }
+            });
+          }
+        }
+
+        // Forward the response
+        return new Response(response.body, {
+          status: response.status,
+          headers: response.headers
+        });
+      } catch (err) {
+        console.error('Web UI proxy error:', err);
+        return c.text('Web UI proxy error', 502);
+      }
+    });
+  }
+
+  // Web UI static files (--web-dir)
+  if (config.webDir) {
+    const webDir = resolve(config.webDir);
+
+    app.use('*', async (c, next) => {
+      const pathname = new URL(c.req.url).pathname;
+
+      // Skip API paths
+      if (isApiPath(pathname)) {
+        return next();
+      }
+
+      // Resolve file path
+      const filePath = join(webDir, pathname === '/' ? 'index.html' : pathname);
+
+      // Security: prevent path traversal
+      const resolvedPath = resolve(filePath);
+      if (!resolvedPath.startsWith(webDir)) {
+        return c.text('Forbidden', 403);
+      }
+
+      try {
+        const file = Bun.file(filePath);
+        const exists = await file.exists();
+
+        if (exists) {
+          return new Response(file, {
+            headers: {
+              'Content-Type': file.type,
+              'Cache-Control': filePath.includes('/assets/') ? 'max-age=31536000' : 'no-cache'
+            }
+          });
+        }
+
+        // SPA fallback: serve index.html for paths without file extensions
+        if (!pathname.includes('.')) {
+          const indexFile = Bun.file(join(webDir, 'index.html'));
+          if (await indexFile.exists()) {
+            return new Response(indexFile, {
+              headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-cache'
+              }
+            });
+          }
+        }
+
+        return c.text('Not Found', 404);
+      } catch {
+        return c.text('Not Found', 404);
+      }
+    });
+  }
 
   return { app, service, eventManager, workspaceRoot };
 }

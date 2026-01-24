@@ -23,6 +23,8 @@ interface ServeOptions {
   maxBodySize: number;
   maxSessions: number;
   stdio?: boolean;
+  webUrl?: string;
+  webDir?: string;
 }
 
 export const serveCommand: CommandModule<object, ServeOptions> = {
@@ -70,6 +72,14 @@ export const serveCommand: CommandModule<object, ServeOptions> = {
       type: 'boolean',
       describe: 'Run in stdio mode (JSON-RPC over stdin/stdout)',
       default: false
+    },
+    'web-url': {
+      type: 'string',
+      describe: 'Proxy web UI requests to this URL (e.g., https://app.t-req.io)'
+    },
+    'web-dir': {
+      type: 'string',
+      describe: 'Serve web UI from this local directory'
     }
   },
   handler: async (argv) => {
@@ -108,7 +118,9 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     token: argv.token,
     corsOrigins,
     maxBodyBytes: argv.maxBodySize,
-    maxSessions: argv.maxSessions
+    maxSessions: argv.maxSessions,
+    webUrl: argv.webUrl,
+    webDir: argv.webDir
   };
 
   const { app, service, eventManager, workspaceRoot } = createApp(config);
@@ -121,6 +133,12 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   }
   if (argv.cors) {
     console.log(`  CORS:      ${argv.cors}`);
+  }
+  if (argv.webUrl) {
+    console.log(`  Web UI:    Proxying to ${argv.webUrl}`);
+  }
+  if (argv.webDir) {
+    console.log(`  Web UI:    Serving from ${argv.webDir}`);
   }
   console.log('');
   console.log('Endpoints:');
