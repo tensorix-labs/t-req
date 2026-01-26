@@ -5,9 +5,6 @@ import type { CookieStore } from './runtime/types';
 import type { Client, ClientConfig, RunOptions } from './types';
 import { setOptional } from './utils/optional';
 
-/**
- * Create a high-level HTTP client
- */
 export function createClient(config: ClientConfig = {}): Client {
   let variables: Record<string, unknown> = { ...config.variables };
   const cookieJar = config.cookieJar;

@@ -12,7 +12,6 @@ import {
   scheduleCookieJarSave
 } from '@t-req/core/cookies/persistence';
 import type { CookieStore } from '@t-req/core/runtime';
-// Read version from package.json at build time
 import packageJson from '../../package.json';
 import { createCookieStoreFromJar, dirname, isAbsolute, isPathSafe, resolve } from '../utils';
 import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from './diagnostics';
@@ -63,10 +62,6 @@ import { PROTOCOL_VERSION } from './schemas';
 
 const SERVER_VERSION = packageJson.version;
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export type ServiceConfig = {
   workspaceRoot: string;
   maxBodyBytes: number;
@@ -93,7 +88,6 @@ export type Session = {
   lastUsedAt: number;
   snapshotVersion: number;
   lock: Promise<void>;
-  // Cookie persistence
   cookieJarPath?: string;
 };
 
@@ -111,7 +105,6 @@ export type Flow = {
   seq: number;
 };
 
-// Stored execution data for the execution store
 export type StoredExecution = {
   reqExecId: string;
   flowId: string;
@@ -141,10 +134,6 @@ export type StoredExecution = {
   status: ExecutionStatus;
   error?: { stage: string; message: string };
 };
-
-// ============================================================================
-// Constants
-// ============================================================================
 
 const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute

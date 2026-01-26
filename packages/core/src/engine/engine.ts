@@ -24,11 +24,6 @@ export type EngineRunOptions = {
   followRedirects?: boolean;
   validateSSL?: boolean;
   proxy?: string;
-
-  /**
-   * Base path for resolving file references when running from string content.
-   * When running from file, this is derived from the .http file directory.
-   */
   basePath?: string;
 };
 

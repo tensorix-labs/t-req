@@ -7,6 +7,7 @@ import {
   ExecuteRequestSchema,
   ParseRequestSchema
 } from '../server/schemas';
+import { WEB_UI_PROXY_URL } from '../server/web';
 
 // ============================================================================
 // Constants
@@ -23,6 +24,7 @@ interface ServeOptions {
   maxBodySize: number;
   maxSessions: number;
   stdio?: boolean;
+  web?: boolean;
 }
 
 export const serveCommand: CommandModule<object, ServeOptions> = {
@@ -70,6 +72,11 @@ export const serveCommand: CommandModule<object, ServeOptions> = {
       type: 'boolean',
       describe: 'Run in stdio mode (JSON-RPC over stdin/stdout)',
       default: false
+    },
+    web: {
+      type: 'boolean',
+      describe: 'Enable web UI (proxies to production URL)',
+      default: false
     }
   },
   handler: async (argv) => {
@@ -108,19 +115,25 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     token: argv.token,
     corsOrigins,
     maxBodyBytes: argv.maxBodySize,
-    maxSessions: argv.maxSessions
+    maxSessions: argv.maxSessions,
+    web: argv.web ? { enabled: true } : undefined
   };
 
-  const { app, service, eventManager, workspaceRoot } = createApp(config);
+  const { app, service, eventManager, workspaceRoot, dispose } = createApp(config);
 
   console.log('t-req server starting...');
   console.log(`  Workspace: ${workspaceRoot}`);
   console.log(`  Address:   http://${argv.host}:${argv.port}`);
   if (argv.token) {
-    console.log('  Auth:      Bearer token required');
+    console.log('  Auth:      Bearer token + Cookie sessions');
+  } else {
+    console.log('  Auth:      None (open access)');
   }
   if (argv.cors) {
     console.log(`  CORS:      ${argv.cors}`);
+  }
+  if (argv.web) {
+    console.log(`  Web UI:    Proxying to ${WEB_UI_PROXY_URL}`);
   }
   console.log('');
   console.log('Endpoints:');
@@ -134,6 +147,14 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   console.log('  DEL  /session/:id       - Delete session');
   console.log('  GET  /event             - Event stream (SSE)');
   console.log('  GET  /doc               - OpenAPI documentation');
+  if (argv.web) {
+    console.log('');
+    console.log('Web UI:');
+    console.log('  GET  /auth/init         - Initialize session (sets cookie)');
+    console.log('  POST /auth/logout       - Destroy session');
+    console.log('  GET  /auth/status       - Check session status');
+    console.log('  GET  /*                 - Web UI assets');
+  }
   console.log('');
   console.log('Ready to accept connections.');
 
@@ -148,6 +169,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     console.log('\nShutting down...');
     eventManager.closeAll();
     service.dispose();
+    dispose(); // Stop session cleanup
     try {
       // Best-effort: flush any pending debounced cookie jar writes.
       await flushPendingCookieSaves();
@@ -163,12 +185,13 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
 }
 
 async function runStdioMode(argv: ServeOptions): Promise<void> {
-  const { service } = createApp({
+  const { service, dispose } = createApp({
     port: 0,
     host: '127.0.0.1',
     workspace: argv.workspace,
     maxBodyBytes: argv.maxBodySize,
-    maxSessions: argv.maxSessions
+    maxSessions: argv.maxSessions,
+    allowCookieAuth: false // stdio mode doesn't need cookie auth
   });
 
   // Read JSON-RPC requests from stdin
@@ -211,6 +234,7 @@ async function runStdioMode(argv: ServeOptions): Promise<void> {
   });
 
   process.stdin.on('end', () => {
+    dispose(); // Stop session cleanup
     process.exit(0);
   });
 

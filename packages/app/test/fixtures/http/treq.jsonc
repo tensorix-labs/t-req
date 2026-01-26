@@ -1,0 +1,22 @@
+{
+    // Global variables available in all requests
+    "variables": {
+        "baseUrl": "https://httpbin.org",
+        "userId": "1",
+        "token": "test-token"
+    },
+    // Environment-specific profiles that override global variables
+    "profiles": {
+        "local": {
+            "variables": {
+                "baseUrl": "http://localhost:3000"
+            }
+        },
+        "staging": {
+            "variables": {
+                "baseUrl": "https://staging-api.example.com",
+                "token": "{env:STAGING_TOKEN}"
+            }
+        }
+    }
+}

@@ -1,9 +1,12 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { bearerAuth } from 'hono/bearer-auth';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { streamSSE } from 'hono/streaming';
 import packageJson from '../../package.json';
+import { createAuthMiddleware, startSessionCleanup, stopSessionCleanup } from './auth';
+
+export type { WebConfig } from './web';
+
 import { getStatusForError, TreqError, ValidationError } from './errors';
 import { createEventManager, type EventEnvelope } from './events';
 import {
@@ -25,12 +28,9 @@ import {
 } from './openapi';
 import type { ErrorResponse } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
+import { createWebRoutes, isApiPath, type WebConfig } from './web';
 
 const SERVER_VERSION = packageJson.version;
-
-// ============================================================================
-// Server Configuration
-// ============================================================================
 
 export type ServerConfig = {
   workspace?: string;
@@ -40,11 +40,10 @@ export type ServerConfig = {
   corsOrigins?: string[];
   maxBodyBytes: number;
   maxSessions: number;
+  /** Allow cookie-based authentication (default: true). Set to false for expose mode. */
+  allowCookieAuth?: boolean;
+  web?: WebConfig;
 };
-
-// ============================================================================
-// Create Hono App
-// ============================================================================
 
 export function createApp(config: ServerConfig) {
   const app = new OpenAPIHono();
@@ -60,39 +59,57 @@ export function createApp(config: ServerConfig) {
     }
   });
 
-  // ============================================================================
-  // Middleware
-  // ============================================================================
+  const allowedOrigins = new Set(config.corsOrigins ?? []);
 
-  // CORS middleware with function-based origin validation
-  if (config.corsOrigins && config.corsOrigins.length > 0) {
-    const allowedOrigins = new Set(config.corsOrigins);
+  app.use(
+    '*',
+    cors({
+      origin: (origin) => {
+        if (!origin) return undefined;
+        if (origin.startsWith('http://localhost:')) return origin;
+        if (origin.startsWith('http://127.0.0.1:')) return origin;
+        if (allowedOrigins.has(origin)) return origin;
+        return undefined; // Deny
+      },
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization'],
+      exposeHeaders: ['Content-Length'],
+      maxAge: 86400,
+      credentials: true
+    })
+  );
 
-    app.use(
-      '*',
-      cors({
-        origin: (origin) => {
-          if (!origin) return undefined;
-          // Allow localhost origins by default
-          if (origin.startsWith('http://localhost:')) return origin;
-          if (origin.startsWith('http://127.0.0.1:')) return origin;
-          // Check configured origins
-          if (allowedOrigins.has(origin)) return origin;
-          return undefined; // Deny
-        },
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization'],
-        exposeHeaders: ['Content-Length'],
-        maxAge: 86400,
-        credentials: true
-      })
-    );
+  // Auth middleware (supports bearer token + cookie sessions)
+  // Note: Auth is applied to API paths. Web routes handle their own auth for /auth/* paths.
+  const allowCookieAuth = config.allowCookieAuth ?? true;
+  const authMiddleware = createAuthMiddleware({
+    token: config.token,
+    allowCookieAuth
+  });
+
+  // Start session cleanup if cookie auth is allowed
+  if (allowCookieAuth) {
+    startSessionCleanup();
   }
 
-  // Bearer auth middleware (if token configured)
-  if (config.token) {
-    app.use('*', bearerAuth({ token: config.token }));
-  }
+  // Apply auth to all API paths (non-web routes)
+  app.use('*', async (c, next) => {
+    const pathname = new URL(c.req.url).pathname;
+
+    // Skip auth for web routes (they handle their own auth)
+    // /auth/* routes need to be accessible without auth
+    if (pathname.startsWith('/auth/')) {
+      return next();
+    }
+
+    // Skip auth for web UI routes (non-API paths) when web is enabled
+    if (config.web?.enabled && !isApiPath(pathname)) {
+      return next();
+    }
+
+    // Apply auth middleware to API paths
+    return authMiddleware(c, next);
+  });
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) {
@@ -305,10 +322,6 @@ export function createApp(config: ServerConfig) {
     });
   });
 
-  // ============================================================================
-  // OpenAPI Documentation
-  // ============================================================================
-
   app.doc('/doc', {
     openapi: '3.0.3',
     info: {
@@ -341,5 +354,31 @@ export function createApp(config: ServerConfig) {
     }
   });
 
-  return { app, service, eventManager, workspaceRoot };
+  // ============================================================================
+  // Web UI Routes (auth + proxy)
+  // ============================================================================
+
+  if (config.web?.enabled) {
+    const webRoutes = createWebRoutes();
+
+    // Mount web routes with API path exclusion
+    app.use('*', async (c, next) => {
+      const pathname = new URL(c.req.url).pathname;
+
+      // Skip API paths - let them fall through to API handlers
+      if (isApiPath(pathname)) {
+        return next();
+      }
+
+      // Handle web routes (auth + UI serving)
+      return webRoutes.fetch(c.req.raw);
+    });
+  }
+
+  // Cleanup function for graceful shutdown
+  const dispose = () => {
+    stopSessionCleanup();
+  };
+
+  return { app, service, eventManager, workspaceRoot, dispose };
 }
