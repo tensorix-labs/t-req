@@ -5,6 +5,7 @@ import { createApp, type ServerConfig } from '../server/app';
 
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = 4097;
 const HEALTH_CHECK_MAX_RETRIES = 10;
 const HEALTH_CHECK_BACKOFF_MS = 100;
 
@@ -89,8 +90,9 @@ export const openCommand: CommandModule<object, OpenOptions> = {
       })
       .option('port', {
         type: 'number',
-        describe: 'Fixed port (default: ephemeral)',
-        alias: 'p'
+        describe: 'Port to listen on',
+        alias: 'p',
+        default: DEFAULT_PORT
       })
       .option('host', {
         type: 'string',
@@ -115,7 +117,7 @@ export const openCommand: CommandModule<object, OpenOptions> = {
 
 async function runOpen(argv: OpenOptions): Promise<void> {
   const host = argv.host;
-  const port = argv.port ?? 0; // 0 = ephemeral port
+  const port = argv.port;
   const token = generateToken(); // Always generate token for defense-in-depth
 
   // Security: --expose and --web together is not allowed (SSRF protection)
