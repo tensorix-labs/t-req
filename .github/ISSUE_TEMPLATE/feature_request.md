@@ -7,6 +7,9 @@ assignees: ''
 
 ---
 
+> **Note:** Please open this issue for discussion before starting implementation.
+> Wait for maintainer feedback before submitting a PR.
+
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 

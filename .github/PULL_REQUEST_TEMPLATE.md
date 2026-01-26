@@ -1,24 +1,32 @@
+## Related Issue
+<!-- Link the issue this PR addresses. PRs without linked issues may be closed. -->
+Closes #
+
 ## Summary
-<!-- Provide a brief summary of the changes and the motivation behind them. -->
+<!-- Brief description of changes and motivation -->
+
+## AI Disclosure
+<!-- Check one: -->
+- [ ] I did not use AI assistance for this PR
+- [ ] I used AI assistance: <!-- Describe tool and extent, e.g., "Claude Code for initial implementation" -->
 
 ## Type of Change
-<!-- Please check the options that are relevant. -->
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
 - [ ] Documentation update
 - [ ] Refactoring
-- [ ] Chore (dependency update, build script changes, etc.)
+- [ ] Chore
 
 ## How Has This Been Tested?
-<!-- Please describe the tests that you ran to verify your changes. -->
+<!-- Describe tests run to verify changes -->
 - [ ] Unit tests
 - [ ] E2E tests
-- [ ] Manual testing (please describe)
+- [ ] Manual testing: <!-- describe -->
 
 ## Checklist
 - [ ] I have followed the [contributing guidelines](CONTRIBUTING.md)
-- [ ] I have performed a self-review of my own code
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] I have updated the documentation accordingly
+- [ ] I have performed a self-review
+- [ ] I have added tests for my changes
+- [ ] I have updated documentation if needed
 - [ ] My changes generate no new warnings
