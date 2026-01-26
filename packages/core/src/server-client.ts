@@ -1,98 +1,39 @@
 /**
- * Remote Client - Routes requests through treq serve instead of executing locally.
+ * Server Client - Internal module for routing requests through treq server.
  *
- * This allows existing scripts to become observable by the TUI with a single import change:
+ * This is the internal implementation used by createClient() when a server URL is configured.
+ * The public API remains createClient({ server: 'http://localhost:4096' }).
  *
- * @example
- * ```typescript
- * // Change from:
- * // import { createClient } from '@t-req/core';
- * // const client = createClient({ variables: {...} });
- *
- * // To:
- * import { createRemoteClient } from '@t-req/core';
- * const client = createRemoteClient({
- *   serverUrl: 'http://localhost:4096',
- *   variables: { baseUrl: 'https://api.example.com' }
- * });
- *
- * // Same API as createClient:
- * const response = await client.run('./auth/login.http');
- * client.setVariable('token', '...');
- * await client.close(); // Finishes flow (best-effort)
- * ```
+ * @internal
  */
 
-import type { Client, RunOptions } from './types';
+import type { Client, ClientConfig, RunOptions } from './types';
 
-export interface RemoteClientConfig {
-  /**
-   * URL of the treq server.
-   * If not provided, will try to read from TREQ_SERVER environment variable.
-   * @example 'http://localhost:4096'
-   */
-  serverUrl?: string;
-
-  /**
-   * Initial variables for the session.
-   */
-  variables?: Record<string, unknown>;
-
-  /**
-   * Optional label for the flow (shown in TUI).
-   */
-  flowLabel?: string;
-
-  /**
-   * Optional metadata for the flow.
-   */
-  flowMeta?: Record<string, unknown>;
-
-  /**
-   * Config profile to use.
-   */
-  profile?: string;
-
-  /**
-   * Default timeout in milliseconds.
-   * @default 30000
-   */
-  timeout?: number;
-
-  /**
-   * Bearer token for authentication (if server requires it).
-   * If not provided, will try to read from TREQ_TOKEN environment variable.
-   */
-  token?: string;
-
-  /**
-   * Flow ID to attach to (for TUI orchestration).
-   * If not provided, will try to read from TREQ_FLOW_ID environment variable.
-   * When present, the client will not create its own flow but will use this one.
-   */
-  flowId?: string;
+/**
+ * Internal configuration for server client, extending public ClientConfig.
+ */
+export interface ServerClientConfig extends ClientConfig {
+  /** Base URL of the treq server (required) */
+  serverUrl: string;
+  /** Bearer token for authentication */
+  token?: string | undefined;
 }
 
 /**
- * Extended client interface for remote execution with close/dispose.
+ * Metadata about the server connection.
+ * Accessible via getServerMetadata() utility.
  */
-export interface RemoteClient extends Client {
-  /**
-   * Close the client and finish the flow.
-   * Best-effort - server will TTL anyway if not called.
-   */
-  close(): Promise<void>;
-
-  /**
-   * Get the current session ID.
-   */
-  getSessionId(): string | undefined;
-
-  /**
-   * Get the current flow ID.
-   */
-  getFlowId(): string | undefined;
+export interface ServerMetadata {
+  /** The server URL the client is connected to */
+  readonly serverUrl: string;
+  /** Session ID created on the server */
+  readonly sessionId: string | undefined;
+  /** Flow ID for observability (TUI) */
+  readonly flowId: string | undefined;
 }
+
+// Symbol for storing server metadata on the client instance
+export const SERVER_METADATA = Symbol('serverMetadata');
 
 // ============================================================================
 // Server Response Types
@@ -139,7 +80,7 @@ interface ExecuteResponse {
 /**
  * Read environment variable safely (works in both Node and Bun).
  */
-function getEnvVar(name: string): string | undefined {
+export function getEnvVar(name: string): string | undefined {
   if (typeof process !== 'undefined' && process.env) {
     return process.env[name];
   }
@@ -147,26 +88,19 @@ function getEnvVar(name: string): string | undefined {
 }
 
 /**
- * Create a remote client that routes through treq serve.
+ * Create a server-backed client (internal use).
  *
- * The client automatically creates a session and flow on first use,
- * making all requests observable in the TUI.
+ * Called by createClient() when server URL is provided.
+ * Automatically creates a session and flow on first use.
  *
- * When TREQ_SERVER, TREQ_TOKEN, and TREQ_FLOW_ID environment variables
- * are present (e.g., when spawned by TUI), the client will attach to
- * the existing flow instead of creating a new one.
+ * When TREQ_FLOW_ID environment variable is present (e.g., when spawned by TUI),
+ * the client will attach to the existing flow instead of creating a new one.
+ *
+ * @internal
  */
-export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClient {
-  // Read from environment variables if not provided in config
-  const serverUrl = config.serverUrl ?? getEnvVar('TREQ_SERVER');
-  const token = config.token ?? getEnvVar('TREQ_TOKEN');
-  const attachedFlowId = config.flowId ?? getEnvVar('TREQ_FLOW_ID');
-
-  if (!serverUrl) {
-    throw new Error(
-      'Remote client requires serverUrl. Provide in config or set TREQ_SERVER environment variable.'
-    );
-  }
+export function createServerClient(config: ServerClientConfig): Client {
+  const { serverUrl, token } = config;
+  const attachedFlowId = getEnvVar('TREQ_FLOW_ID');
 
   const baseUrl = serverUrl.replace(/\/$/, '');
   let variables: Record<string, unknown> = { ...config.variables };
@@ -179,7 +113,6 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
   const isAttachedFlow = !!attachedFlowId;
 
   // Serialize variable sync operations so rapid updates cannot race.
-  // This chain is awaited before each execution.
   let variableSyncChain: Promise<void> = Promise.resolve();
 
   const defaultTimeout = config.timeout ?? 30000;
@@ -218,9 +151,7 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
           method: 'POST',
           headers,
           body: JSON.stringify({
-            sessionId,
-            label: config.flowLabel,
-            meta: config.flowMeta
+            sessionId
           })
         });
 
@@ -232,7 +163,6 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
         const flowData = (await flowRes.json()) as CreateFlowResponse;
         flowId = flowData.flowId;
       }
-      // If attached flow, flowId is already set from environment/config
 
       initialized = true;
     })();
@@ -257,8 +187,6 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
       }
     };
 
-    // If session exists, sync immediately in-order. If initialization is in flight,
-    // sync once it completes (covers setVariable(s) during ensureInitialized()).
     if (sessionId) {
       variableSyncChain = variableSyncChain.catch(() => undefined).then(doSync);
     } else if (initPromise) {
@@ -301,7 +229,7 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
       body['basePath'] = options.basePath;
     }
 
-    // Build fetch options, only including signal if defined
+    // Build fetch options
     const fetchOptions: RequestInit = {
       method: 'POST',
       headers,
@@ -354,7 +282,21 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
     });
   }
 
-  return {
+  async function close(): Promise<void> {
+    // Only finish the flow if we created it (not when attached to TUI's flow)
+    if (!flowId || isAttachedFlow) return;
+
+    try {
+      await fetch(`${baseUrl}/flows/${flowId}/finish`, {
+        method: 'POST',
+        headers
+      });
+    } catch {
+      // Best-effort - server will TTL anyway
+    }
+  }
+
+  const client: Client & { [SERVER_METADATA]: () => ServerMetadata } = {
     async run(path: string, options: RunOptions = {}): Promise<Response> {
       return executeRequest({ path }, options);
     },
@@ -365,13 +307,11 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
 
     setVariables(vars: Record<string, unknown>): void {
       variables = { ...variables, ...vars };
-
       enqueueVariableSync(vars);
     },
 
     setVariable(key: string, value: unknown): void {
       variables[key] = value;
-
       enqueueVariableSync({ [key]: value });
     },
 
@@ -379,26 +319,17 @@ export function createRemoteClient(config: RemoteClientConfig = {}): RemoteClien
       return { ...variables };
     },
 
-    async close(): Promise<void> {
-      // Only finish the flow if we created it (not when attached to TUI's flow)
-      if (!flowId || isAttachedFlow) return;
+    close,
 
-      try {
-        await fetch(`${baseUrl}/flows/${flowId}/finish`, {
-          method: 'POST',
-          headers
-        });
-      } catch {
-        // Best-effort - server will TTL anyway
-      }
-    },
+    [Symbol.asyncDispose]: close,
 
-    getSessionId(): string | undefined {
-      return sessionId;
-    },
-
-    getFlowId(): string | undefined {
-      return flowId;
-    }
+    // Internal: accessor for server metadata
+    [SERVER_METADATA]: () => ({
+      serverUrl: baseUrl,
+      sessionId,
+      flowId
+    })
   };
+
+  return client;
 }

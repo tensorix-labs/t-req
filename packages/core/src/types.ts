@@ -273,6 +273,33 @@ export interface ClientConfig {
     /** Proxy URL */
     proxy?: string;
   };
+
+  // ============================================================================
+  // Server mode options (enables remote execution when set)
+  // ============================================================================
+
+  /**
+   * Server URL to route requests through.
+   * When set, the client operates in "server mode" - requests are executed
+   * by the treq server instead of locally.
+   *
+   * If not provided, will try to read from TREQ_SERVER environment variable.
+   *
+   * @example 'http://localhost:4096'
+   */
+  server?: string;
+
+  /**
+   * Bearer token for server authentication.
+   * If not provided, will try to read from TREQ_TOKEN environment variable.
+   */
+  serverToken?: string;
+
+  /**
+   * Server-side config profile to use.
+   * Selects a named profile from the server's treq.jsonc configuration.
+   */
+  profile?: string;
 }
 
 /**
@@ -318,6 +345,16 @@ export interface RunOptions {
  *
  * // Run another request
  * const profile = await client.run('./users/profile.http');
+ *
+ * // Clean up when done
+ * await client.close();
+ * ```
+ *
+ * @example Using explicit resource management (TypeScript 5.2+)
+ * ```typescript
+ * await using client = createClient({ server: 'http://localhost:4096' });
+ * const res = await client.run('./auth/login.http');
+ * // client.close() is called automatically when scope exits
  * ```
  */
 export interface Client {
@@ -344,4 +381,17 @@ export interface Client {
 
   /** Get a copy of all current variables */
   getVariables(): Record<string, unknown>;
+
+  /**
+   * Close the client and release any resources.
+   * - For local clients: no-op
+   * - For server clients: finishes the flow (best-effort)
+   */
+  close(): Promise<void>;
+
+  /**
+   * Async dispose for explicit resource management (TypeScript 5.2+).
+   * Equivalent to calling `close()`.
+   */
+  [Symbol.asyncDispose](): Promise<void>;
 }

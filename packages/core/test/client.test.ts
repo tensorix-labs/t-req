@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createClient } from '../src/client.ts';
 import { createCookieJar } from '../src/cookies.ts';
+import { getServerMetadata } from '../src/server-metadata.ts';
 import { installFetchMock } from './utils/fetch-mock.ts';
 
 const FIXTURES = './test/fixtures';
@@ -13,6 +14,8 @@ describe('createClient', () => {
     expect(client.setVariables).toBeDefined();
     expect(client.setVariable).toBeDefined();
     expect(client.getVariables).toBeDefined();
+    expect(client.close).toBeDefined();
+    expect(client[Symbol.asyncDispose]).toBeDefined();
   });
 
   test('getVariables returns copy of variables', () => {
@@ -268,6 +271,243 @@ Authorization: Bearer override
 
       const json = await response.json();
       expect(json).toEqual({ ok: true });
+    } finally {
+      restore();
+    }
+  });
+
+  test('close() is a no-op for local client', async () => {
+    const client = createClient();
+    // Should not throw
+    await client.close();
+    // Can be called multiple times
+    await client.close();
+  });
+
+  test('Symbol.asyncDispose works for local client', async () => {
+    const client = createClient();
+    // Should not throw
+    await client[Symbol.asyncDispose]();
+  });
+
+  test('getServerMetadata returns undefined for local client', () => {
+    const client = createClient();
+    const meta = getServerMetadata(client);
+    expect(meta).toBeUndefined();
+  });
+});
+
+describe('createClient with server option', () => {
+  test('routes to server client when server option provided', async () => {
+    let sessionCreated = false;
+    let flowCreated = false;
+    let executeRequested = false;
+
+    const restore = installFetchMock(async (url, init) => {
+      const urlStr = String(url);
+
+      // Session creation
+      if (urlStr.includes('/session') && init?.method === 'POST') {
+        sessionCreated = true;
+        return new Response(JSON.stringify({ sessionId: 'test-session-123' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Flow creation
+      if (urlStr.includes('/flows') && init?.method === 'POST') {
+        flowCreated = true;
+        return new Response(JSON.stringify({ flowId: 'test-flow-456' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Execute request
+      if (urlStr.includes('/execute')) {
+        executeRequested = true;
+        return new Response(
+          JSON.stringify({
+            runId: 'run-1',
+            request: { index: 0, method: 'GET', url: 'https://example.com/api' },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              headers: [{ name: 'Content-Type', value: 'application/json' }],
+              body: '{"success":true}',
+              encoding: 'utf-8',
+              truncated: false,
+              bodyBytes: 16
+            },
+            timing: { startTime: 0, endTime: 100, durationMs: 100 }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Flow finish
+      if (urlStr.includes('/finish')) {
+        return new Response('', { status: 200 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const client = createClient({
+        server: 'http://localhost:4096',
+        variables: { baseUrl: 'https://api.example.com' }
+      });
+
+      // Run a request
+      const response = await client.runString('GET https://example.com/api');
+
+      expect(sessionCreated).toBe(true);
+      expect(flowCreated).toBe(true);
+      expect(executeRequested).toBe(true);
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ success: true });
+
+      // Close should finish the flow
+      await client.close();
+    } finally {
+      restore();
+    }
+  });
+
+  test('getServerMetadata returns metadata for server client', async () => {
+    const restore = installFetchMock(async (url, init) => {
+      const urlStr = String(url);
+
+      if (urlStr.includes('/session') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ sessionId: 'meta-session' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/flows') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ flowId: 'meta-flow' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/execute')) {
+        return new Response(
+          JSON.stringify({
+            runId: 'run-1',
+            request: { index: 0, method: 'GET', url: 'https://example.com/api' },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              headers: [],
+              body: '{}',
+              encoding: 'utf-8',
+              truncated: false,
+              bodyBytes: 2
+            },
+            timing: { startTime: 0, endTime: 100, durationMs: 100 }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (urlStr.includes('/finish')) {
+        return new Response('', { status: 200 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const client = createClient({ server: 'http://localhost:4096' });
+
+      // Metadata is available before initialization (with undefined values)
+      const metaBefore = getServerMetadata(client);
+      expect(metaBefore).toBeDefined();
+      expect(metaBefore?.serverUrl).toBe('http://localhost:4096');
+      expect(metaBefore?.sessionId).toBeUndefined();
+      expect(metaBefore?.flowId).toBeUndefined();
+
+      // Run a request to trigger initialization
+      await client.runString('GET https://example.com/api');
+
+      // After initialization, metadata contains session and flow IDs
+      const metaAfter = getServerMetadata(client);
+      expect(metaAfter).toBeDefined();
+      expect(metaAfter?.serverUrl).toBe('http://localhost:4096');
+      expect(metaAfter?.sessionId).toBe('meta-session');
+      expect(metaAfter?.flowId).toBe('meta-flow');
+
+      await client.close();
+    } finally {
+      restore();
+    }
+  });
+
+  test('server client uses token from config', async () => {
+    let authHeader: string | undefined;
+
+    const restore = installFetchMock(async (url, init) => {
+      const urlStr = String(url);
+      const headers = init?.headers as Record<string, string> | undefined;
+      authHeader = headers?.Authorization;
+
+      if (urlStr.includes('/session')) {
+        return new Response(JSON.stringify({ sessionId: 'session-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/flows') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ flowId: 'flow-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/execute')) {
+        return new Response(
+          JSON.stringify({
+            runId: 'run-1',
+            request: { index: 0, method: 'GET', url: 'https://example.com' },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              headers: [],
+              body: '',
+              encoding: 'utf-8',
+              truncated: false,
+              bodyBytes: 0
+            },
+            timing: { startTime: 0, endTime: 100, durationMs: 100 }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (urlStr.includes('/finish')) {
+        return new Response('', { status: 200 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const client = createClient({
+        server: 'http://localhost:4096',
+        serverToken: 'secret-token-123'
+      });
+
+      await client.runString('GET https://example.com');
+      expect(authHeader).toBe('Bearer secret-token-123');
+
+      await client.close();
     } finally {
       restore();
     }
