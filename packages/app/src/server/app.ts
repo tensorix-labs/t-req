@@ -1,10 +1,12 @@
-import { join, resolve } from 'node:path';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { bearerAuth } from 'hono/bearer-auth';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { streamSSE } from 'hono/streaming';
 import packageJson from '../../package.json';
+import { createAuthMiddleware, startSessionCleanup, stopSessionCleanup } from './auth';
+
+export type { WebConfig } from './web';
+
 import { getStatusForError, TreqError, ValidationError } from './errors';
 import { createEventManager, type EventEnvelope } from './events';
 import {
@@ -26,12 +28,9 @@ import {
 } from './openapi';
 import type { ErrorResponse } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
+import { createWebRoutes, isApiPath, type WebConfig } from './web';
 
 const SERVER_VERSION = packageJson.version;
-
-// ============================================================================
-// Server Configuration
-// ============================================================================
 
 export type ServerConfig = {
   workspace?: string;
@@ -41,15 +40,10 @@ export type ServerConfig = {
   corsOrigins?: string[];
   maxBodyBytes: number;
   maxSessions: number;
-  /** Proxy web UI requests to this URL (e.g., https://app.t-req.io) */
-  webUrl?: string;
-  /** Serve web UI from this local directory */
-  webDir?: string;
+  /** Allow cookie-based authentication (default: true). Set to false for expose mode. */
+  allowCookieAuth?: boolean;
+  web?: WebConfig;
 };
-
-// ============================================================================
-// Create Hono App
-// ============================================================================
 
 export function createApp(config: ServerConfig) {
   const app = new OpenAPIHono();
@@ -65,11 +59,6 @@ export function createApp(config: ServerConfig) {
     }
   });
 
-  // ============================================================================
-  // Middleware
-  // ============================================================================
-
-  // CORS middleware - always enabled for localhost, additional origins via config
   const allowedOrigins = new Set(config.corsOrigins ?? []);
 
   app.use(
@@ -77,12 +66,8 @@ export function createApp(config: ServerConfig) {
     cors({
       origin: (origin) => {
         if (!origin) return undefined;
-        // Allow localhost origins by default (for web UI development)
         if (origin.startsWith('http://localhost:')) return origin;
         if (origin.startsWith('http://127.0.0.1:')) return origin;
-        // Allow t-req.io domains (hosted web UI)
-        if (origin.endsWith('.t-req.io') || origin === 'https://t-req.io') return origin;
-        // Check configured origins
         if (allowedOrigins.has(origin)) return origin;
         return undefined; // Deny
       },
@@ -94,10 +79,37 @@ export function createApp(config: ServerConfig) {
     })
   );
 
-  // Bearer auth middleware (if token configured)
-  if (config.token) {
-    app.use('*', bearerAuth({ token: config.token }));
+  // Auth middleware (supports bearer token + cookie sessions)
+  // Note: Auth is applied to API paths. Web routes handle their own auth for /auth/* paths.
+  const allowCookieAuth = config.allowCookieAuth ?? true;
+  const authMiddleware = createAuthMiddleware({
+    token: config.token,
+    allowCookieAuth
+  });
+
+  // Start session cleanup if cookie auth is allowed
+  if (allowCookieAuth) {
+    startSessionCleanup();
   }
+
+  // Apply auth to all API paths (non-web routes)
+  app.use('*', async (c, next) => {
+    const pathname = new URL(c.req.url).pathname;
+
+    // Skip auth for web routes (they handle their own auth)
+    // /auth/* routes need to be accessible without auth
+    if (pathname.startsWith('/auth/')) {
+      return next();
+    }
+
+    // Skip auth for web UI routes (non-API paths) when web is enabled
+    if (config.web?.enabled && !isApiPath(pathname)) {
+      return next();
+    }
+
+    // Apply auth middleware to API paths
+    return authMiddleware(c, next);
+  });
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) {
@@ -310,10 +322,6 @@ export function createApp(config: ServerConfig) {
     });
   });
 
-  // ============================================================================
-  // OpenAPI Documentation
-  // ============================================================================
-
   app.doc('/doc', {
     openapi: '3.0.3',
     info: {
@@ -347,135 +355,30 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
-  // Web UI Serving (--web-url or --web-dir)
+  // Web UI Routes (auth + proxy)
   // ============================================================================
 
-  // Define API paths that should NOT be handled by web UI middleware
-  const API_PATHS = new Set([
-    '/health',
-    '/capabilities',
-    '/config',
-    '/parse',
-    '/execute',
-    '/session',
-    '/flows',
-    '/workspace',
-    '/event',
-    '/doc'
-  ]);
+  if (config.web?.enabled) {
+    const webRoutes = createWebRoutes();
 
-  const isApiPath = (pathname: string): boolean => {
-    // Check exact matches and prefix matches (e.g., /session/123)
-    if (API_PATHS.has(pathname)) return true;
-    for (const apiPath of API_PATHS) {
-      if (pathname.startsWith(apiPath + '/')) return true;
-    }
-    return false;
+    // Mount web routes with API path exclusion
+    app.use('*', async (c, next) => {
+      const pathname = new URL(c.req.url).pathname;
+
+      // Skip API paths - let them fall through to API handlers
+      if (isApiPath(pathname)) {
+        return next();
+      }
+
+      // Handle web routes (auth + UI serving)
+      return webRoutes.fetch(c.req.raw);
+    });
+  }
+
+  // Cleanup function for graceful shutdown
+  const dispose = () => {
+    stopSessionCleanup();
   };
 
-  // Web UI proxy (--web-url)
-  if (config.webUrl) {
-    const webUrl = config.webUrl.replace(/\/+$/, ''); // Remove trailing slashes
-
-    app.use('*', async (c, next) => {
-      const pathname = new URL(c.req.url).pathname;
-
-      // Skip API paths
-      if (isApiPath(pathname)) {
-        return next();
-      }
-
-      // Proxy to remote web UI
-      const targetUrl = `${webUrl}${pathname}`;
-      try {
-        const response = await fetch(targetUrl, {
-          method: c.req.method,
-          headers: {
-            // Forward relevant headers but not host
-            Accept: c.req.header('Accept') ?? '*/*',
-            'Accept-Encoding': c.req.header('Accept-Encoding') ?? 'gzip, deflate'
-          }
-        });
-
-        // If not found and no file extension, serve index.html for SPA routing
-        if (response.status === 404 && !pathname.includes('.')) {
-          const indexResponse = await fetch(`${webUrl}/index.html`);
-          if (indexResponse.ok) {
-            return new Response(indexResponse.body, {
-              status: 200,
-              headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'Cache-Control': 'no-cache'
-              }
-            });
-          }
-        }
-
-        // Forward the response
-        return new Response(response.body, {
-          status: response.status,
-          headers: response.headers
-        });
-      } catch (err) {
-        console.error('Web UI proxy error:', err);
-        return c.text('Web UI proxy error', 502);
-      }
-    });
-  }
-
-  // Web UI static files (--web-dir)
-  if (config.webDir) {
-    const webDir = resolve(config.webDir);
-
-    app.use('*', async (c, next) => {
-      const pathname = new URL(c.req.url).pathname;
-
-      // Skip API paths
-      if (isApiPath(pathname)) {
-        return next();
-      }
-
-      // Resolve file path
-      const filePath = join(webDir, pathname === '/' ? 'index.html' : pathname);
-
-      // Security: prevent path traversal
-      const resolvedPath = resolve(filePath);
-      if (!resolvedPath.startsWith(webDir)) {
-        return c.text('Forbidden', 403);
-      }
-
-      try {
-        const file = Bun.file(filePath);
-        const exists = await file.exists();
-
-        if (exists) {
-          return new Response(file, {
-            headers: {
-              'Content-Type': file.type,
-              'Cache-Control': filePath.includes('/assets/') ? 'max-age=31536000' : 'no-cache'
-            }
-          });
-        }
-
-        // SPA fallback: serve index.html for paths without file extensions
-        if (!pathname.includes('.')) {
-          const indexFile = Bun.file(join(webDir, 'index.html'));
-          if (await indexFile.exists()) {
-            return new Response(indexFile, {
-              headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'Cache-Control': 'no-cache'
-              }
-            });
-          }
-        }
-
-        return c.text('Not Found', 404);
-      } catch {
-        return c.text('Not Found', 404);
-      }
-    });
-  }
-
-  return { app, service, eventManager, workspaceRoot };
+  return { app, service, eventManager, workspaceRoot, dispose };
 }

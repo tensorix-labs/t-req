@@ -97,7 +97,6 @@ export function createObserverStore(): ObserverStore {
 
   let unsubscribeSSE: (() => void) | null = null;
 
-  // Handle SSE events
   const handleSSEEvent = (event: EventEnvelope) => {
     const { type, reqExecId, payload } = event;
 
@@ -162,7 +161,6 @@ export function createObserverStore(): ObserverStore {
     }
   };
 
-  // Subscribe to SSE for a flow
   const subscribeToFlow = (sdk: SDK, flowId: string) => {
     // Cleanup existing subscription
     if (unsubscribeSSE) {
@@ -191,7 +189,6 @@ export function createObserverStore(): ObserverStore {
     );
   };
 
-  // Execute a request
   const execute = async (
     sdk: SDK,
     path: string,
@@ -243,19 +240,16 @@ export function createObserverStore(): ObserverStore {
     }
   };
 
-  // Clear all executions
   const clearExecutions = () => {
     setState('executionsById', {});
     setState('executionOrder', []);
     setState('selectedReqExecId', undefined);
   };
 
-  // Select an execution
   const selectExecution = (reqExecId: string | undefined) => {
     setState('selectedReqExecId', reqExecId);
   };
 
-  // Derived
   const selectedExecution = createMemo(() => {
     const id = state.selectedReqExecId;
     if (!id) return undefined;
@@ -268,7 +262,6 @@ export function createObserverStore(): ObserverStore {
       .filter(Boolean) as ExecutionSummary[];
   });
 
-  // Selection navigation
   const selectNextExecution = () => {
     const order = state.executionOrder;
     const currentId = state.selectedReqExecId;

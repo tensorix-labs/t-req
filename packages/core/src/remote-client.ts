@@ -25,13 +25,6 @@
 
 import type { Client, RunOptions } from './types';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Configuration for the remote client.
- */
 export interface RemoteClientConfig {
   /**
    * URL of the treq server.

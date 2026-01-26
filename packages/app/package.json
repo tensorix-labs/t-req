@@ -48,6 +48,7 @@
     "build:single": "bun run script/build.ts --single",
     "build:all": "bun run script/build.ts",
     "dev": "bun run src/index.ts",
+    "dev:all": "bun run dev open test/fixtures/http",
     "clean": "rm -rf dist",
     "publish:cli": "bun run script/publish.ts",
     "publish:cli:dry": "bun run script/publish.ts --dry-run",

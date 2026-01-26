@@ -3,9 +3,10 @@
  * Adapted from TUI SDK for browser environment.
  *
  * Architecture:
- * - UI assets served from Cloudflare CDN
- * - API calls go to user's local t-req server
- * - All workspace data stays local
+ * - When using local proxy mode (treq open --web), SDK uses relative URLs
+ *   and browser cookies for auth (same-origin, no CORS needed)
+ * - When using external server, SDK uses absolute URLs and bearer token
+ * - All workspace data stays local on the user's machine
  */
 
 // Types matching server schemas exactly
@@ -149,8 +150,11 @@ export interface ExecuteResponse {
 }
 
 export interface SDK {
-  serverUrl: string;
+  /** Base URL for API requests (empty string for relative URLs) */
+  baseUrl: string;
+  /** Bearer token (if using token auth instead of cookies) */
   token?: string;
+
   health(): Promise<HealthResponse>;
   listWorkspaceFiles(): Promise<ListWorkspaceFilesResponse>;
   listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse>;
@@ -170,6 +174,17 @@ export interface SDK {
     onError: (error: Error) => void,
     onClose: () => void
   ): () => void; // Returns unsubscribe function
+
+  // Legacy compatibility
+  /** @deprecated Use baseUrl instead */
+  serverUrl: string;
+}
+
+export interface SDKConfig {
+  /** Base URL for API requests. Empty string = relative URLs (same-origin). */
+  baseUrl?: string;
+  /** Bearer token for non-cookie auth (e.g., TUI, external clients) */
+  token?: string;
 }
 
 export class SDKError extends Error {
@@ -185,7 +200,14 @@ export class SDKError extends Error {
 }
 
 /**
- * Get the default server URL from environment or use localhost default.
+ * Get the default server URL from environment or use same-origin.
+ *
+ * In browser context without explicit VITE_API_URL:
+ * - Returns empty string for relative URLs (same-origin)
+ * - This allows the web app to work with any proxy port
+ *
+ * In non-browser context:
+ * - Returns localhost:4096 as fallback
  */
 export function getDefaultServerUrl(): string {
   // Vite injects env vars at build time
@@ -193,35 +215,97 @@ export function getDefaultServerUrl(): string {
   if (envUrl) {
     return envUrl;
   }
-  // Default to localhost for development
+  // In browser, use relative URLs (same-origin with proxy)
+  // This allows the SDK to work with any port the proxy is running on
+  if (typeof window !== 'undefined') {
+    return ''; // Empty = relative URLs
+  }
+  // Fallback for non-browser environments (testing, SSR)
   return 'http://localhost:4096';
 }
 
 /**
- * Create an SDK instance for communicating with the treq server.
+ * Handle 401 Unauthorized errors.
+ * For web clients without token, redirect to /auth/init.
  */
-export function createSDK(serverUrl?: string, token?: string): SDK {
-  // Use provided URL or fall back to default
-  const baseUrl = (serverUrl || getDefaultServerUrl()).replace(/\/+$/, '');
+function handleUnauthorized(token?: string): never {
+  // Redirect to auth init for web clients (no token = using cookies)
+  if (typeof window !== 'undefined' && !token) {
+    window.location.href = '/auth/init';
+  }
+  throw new SDKError('Unauthorized', 401);
+}
+
+/**
+ * Create an SDK instance for communicating with the treq server.
+ *
+ * @example
+ * // Same-origin with cookie auth (local proxy mode)
+ * const sdk = createSDK();
+ *
+ * @example
+ * // Same-origin with explicit empty baseUrl
+ * const sdk = createSDK({ baseUrl: '' });
+ *
+ * @example
+ * // External server with token auth
+ * const sdk = createSDK({ baseUrl: 'http://localhost:4096', token: 'xxx' });
+ *
+ * @example
+ * // Legacy: positional arguments (deprecated)
+ * const sdk = createSDK('http://localhost:4096', 'token');
+ */
+export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string): SDK {
+  // Handle legacy positional arguments: createSDK(serverUrl, token)
+  let config: SDKConfig;
+  if (typeof configOrUrl === 'string') {
+    config = { baseUrl: configOrUrl, token: legacyToken };
+  } else {
+    config = configOrUrl ?? {};
+  }
+
+  // Normalize baseUrl: remove trailing slashes, empty string = relative URLs
+  const baseUrl = (config.baseUrl ?? '').replace(/\/+$/, '');
+  const token = config.token;
+
+  /**
+   * Build the full URL for an endpoint.
+   * If baseUrl is empty, returns just the endpoint (relative URL).
+   */
+  function buildUrl(endpoint: string): string {
+    if (baseUrl) {
+      return new URL(endpoint, baseUrl).toString();
+    }
+    // Relative URL for same-origin requests
+    return endpoint;
+  }
 
   async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = new URL(endpoint, baseUrl);
+    const url = buildUrl(endpoint);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json'
     };
 
+    // Add bearer token if provided (for non-cookie auth)
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       ...options,
+      // Include cookies for same-origin requests (cookie auth)
+      credentials: 'include',
       headers: {
         ...headers,
         ...options?.headers
       }
     });
+
+    // Handle auth failure
+    if (response.status === 401) {
+      handleUnauthorized(token);
+    }
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -246,8 +330,12 @@ export function createSDK(serverUrl?: string, token?: string): SDK {
   }
 
   return {
-    serverUrl: baseUrl,
+    baseUrl,
     token,
+    // Legacy compatibility
+    get serverUrl() {
+      return baseUrl || window.location.origin;
+    },
 
     async health(): Promise<HealthResponse> {
       return request<HealthResponse>('/health');
@@ -305,7 +393,7 @@ export function createSDK(serverUrl?: string, token?: string): SDK {
       let aborted = false;
       const controller = new AbortController();
 
-      const url = new URL(`/event?flowId=${encodeURIComponent(flowId)}`, baseUrl);
+      const url = buildUrl(`/event?flowId=${encodeURIComponent(flowId)}`);
 
       // Start SSE subscription using fetch streaming
       (async () => {
@@ -317,10 +405,16 @@ export function createSDK(serverUrl?: string, token?: string): SDK {
             headers['Authorization'] = `Bearer ${token}`;
           }
 
-          const response = await fetch(url.toString(), {
+          const response = await fetch(url, {
             headers,
+            credentials: 'include', // Include cookies for auth
             signal: controller.signal
           });
+
+          // Handle auth failure
+          if (response.status === 401) {
+            handleUnauthorized(token);
+          }
 
           if (!response.ok) {
             throw new SDKError(`SSE connection failed: ${response.status}`, response.status);

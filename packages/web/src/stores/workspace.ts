@@ -1,9 +1,11 @@
 import { createMemo, createSignal } from 'solid-js';
-import { createSDK, type SDK, type WorkspaceFile, type WorkspaceRequest } from '../sdk';
-
-// ============================================================================
-// Types
-// ============================================================================
+import {
+  createSDK,
+  type SDK,
+  type SDKConfig,
+  type WorkspaceFile,
+  type WorkspaceRequest
+} from '../sdk';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -48,15 +50,19 @@ export interface WorkspaceStore {
   loadingRequests: () => boolean;
 
   // Actions
-  connect: (serverUrl: string) => Promise<void>;
+  /**
+   * Connect to a t-req server.
+   *
+   * @param config - SDK configuration. Can be:
+   *   - undefined/empty: Use relative URLs with cookie auth (local proxy mode)
+   *   - string: Server URL (legacy, uses that URL with no token)
+   *   - SDKConfig: Full config with baseUrl and optional token
+   */
+  connect: (config?: SDKConfig | string) => Promise<void>;
   disconnect: () => void;
   loadRequests: (path: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
-
-// ============================================================================
-// Tree Building
-// ============================================================================
 
 function buildTree(files: WorkspaceFile[]): TreeNode[] {
   const dirMaps = new Map<string, Map<string, TreeNode>>();
@@ -215,7 +221,7 @@ export function createWorkspaceStore(): WorkspaceStore {
     });
   };
 
-  const connect = async (serverUrl: string) => {
+  const connect = async (config?: SDKConfig | string) => {
     setConnectionStatus('connecting');
     setError(undefined);
     setFiles([]);
@@ -223,7 +229,11 @@ export function createWorkspaceStore(): WorkspaceStore {
     setRequestsByPath({});
 
     try {
-      const newSdk = createSDK(serverUrl);
+      // Create SDK with provided config
+      // - undefined: relative URLs with cookie auth (local proxy mode)
+      // - string: legacy URL-only mode
+      // - SDKConfig: full config
+      const newSdk = createSDK(config);
 
       // Test connection with health check
       const health = await newSdk.health();

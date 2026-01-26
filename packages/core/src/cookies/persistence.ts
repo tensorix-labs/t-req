@@ -2,10 +2,6 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import * as path from 'node:path';
 import type { CookieJar } from '../cookies';
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export type CookieJarData = {
   version: number;
   cookies: Array<{
@@ -25,10 +21,6 @@ export type CookieJarManager = {
   save(jar: CookieJar): void;
   withLock<T>(fn: () => Promise<T>): Promise<T>;
 };
-
-// ============================================================================
-// In-Process Mutex (per jarPath)
-// ============================================================================
 
 const locks = new Map<string, Promise<void>>();
 
@@ -57,10 +49,6 @@ async function withLock<T>(jarPath: string, fn: () => Promise<T>): Promise<T> {
     }
   }
 }
-
-// ============================================================================
-// Load / Save Functions
-// ============================================================================
 
 /**
  * Load cookie jar data from a file.
