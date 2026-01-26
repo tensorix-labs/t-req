@@ -44,6 +44,12 @@ export interface ExecutionSummary {
   };
 }
 
+export interface RunningScript {
+  path: string;
+  pid: number;
+  startedAt: number;
+}
+
 export interface ObserverState {
   flowId: string | undefined;
   sseStatus: SSEStatus;
@@ -52,6 +58,11 @@ export interface ObserverState {
   selectedReqExecId: string | undefined;
   executing: boolean;
   executeError: string | undefined;
+  // Script execution state
+  runningScript: RunningScript | undefined;
+  stdoutLines: string[];
+  stderrLines: string[];
+  exitCode: number | null | undefined;
 }
 
 export interface ObserverStore {
@@ -72,6 +83,14 @@ export interface ObserverStore {
   selectNextExecution: () => void;
   selectPreviousExecution: () => void;
 
+  // Script output helpers
+  appendStdout: (data: string) => void;
+  appendStderr: (data: string) => void;
+  clearScriptOutput: () => void;
+
+  // SSE event handling
+  handleSSEEvent: (event: EventEnvelope) => void;
+
   // Reset
   reset: () => void;
 }
@@ -88,9 +107,16 @@ function createInitialState(): ObserverState {
     executionOrder: [],
     selectedReqExecId: undefined,
     executing: false,
-    executeError: undefined
+    executeError: undefined,
+    // Script execution state
+    runningScript: undefined,
+    stdoutLines: [],
+    stderrLines: [],
+    exitCode: undefined
   };
 }
+
+const MAX_OUTPUT_LINES = 1000;
 
 export function createObserverStore(): ObserverStore {
   const [state, setState] = createStore<ObserverState>(createInitialState());
@@ -100,6 +126,35 @@ export function createObserverStore(): ObserverStore {
   const handleSSEEvent = (event: EventEnvelope) => {
     const { type, reqExecId, payload } = event;
 
+    switch (type) {
+      // Script events (don't require reqExecId)
+      case 'scriptStarted': {
+        const p = payload as { runId: string; filePath: string; runner: string };
+        setState('runningScript', {
+          path: p.filePath,
+          pid: 0,
+          startedAt: event.ts
+        });
+        break;
+      }
+      case 'scriptOutput': {
+        const p = payload as { runId: string; stream: 'stdout' | 'stderr'; data: string };
+        if (p.stream === 'stdout') {
+          appendStdout(p.data);
+        } else {
+          appendStderr(p.data);
+        }
+        break;
+      }
+      case 'scriptFinished': {
+        const p = payload as { runId: string; exitCode: number | null };
+        setState('exitCode', p.exitCode);
+        setState('runningScript', undefined);
+        break;
+      }
+    }
+
+    // Request events require reqExecId
     if (!reqExecId) return;
 
     switch (type) {
@@ -159,6 +214,30 @@ export function createObserverStore(): ObserverStore {
         break;
       }
     }
+  };
+
+  // Script output helpers
+  const appendStdout = (data: string) => {
+    const lines = data.split('\n').filter((line) => line.length > 0);
+    setState('stdoutLines', (prev) => {
+      const combined = [...prev, ...lines];
+      return combined.slice(-MAX_OUTPUT_LINES);
+    });
+  };
+
+  const appendStderr = (data: string) => {
+    const lines = data.split('\n').filter((line) => line.length > 0);
+    setState('stderrLines', (prev) => {
+      const combined = [...prev, ...lines];
+      return combined.slice(-MAX_OUTPUT_LINES);
+    });
+  };
+
+  const clearScriptOutput = () => {
+    setState('runningScript', undefined);
+    setState('stdoutLines', []);
+    setState('stderrLines', []);
+    setState('exitCode', undefined);
   };
 
   const subscribeToFlow = (sdk: SDK, flowId: string) => {
@@ -316,6 +395,14 @@ export function createObserverStore(): ObserverStore {
 
     selectNextExecution,
     selectPreviousExecution,
+
+    // Script output helpers
+    appendStdout,
+    appendStderr,
+    clearScriptOutput,
+
+    // SSE event handling
+    handleSSEEvent,
 
     reset
   };

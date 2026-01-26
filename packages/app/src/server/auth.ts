@@ -272,8 +272,9 @@ export function validateScriptToken(serverToken: string, token: string): ScriptT
 
   if (isDotFormat) {
     const parts = tokenBody.split('.');
-    if (parts.length !== 2) return null;
-    [encodedPayload, signature] = parts;
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    encodedPayload = parts[0];
+    signature = parts[1];
   } else {
     // Legacy format: script_<payload>_<signature> (signature is fixed-length base64url)
     const signatureLength = 43; // base64url length for SHA-256 (32 bytes, no padding)
