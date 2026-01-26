@@ -182,12 +182,16 @@ export function createAuthMiddleware(config: AuthConfig) {
 }
 
 export function setSessionCookie(c: Context, sessionId: string): void {
+  // Detect if running behind HTTPS (via proxy or direct)
+  const isSecure =
+    c.req.header('x-forwarded-proto') === 'https' || new URL(c.req.url).protocol === 'https:';
+
   setCookie(c, SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     sameSite: 'Strict',
     path: '/',
-    maxAge: 30 * 60 // 30 minutes (matches session TTL)
-    // Note: No 'secure' flag - localhost doesn't use HTTPS
+    maxAge: 30 * 60, // 30 minutes (matches session TTL)
+    secure: isSecure
   });
 }
 
