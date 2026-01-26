@@ -120,6 +120,14 @@ const client = createClient({
   // Required in Node to run from files.
   // In Bun, you can omit this and the library will use Bun's filesystem APIs.
   io: createNodeIO(),
+
+  // Connect to TUI/server for observability (optional)
+  // Auto-detected from TREQ_SERVER env var when run from TUI
+  server: 'http://localhost:4096',
+
+  // Optional auth token for server mode
+  serverToken: process.env.TREQ_TOKEN,
+
   // Variables available to all requests
   variables: {
     baseUrl: 'https://api.example.com',
@@ -179,32 +187,33 @@ client.setVariables({ a: 1, b: 2 });
 console.log(client.getVariables());
 ```
 
-### Remote Client (via `treq serve`)
+### Server Mode (TUI / Observability)
 
-If you want **Observer Mode** (TUI / event streaming / execution store) without rewriting your existing scripts, use `createRemoteClient()` to route requests through the `@t-req/app` server (`treq serve`).
+When you want requests to appear in the TUI or web dashboard, the client can route
+requests through a t-req server instead of executing them locally.
 
-This keeps the same high-level API as `createClient()` (`run`, `runString`, `setVariable(s)`), but executes via HTTP and creates a **server session + flow** on first use so the run can be observed.
+**Automatic detection:** When scripts are run from the TUI (via script runner),
+the `TREQ_SERVER` environment variable is automatically injected. Your scripts
+work without any code changes.
+
+**Manual configuration:** For scripts run from a separate terminal:
 
 ```typescript
-import { createRemoteClient } from '@t-req/core';
-
-const client = createRemoteClient({
-  serverUrl: 'http://localhost:4096',
-  // Optional bearer token if the server requires it:
-  // token: process.env.TREQ_TOKEN,
-  variables: { baseUrl: 'https://api.example.com' }
+const client = createClient({
+  server: 'http://localhost:4096',  // or set TREQ_SERVER env var
+  variables: { ... }
 });
-
-await client.run('./auth/login.http');
-client.setVariable('token', '...');
-await client.close(); // finishes the flow (best-effort; server TTL still applies)
 ```
 
-Additional remote-only methods:
+**Behavior:**
+- No `server` option + no `TREQ_SERVER` → Local mode (direct execution)
+- `server` option OR `TREQ_SERVER` set → Server mode (routed through server)
+- Server mode creates a session and flow for observability
+- Call `client.close()` when done to finalize the flow
 
-- `close(): Promise<void>`
-- `getSessionId(): string | undefined`
-- `getFlowId(): string | undefined`
+**Server-specific methods:**
+- `close(): Promise<void>` - Finalize the session/flow
+- `[Symbol.asyncDispose]` - Supports `await using` syntax
 
 ### Response
 

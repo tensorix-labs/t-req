@@ -2,10 +2,22 @@ import type { CookieJar } from 'tough-cookie';
 import type { EngineConfig, EngineRunOptions } from './engine/engine';
 import { createEngine } from './engine/engine';
 import type { CookieStore } from './runtime/types';
+import { createServerClient, getEnvVar } from './server-client';
 import type { Client, ClientConfig, RunOptions } from './types';
 import { setOptional } from './utils/optional';
 
 export function createClient(config: ClientConfig = {}): Client {
+  // Route to server implementation if server URL provided
+  const serverUrl = config.server ?? getEnvVar('TREQ_SERVER');
+  if (serverUrl) {
+    return createServerClient({
+      ...config,
+      serverUrl,
+      token: config.serverToken ?? getEnvVar('TREQ_TOKEN')
+    });
+  }
+
+  // Local implementation
   let variables: Record<string, unknown> = { ...config.variables };
   const cookieJar = config.cookieJar;
   const defaultTimeout = config.timeout ?? 30000;
@@ -26,6 +38,11 @@ export function createClient(config: ClientConfig = {}): Client {
 
   function mergedVars(runVars?: Record<string, unknown>): Record<string, unknown> {
     return { ...variables, ...runVars };
+  }
+
+  // No-op close for local client
+  async function close(): Promise<void> {
+    // Local client has no external resources to release
   }
 
   return {
@@ -70,7 +87,11 @@ export function createClient(config: ClientConfig = {}): Client {
 
     getVariables(): Record<string, unknown> {
       return { ...variables };
-    }
+    },
+
+    close,
+
+    [Symbol.asyncDispose]: close
   };
 }
 
