@@ -20,8 +20,18 @@ export interface TreeNode {
 }
 
 // Script file extensions
-const SCRIPT_EXTENSIONS = new Set(['.ts', '.js', '.mts', '.mjs']);
+const SCRIPT_EXTENSIONS = new Set(['.ts', '.js', '.mts', '.mjs', '.py']);
 const HTTP_EXTENSIONS = new Set(['.http']);
+
+// Test file patterns (common naming conventions)
+const TEST_FILE_PATTERNS = [
+  /\.test\.[jt]sx?$/,
+  /\.spec\.[jt]sx?$/,
+  /_test\.[jt]sx?$/,
+  /_spec\.[jt]sx?$/,
+  /test_.*\.py$/,
+  /.*_test\.py$/
+];
 
 /**
  * Determine the file type from a file path.
@@ -45,6 +55,14 @@ export function isRunnableScript(path: string): boolean {
  */
 export function isHttpFile(path: string): boolean {
   return getFileType(path) === 'http';
+}
+
+/**
+ * Check if a file path is a test file based on common naming conventions.
+ */
+export function isTestFile(path: string): boolean {
+  const fileName = path.split('/').pop() ?? path;
+  return TEST_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
 }
 
 export interface FlatNode {

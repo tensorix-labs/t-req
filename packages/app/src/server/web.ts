@@ -188,6 +188,8 @@ const API_PATHS = new Set([
   '/session',
   '/flows',
   '/workspace',
+  '/script',
+  '/test',
   '/event',
   '/doc'
 ]);

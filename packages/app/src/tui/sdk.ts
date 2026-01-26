@@ -117,6 +117,38 @@ export interface ExecuteRequestParams {
   reqLabel?: string;
 }
 
+// Script execution types
+export interface RunnerOption {
+  id: string;
+  label: string;
+}
+
+export interface GetRunnersResponse {
+  detected: string | null;
+  options: RunnerOption[];
+}
+
+export interface RunScriptResponse {
+  runId: string;
+  flowId: string;
+}
+
+// Test execution types
+export interface TestFrameworkOption {
+  id: string;
+  label: string;
+}
+
+export interface GetTestFrameworksResponse {
+  detected: string | null;
+  options: TestFrameworkOption[];
+}
+
+export interface RunTestResponse {
+  runId: string;
+  flowId: string;
+}
+
 export interface ExecuteResponse {
   runId: string;
   reqExecId?: string;
@@ -157,6 +189,16 @@ export interface SDK {
 
   // Request execution
   executeRequest(flowId: string, path: string, requestIndex: number): Promise<ExecuteResponse>;
+
+  // Script execution
+  getRunners(filePath?: string): Promise<GetRunnersResponse>;
+  runScript(filePath: string, runnerId?: string, flowId?: string): Promise<RunScriptResponse>;
+  cancelScript(runId: string): Promise<void>;
+
+  // Test execution
+  getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse>;
+  runTest(filePath: string, frameworkId?: string, flowId?: string): Promise<RunTestResponse>;
+  cancelTest(runId: string): Promise<void>;
 
   // SSE subscription
   subscribeEvents(
@@ -274,6 +316,62 @@ export function createSDK(serverUrl: string, token?: string): SDK {
           requestIndex,
           flowId
         })
+      });
+    },
+
+    // Script execution
+    async getRunners(filePath?: string): Promise<GetRunnersResponse> {
+      const query = filePath ? `?filePath=${encodeURIComponent(filePath)}` : '';
+      return request<GetRunnersResponse>(`/script/runners${query}`);
+    },
+
+    async runScript(
+      filePath: string,
+      runnerId?: string,
+      flowId?: string
+    ): Promise<RunScriptResponse> {
+      return request<RunScriptResponse>('/script', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath,
+          runnerId,
+          flowId
+        })
+      });
+    },
+
+    async cancelScript(runId: string): Promise<void> {
+      await fetch(new URL(`/script/${encodeURIComponent(runId)}`, baseUrl).toString(), {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
+    },
+
+    // Test execution
+    async getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse> {
+      const query = filePath ? `?filePath=${encodeURIComponent(filePath)}` : '';
+      return request<GetTestFrameworksResponse>(`/test/frameworks${query}`);
+    },
+
+    async runTest(
+      filePath: string,
+      frameworkId?: string,
+      flowId?: string
+    ): Promise<RunTestResponse> {
+      return request<RunTestResponse>('/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath,
+          frameworkId,
+          flowId
+        })
+      });
+    },
+
+    async cancelTest(runId: string): Promise<void> {
+      await fetch(new URL(`/test/${encodeURIComponent(runId)}`, baseUrl).toString(), {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
     },
 

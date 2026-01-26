@@ -11,11 +11,17 @@ import {
   ExecuteResponseSchema,
   ExecutionDetailSchema,
   FinishFlowResponseSchema,
+  GetRunnersResponseSchema,
+  GetTestFrameworksResponseSchema,
   HealthResponseSchema,
   ListWorkspaceFilesResponseSchema,
   ListWorkspaceRequestsResponseSchema,
   ParseRequestSchema,
   ParseResponseSchema,
+  RunScriptRequestSchema,
+  RunScriptResponseSchema,
+  RunTestRequestSchema,
+  RunTestResponseSchema,
   SessionStateSchema,
   UpdateVariablesRequestSchema,
   UpdateVariablesResponseSchema
@@ -420,6 +426,195 @@ export const listWorkspaceRequestsRoute = createRoute({
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'File not found'
+    }
+  }
+});
+
+// ============================================================================
+// Script Endpoints
+// ============================================================================
+
+// Run script
+export const runScriptRoute = createRoute({
+  method: 'post',
+  path: '/script',
+  tags: ['Scripts'],
+  summary: 'Run a script',
+  description:
+    'Execute a JavaScript, TypeScript, or Python script with server-side process spawning',
+  request: {
+    body: {
+      content: { 'application/json': { schema: RunScriptRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: RunScriptResponseSchema } },
+      description: 'Script started, subscribe to flow SSE for output'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request or runner'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Flow not found (if flowId provided)'
+    }
+  }
+});
+
+// Script run ID param schema
+const ScriptRunIdParamSchema = z.object({
+  runId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'runId', in: 'path' }, example: 'script_abc123' })
+});
+
+// Cancel script
+export const cancelScriptRoute = createRoute({
+  method: 'delete',
+  path: '/script/{runId}',
+  tags: ['Scripts'],
+  summary: 'Cancel a running script',
+  description: 'Stop a running script by its run ID',
+  request: {
+    params: ScriptRunIdParamSchema
+  },
+  responses: {
+    204: {
+      description: 'Script cancelled'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Script not found or already finished'
+    }
+  }
+});
+
+// Script runners query schema
+const ScriptRunnersQuerySchema = z.object({
+  filePath: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: 'filePath', in: 'query' },
+      description: 'Optional file path to filter available runners'
+    })
+});
+
+// Get runners
+export const getRunnersRoute = createRoute({
+  method: 'get',
+  path: '/script/runners',
+  tags: ['Scripts'],
+  summary: 'Get available script runners',
+  description: 'List available runners and auto-detect the best one for a file',
+  request: {
+    query: ScriptRunnersQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: GetRunnersResponseSchema } },
+      description: 'Available runners with detected default'
+    }
+  }
+});
+
+// ============================================================================
+// Test Endpoints
+// ============================================================================
+
+// Run test
+export const runTestRoute = createRoute({
+  method: 'post',
+  path: '/test',
+  tags: ['Tests'],
+  summary: 'Run tests',
+  description: 'Execute tests using a detected or specified test framework',
+  request: {
+    body: {
+      content: { 'application/json': { schema: RunTestRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: RunTestResponseSchema } },
+      description: 'Tests started, subscribe to flow SSE for output'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request or framework'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Flow not found (if flowId provided)'
+    }
+  }
+});
+
+// Test run ID param schema
+const TestRunIdParamSchema = z.object({
+  runId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'runId', in: 'path' }, example: 'test_abc123' })
+});
+
+// Cancel test
+export const cancelTestRoute = createRoute({
+  method: 'delete',
+  path: '/test/{runId}',
+  tags: ['Tests'],
+  summary: 'Cancel a running test',
+  description: 'Stop a running test by its run ID',
+  request: {
+    params: TestRunIdParamSchema
+  },
+  responses: {
+    204: {
+      description: 'Test cancelled'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Test not found or already finished'
+    }
+  }
+});
+
+// Test frameworks query schema
+const TestFrameworksQuerySchema = z.object({
+  filePath: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: 'filePath', in: 'query' },
+      description: 'Optional file path to help detect the framework'
+    })
+});
+
+// Get test frameworks
+export const getTestFrameworksRoute = createRoute({
+  method: 'get',
+  path: '/test/frameworks',
+  tags: ['Tests'],
+  summary: 'Get available test frameworks',
+  description: 'List available test frameworks and auto-detect the best one',
+  request: {
+    query: TestFrameworksQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: GetTestFrameworksResponseSchema } },
+      description: 'Available frameworks with detected default'
     }
   }
 });

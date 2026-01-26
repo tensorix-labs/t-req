@@ -113,6 +113,66 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
         });
         break;
       }
+
+      // Script events
+      case 'scriptStarted': {
+        const payload = event.payload as { runId: string; filePath: string; runner: string };
+        observer.setState('runningScript', {
+          path: payload.filePath,
+          pid: 0, // PID is set by server, we don't need it on client
+          startedAt: event.ts
+        });
+        break;
+      }
+      case 'scriptOutput': {
+        const payload = event.payload as {
+          runId: string;
+          stream: 'stdout' | 'stderr';
+          data: string;
+        };
+        if (payload.stream === 'stdout') {
+          observer.appendStdout(payload.data);
+        } else {
+          observer.appendStderr(payload.data);
+        }
+        break;
+      }
+      case 'scriptFinished': {
+        const payload = event.payload as { runId: string; exitCode: number | null };
+        observer.setState('exitCode', payload.exitCode);
+        observer.setState('runningScript', undefined);
+        break;
+      }
+
+      // Test events (same handling as script events)
+      case 'testStarted': {
+        const payload = event.payload as { runId: string; filePath: string; framework: string };
+        observer.setState('runningScript', {
+          path: payload.filePath,
+          pid: 0,
+          startedAt: event.ts
+        });
+        break;
+      }
+      case 'testOutput': {
+        const payload = event.payload as {
+          runId: string;
+          stream: 'stdout' | 'stderr';
+          data: string;
+        };
+        if (payload.stream === 'stdout') {
+          observer.appendStdout(payload.data);
+        } else {
+          observer.appendStderr(payload.data);
+        }
+        break;
+      }
+      case 'testFinished': {
+        const payload = event.payload as { runId: string; exitCode: number | null; status: string };
+        observer.setState('exitCode', payload.exitCode);
+        observer.setState('runningScript', undefined);
+        break;
+      }
     }
   }
 

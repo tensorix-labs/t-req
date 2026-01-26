@@ -14,6 +14,7 @@ import {
 import type { CookieStore } from '@t-req/core/runtime';
 import packageJson from '../../package.json';
 import { createCookieStoreFromJar, dirname, isAbsolute, isPathSafe, resolve } from '../utils';
+import { generateScriptToken, revokeScriptToken } from './auth';
 import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from './diagnostics';
 import {
   ContentOrPathRequiredError,
@@ -27,7 +28,8 @@ import {
   PathOutsideWorkspaceError,
   RequestIndexOutOfRangeError,
   RequestNotFoundError,
-  SessionNotFoundError
+  SessionNotFoundError,
+  ValidationError
 } from './errors';
 import type {
   CapabilitiesResponse,
@@ -44,6 +46,8 @@ import type {
   ExecutionStatus,
   FinishFlowResponse,
   FlowSummary,
+  GetRunnersResponse,
+  GetTestFrameworksResponse,
   HealthResponse,
   ListWorkspaceFilesResponse,
   ListWorkspaceRequestsResponse,
@@ -52,6 +56,10 @@ import type {
   ParseResponse,
   ResolvedPaths,
   ResponseHeader,
+  RunScriptRequest,
+  RunScriptResponse,
+  RunTestRequest,
+  RunTestResponse,
   SessionState,
   UpdateVariablesRequest,
   UpdateVariablesResponse,
@@ -59,6 +67,21 @@ import type {
   WorkspaceRequest
 } from './schemas';
 import { PROTOCOL_VERSION } from './schemas';
+import {
+  detectRunner,
+  getRunnerById,
+  getRunnerOptions,
+  type RunnerConfig,
+  type RunningScript,
+  runScript as runScriptProcess
+} from './script-runner';
+import {
+  detectTestFramework,
+  getFrameworkById,
+  type RunningTest,
+  runTest as runTestProcess,
+  type TestFrameworkConfig
+} from './test-runner';
 
 const SERVER_VERSION = packageJson.version;
 
@@ -1436,7 +1459,7 @@ export function createService(config: ServiceConfig) {
   ): Promise<ListWorkspaceFilesResponse> {
     // Scan for .http files and script files (.ts, .js, .mts, .mjs)
     const httpGlob = new Bun.Glob('**/*.http');
-    const scriptGlob = new Bun.Glob('**/*.{ts,js,mts,mjs}');
+    const scriptGlob = new Bun.Glob('**/*.{ts,js,mts,mjs,py}');
     const ignorePatterns = [...DEFAULT_WORKSPACE_IGNORE_PATTERNS, ...(additionalIgnore ?? [])];
 
     const files: WorkspaceFile[] = [];
@@ -1548,9 +1571,356 @@ export function createService(config: ServiceConfig) {
     return { path, requests };
   }
 
+  // ============================================================================
+  // Script Execution
+  // ============================================================================
+
+  // Track running scripts by runId (includes tokenJti for revocation)
+  const runningScripts = new Map<
+    string,
+    { script: RunningScript; flowId: string; sessionId?: string; tokenJti?: string }
+  >();
+
+  async function executeScript(
+    request: RunScriptRequest,
+    serverUrl: string,
+    serverToken?: string
+  ): Promise<RunScriptResponse> {
+    // Validate file path doesn't escape workspace
+    if (!isPathSafe(config.workspaceRoot, request.filePath)) {
+      throw new PathOutsideWorkspaceError(request.filePath);
+    }
+
+    // Validate runner ID if provided
+    let runner: RunnerConfig | undefined;
+    if (request.runnerId) {
+      runner = getRunnerById(request.runnerId);
+      if (!runner) {
+        throw new ValidationError(`Invalid runner ID: ${request.runnerId}`);
+      }
+    } else {
+      // Auto-detect runner
+      const detected = await detectRunner(config.workspaceRoot, request.filePath);
+      if (detected.detected) {
+        runner = getRunnerById(detected.detected);
+      }
+      if (!runner) {
+        throw new ValidationError(
+          `No runner detected for ${request.filePath}. Please specify a runnerId.`
+        );
+      }
+    }
+
+    // Create or use existing flow
+    let flowId = request.flowId;
+    let existingFlow: Flow | undefined;
+    if (flowId) {
+      existingFlow = flows.get(flowId);
+      if (!existingFlow) {
+        throw new FlowNotFoundError(flowId);
+      }
+    } else {
+      // Create new flow
+      const flowResponse = createFlow({ label: `Script: ${request.filePath}` });
+      flowId = flowResponse.flowId;
+      existingFlow = flows.get(flowId);
+      if (!existingFlow) {
+        throw new FlowNotFoundError(flowId);
+      }
+    }
+
+    // Capture flow in a const for callbacks
+    const flow = existingFlow;
+    const absolutePath = resolve(config.workspaceRoot, request.filePath);
+    const scriptDir = dirname(absolutePath);
+    const runId = `script_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+
+    // Create a session for the script BEFORE spawning
+    const { sessionId } = createSession({});
+
+    // Generate scoped token if server has token auth enabled
+    let scriptToken: string | undefined;
+    let tokenJti: string | undefined;
+    if (serverToken) {
+      const generated = generateScriptToken(serverToken, flowId, sessionId);
+      scriptToken = generated.token;
+      tokenJti = generated.jti;
+    }
+
+    // Emit scriptStarted event
+    emitFlowEvent(flow, runId, undefined, {
+      type: 'scriptStarted',
+      runId,
+      filePath: request.filePath,
+      runner: runner.id
+    });
+
+    // Update flow activity
+    flow.lastActivityAt = nowMs();
+
+    // Run the script
+    const runningScript = runScriptProcess({
+      scriptPath: absolutePath,
+      runner,
+      cwd: scriptDir,
+      serverUrl,
+      flowId,
+      sessionId,
+      scriptToken,
+      onStdout: (data) => {
+        // Update flow activity on every output
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'scriptOutput',
+          runId,
+          stream: 'stdout',
+          data
+        });
+      },
+      onStderr: (data) => {
+        // Update flow activity on every output
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'scriptOutput',
+          runId,
+          stream: 'stderr',
+          data
+        });
+      },
+      onExit: (code) => {
+        // Revoke token immediately on exit
+        if (tokenJti) {
+          revokeScriptToken(tokenJti);
+        }
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'scriptFinished',
+          runId,
+          exitCode: code
+        });
+        runningScripts.delete(runId);
+      }
+    });
+
+    runningScripts.set(runId, { script: runningScript, flowId, sessionId, tokenJti });
+
+    return { runId, flowId };
+  }
+
+  function stopScript(runId: string): boolean {
+    const entry = runningScripts.get(runId);
+    if (!entry) {
+      return false;
+    }
+
+    // Revoke token before killing (security: prevent token reuse)
+    if (entry.tokenJti) {
+      revokeScriptToken(entry.tokenJti);
+    }
+
+    // Emit scriptFinished event before killing
+    const flow = flows.get(entry.flowId);
+    if (flow) {
+      emitFlowEvent(flow, runId, undefined, {
+        type: 'scriptFinished',
+        runId,
+        exitCode: null // Cancelled
+      });
+    }
+
+    entry.script.kill();
+    runningScripts.delete(runId);
+    return true;
+  }
+
+  async function getRunners(filePath?: string): Promise<GetRunnersResponse> {
+    if (filePath) {
+      return detectRunner(config.workspaceRoot, filePath);
+    }
+    return {
+      detected: null,
+      options: getRunnerOptions()
+    };
+  }
+
+  // ============================================================================
+  // Test Execution
+  // ============================================================================
+
+  // Track running tests by runId (includes tokenJti for revocation)
+  const runningTests = new Map<
+    string,
+    { test: RunningTest; flowId: string; sessionId?: string; tokenJti?: string }
+  >();
+
+  async function executeTest(
+    request: RunTestRequest,
+    serverUrl: string,
+    serverToken?: string
+  ): Promise<RunTestResponse> {
+    // Validate file path doesn't escape workspace
+    if (!isPathSafe(config.workspaceRoot, request.filePath)) {
+      throw new PathOutsideWorkspaceError(request.filePath);
+    }
+
+    // Validate framework ID if provided
+    let framework: TestFrameworkConfig | undefined;
+    if (request.frameworkId) {
+      framework = getFrameworkById(request.frameworkId);
+      if (!framework) {
+        throw new ValidationError(`Invalid framework ID: ${request.frameworkId}`);
+      }
+    } else {
+      // Auto-detect framework
+      const detected = await detectTestFramework(config.workspaceRoot, request.filePath);
+      if (detected.detected) {
+        framework = getFrameworkById(detected.detected);
+      }
+      if (!framework) {
+        throw new ValidationError(`No test framework detected. Please specify a frameworkId.`);
+      }
+    }
+
+    // Create or use existing flow
+    let flowId = request.flowId;
+    let existingFlow: Flow | undefined;
+    if (flowId) {
+      existingFlow = flows.get(flowId);
+      if (!existingFlow) {
+        throw new FlowNotFoundError(flowId);
+      }
+    } else {
+      // Create new flow
+      const flowResponse = createFlow({ label: `Test: ${request.filePath}` });
+      flowId = flowResponse.flowId;
+      existingFlow = flows.get(flowId);
+      if (!existingFlow) {
+        throw new FlowNotFoundError(flowId);
+      }
+    }
+
+    // Capture flow in a const for callbacks
+    const flow = existingFlow;
+    const absolutePath = resolve(config.workspaceRoot, request.filePath);
+    const runId = `test_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+
+    // Create a session for the test BEFORE spawning
+    const { sessionId } = createSession({});
+
+    // Generate scoped token if server has token auth enabled
+    let scriptToken: string | undefined;
+    let tokenJti: string | undefined;
+    if (serverToken) {
+      const generated = generateScriptToken(serverToken, flowId, sessionId);
+      scriptToken = generated.token;
+      tokenJti = generated.jti;
+    }
+
+    // Emit testStarted event
+    emitFlowEvent(flow, runId, undefined, {
+      type: 'testStarted',
+      runId,
+      filePath: request.filePath,
+      framework: framework.id
+    });
+
+    // Update flow activity
+    flow.lastActivityAt = nowMs();
+
+    // Run the test
+    const runningTest = runTestProcess({
+      testPath: absolutePath,
+      framework,
+      cwd: config.workspaceRoot,
+      serverUrl,
+      flowId,
+      sessionId,
+      scriptToken,
+      onStdout: (data) => {
+        // Update flow activity on every output
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'testOutput',
+          runId,
+          stream: 'stdout',
+          data
+        });
+      },
+      onStderr: (data) => {
+        // Update flow activity on every output
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'testOutput',
+          runId,
+          stream: 'stderr',
+          data
+        });
+      },
+      onExit: (code) => {
+        // Revoke token immediately on exit
+        if (tokenJti) {
+          revokeScriptToken(tokenJti);
+        }
+        flow.lastActivityAt = nowMs();
+        emitFlowEvent(flow, runId, undefined, {
+          type: 'testFinished',
+          runId,
+          exitCode: code,
+          status: code === 0 ? 'passed' : 'failed'
+        });
+        runningTests.delete(runId);
+      }
+    });
+
+    runningTests.set(runId, { test: runningTest, flowId, sessionId, tokenJti });
+
+    return { runId, flowId };
+  }
+
+  function stopTest(runId: string): boolean {
+    const entry = runningTests.get(runId);
+    if (!entry) {
+      return false;
+    }
+
+    // Revoke token before killing (security: prevent token reuse)
+    if (entry.tokenJti) {
+      revokeScriptToken(entry.tokenJti);
+    }
+
+    // Emit testFinished event before killing
+    const flow = flows.get(entry.flowId);
+    if (flow) {
+      emitFlowEvent(flow, runId, undefined, {
+        type: 'testFinished',
+        runId,
+        exitCode: null, // Cancelled
+        status: 'failed'
+      });
+    }
+
+    entry.test.kill();
+    runningTests.delete(runId);
+    return true;
+  }
+
+  async function getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse> {
+    return detectTestFramework(config.workspaceRoot, filePath);
+  }
+
   // Cleanup
   function dispose(): void {
     clearInterval(cleanupInterval);
+    // Kill all running scripts
+    for (const entry of runningScripts.values()) {
+      entry.script.kill();
+    }
+    runningScripts.clear();
+    // Kill all running tests
+    for (const entry of runningTests.values()) {
+      entry.test.kill();
+    }
+    runningTests.clear();
     sessions.clear();
     flows.clear();
   }
@@ -1572,6 +1942,14 @@ export function createService(config: ServiceConfig) {
     // Workspace discovery
     listWorkspaceFiles,
     listWorkspaceRequests,
+    // Script execution
+    executeScript,
+    stopScript,
+    getRunners,
+    // Test execution
+    executeTest,
+    stopTest,
+    getTestFrameworks,
     dispose,
     // For testing
     getSessions: () => sessions,

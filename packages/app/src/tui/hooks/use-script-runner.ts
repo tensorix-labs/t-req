@@ -1,26 +1,22 @@
 /**
  * useScriptRunner Hook
  *
- * Encapsulates script execution lifecycle - the most complex hook.
+ * Encapsulates script execution lifecycle via server-side execution.
  * Handles runner detection/selection, flow creation, SSE subscription,
- * process spawning, stdout/stderr callbacks, and cleanup.
+ * and server-side process spawning with live output streaming.
  */
 
-import { resolve } from 'node:path';
 import { type Accessor, createSignal } from 'solid-js';
-import { useObserver, useSDK, useStore } from '../context';
-import {
-  detectRunner,
-  loadPersistedRunner,
-  type RunnerConfig,
-  type RunningScript,
-  runScript,
-  savePersistedRunner
-} from '../runner';
+import { useObserver, useSDK } from '../context';
+import type { RunnerOption } from '../sdk';
 import { useFlowSubscription } from './use-flow-subscription';
 
 export interface ScriptRunnerOptions {
-  onRunnerDialogNeeded: (scriptPath: string, onSelect: (runner: RunnerConfig) => void) => void;
+  onRunnerDialogNeeded: (
+    scriptPath: string,
+    options: RunnerOption[],
+    onSelect: (runnerId: string) => void
+  ) => void;
 }
 
 export interface ScriptRunnerReturn {
@@ -32,134 +28,117 @@ export interface ScriptRunnerReturn {
 
 export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerReturn {
   const sdk = useSDK();
-  const store = useStore();
   const observer = useObserver();
   const flowSubscription = useFlowSubscription();
 
-  // Running script reference (imperative, not reactive)
-  let runningScriptRef: RunningScript | undefined;
+  // Track current run ID for cancellation
+  let currentRunId: string | undefined;
 
-  // Track running state
-  const [isRunning, setIsRunning] = createSignal(false);
+  // Track startup state to avoid double-run during runner detection
+  const [isStarting, setIsStarting] = createSignal(false);
 
-  // Start script execution with a runner
-  async function startScript(absolutePath: string, displayPath: string, runner: RunnerConfig) {
+  // Start script execution with a runner ID
+  async function startScript(scriptPath: string, runnerId?: string) {
+    let flowId: string | undefined;
     try {
-      const { flowId } = await sdk.createFlow(`Running ${displayPath}`);
+      // Create flow first so we can subscribe before the script starts
+      const createdFlow = await sdk.createFlow(`Script: ${scriptPath}`);
+      flowId = createdFlow.flowId;
+
       observer.setState('flowId', flowId);
 
-      // Subscribe to SSE events
+      // Subscribe to SSE events for live output
+      // The events (scriptStarted, scriptOutput, scriptFinished) will update observer state
       flowSubscription.subscribe(flowId);
 
-      // Build environment variables for the script
-      const env: Record<string, string> = {
-        TREQ_SERVER: sdk.serverUrl,
-        TREQ_FLOW_ID: flowId
-      };
-      if (sdk.token) {
-        env['TREQ_TOKEN'] = sdk.token;
+      // Start script after subscription is active
+      const { runId } = await sdk.runScript(scriptPath, runnerId, flowId);
+
+      currentRunId = runId;
+
+      // Initial running state is set by scriptStarted event via SSE
+      // We just set the basic info here, SSE will update with full details
+      if (!observer.state.runningScript) {
+        observer.setState('runningScript', {
+          path: scriptPath,
+          pid: 0, // PID is managed by server
+          startedAt: Date.now()
+        });
       }
-
-      // Spawn the script
-      runningScriptRef = runScript({
-        scriptPath: absolutePath,
-        runner,
-        env,
-        cwd: store.workspaceRoot(),
-        onStdout: (data) => {
-          observer.appendStdout(data);
-        },
-        onStderr: (data) => {
-          observer.appendStderr(data);
-        },
-        onExit: (code) => {
-          observer.setState('exitCode', code);
-          observer.setState('runningScript', undefined);
-          runningScriptRef = undefined;
-          setIsRunning(false);
-
-          // Best-effort finish flow
-          void (async () => {
-            try {
-              await sdk.finishFlow(flowId);
-            } catch {
-              // Ignore
-            }
-          })();
-
-          // Cleanup SSE subscription
-          flowSubscription.unsubscribe();
-        }
-      });
-
-      setIsRunning(true);
-      observer.setState('runningScript', {
-        path: displayPath,
-        pid: runningScriptRef.pid,
-        startedAt: Date.now()
-      });
     } catch (err) {
       console.error('Failed to start script:', err);
+      if (flowId) {
+        flowSubscription.unsubscribe();
+        observer.setState('flowId', undefined);
+      }
       observer.setState('sseStatus', 'error');
-      setIsRunning(false);
+      currentRunId = undefined;
     }
   }
 
   // Handle running a script - entry point
   async function handleRunScript(scriptPath: string) {
     // Don't allow running another script while one is running
-    if (observer.state.runningScript) {
+    if (observer.state.runningScript || isStarting()) {
       return;
     }
 
     // Reset observer state for new run
+    setIsStarting(true);
     observer.reset();
 
-    // Resolve absolute path
-    const absolutePath = resolve(store.workspaceRoot(), scriptPath);
+    try {
+      // Get available runners and auto-detect best one from server
+      const { detected, options: runnerOptions } = await sdk.getRunners(scriptPath);
 
-    // Detect runner or prompt for selection
-    let runner = await detectRunner(absolutePath);
-
-    if (!runner) {
-      // Try loading persisted runner config
-      const persisted = await loadPersistedRunner(store.workspaceRoot());
-      if (persisted) {
-        runner = persisted.runner;
+      if (detected) {
+        // Auto-detected runner available, start immediately
+        await startScript(scriptPath, detected);
       } else {
-        // Show runner selection dialog via callback
-        options.onRunnerDialogNeeded(scriptPath, (selectedRunner) => {
-          // Save and run with selected runner
-          void savePersistedRunner(store.workspaceRoot(), selectedRunner);
-          void startScript(absolutePath, scriptPath, selectedRunner);
+        // No runner detected - show selection dialog
+        options.onRunnerDialogNeeded(scriptPath, runnerOptions, (selectedRunnerId) => {
+          void startScript(scriptPath, selectedRunnerId);
         });
-        return;
       }
+    } catch (err) {
+      console.error('Failed to get runners:', err);
+      observer.setState('sseStatus', 'error');
+    } finally {
+      setIsStarting(false);
     }
-
-    await startScript(absolutePath, scriptPath, runner);
   }
 
-  function cancelScript() {
-    if (runningScriptRef) {
-      runningScriptRef.kill();
-      runningScriptRef = undefined;
+  async function cancelScript() {
+    if (currentRunId) {
+      try {
+        await sdk.cancelScript(currentRunId);
+      } catch {
+        // Script may have already finished
+      }
+      currentRunId = undefined;
     }
+    setIsStarting(false);
+    flowSubscription.unsubscribe();
   }
 
   function cleanup() {
-    if (runningScriptRef) {
-      runningScriptRef.kill();
-      runningScriptRef = undefined;
+    if (currentRunId) {
+      // Fire and forget cancellation
+      sdk.cancelScript(currentRunId).catch(() => {});
+      currentRunId = undefined;
     }
     flowSubscription.cleanup();
-    setIsRunning(false);
+    setIsStarting(false);
   }
+
+  // Watch for scriptFinished event to update running state
+  // This is done via the flow subscription which updates observer.state.runningScript to undefined
+  // and observer.state.exitCode to the exit code
 
   return {
     runScript: handleRunScript,
     cancelScript,
-    isRunning,
+    isRunning: () => isStarting() || !!observer.state.runningScript,
     cleanup
   };
 }
