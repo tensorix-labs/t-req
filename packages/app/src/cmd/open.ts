@@ -117,7 +117,7 @@ export const openCommand: CommandModule<object, OpenOptions> = {
 
 async function runOpen(argv: OpenOptions): Promise<void> {
   const host = argv.host;
-  const port = argv.port;
+  const port = argv.port ?? DEFAULT_PORT;
   const token = generateToken(); // Always generate token for defense-in-depth
 
   // Security: --expose and --web together is not allowed (SSRF protection)
