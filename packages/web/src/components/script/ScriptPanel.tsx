@@ -1,7 +1,6 @@
 import { Show } from 'solid-js';
 import { useObserver } from '../../context';
 import { ScriptOutput } from './ScriptOutput';
-import { SpinnerIcon } from '../icons';
 
 export interface ScriptPanelProps {
   scriptPath: string;
