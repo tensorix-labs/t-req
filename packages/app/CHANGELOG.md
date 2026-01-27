@@ -1,5 +1,11 @@
 # @t-req/app
 
+## 0.3.1
+
+### Patch Changes
+
+- 847eded: Fix `treq --version` showing "unknown" in compiled binary by passing version explicitly to yargs
+
 ## 0.3.0
 
 ### Minor Changes
