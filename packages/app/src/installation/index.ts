@@ -83,8 +83,8 @@ export namespace Installation {
   export function updateCommand(installMethod: Method, target?: string): string {
     switch (installMethod) {
       case 'curl': {
-        const versionFlag = target ? ` --version ${target}` : '';
-        return `curl -fsSL https://t-req.io/install | bash${versionFlag ? ` -s --${versionFlag}` : ''}`;
+        const versionFlag = target ? `--version ${target}` : '';
+        return `curl -fsSL https://t-req.io/install | bash${versionFlag ? ` -s -- ${versionFlag}` : ''}`;
       }
       case 'npm': {
         const version = target ? `@${target}` : '';

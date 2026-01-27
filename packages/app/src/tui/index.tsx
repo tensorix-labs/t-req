@@ -94,5 +94,5 @@ export async function startTui(config: TuiConfig): Promise<void> {
 
   // Keep process alive (ExitProvider exits the process).
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  return new Promise(() => {});
+  return new Promise(() => { });
 }
