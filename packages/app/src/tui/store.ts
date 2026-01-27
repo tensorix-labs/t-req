@@ -7,7 +7,7 @@ import type { WorkspaceFile, WorkspaceRequest } from './sdk';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'error';
 
-export type FileType = 'http' | 'script' | 'other';
+export type FileType = 'http' | 'script' | 'test' | 'other';
 
 export interface TreeNode {
   name: string;
@@ -39,6 +39,7 @@ const TEST_FILE_PATTERNS = [
 export function getFileType(path: string): FileType {
   const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
   if (HTTP_EXTENSIONS.has(ext)) return 'http';
+  if (isTestFile(path)) return 'test';
   if (SCRIPT_EXTENSIONS.has(ext)) return 'script';
   return 'other';
 }

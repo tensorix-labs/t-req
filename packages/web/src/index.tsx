@@ -1,6 +1,6 @@
 /* @refresh reload */
 import { render } from 'solid-js/web'
-import { WorkspaceProvider, ObserverProvider, ScriptRunnerProvider } from './context'
+import { WorkspaceProvider, ObserverProvider, ScriptRunnerProvider, TestRunnerProvider } from './context'
 import { createWorkspaceStore } from './stores/workspace'
 import { createObserverStore } from './stores/observer'
 import './index.css'
@@ -16,7 +16,9 @@ render(
     <WorkspaceProvider store={workspaceStore}>
       <ObserverProvider store={observerStore}>
         <ScriptRunnerProvider>
-          <App />
+          <TestRunnerProvider>
+            <App />
+          </TestRunnerProvider>
         </ScriptRunnerProvider>
       </ObserverProvider>
     </WorkspaceProvider>

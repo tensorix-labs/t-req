@@ -1,11 +1,26 @@
 import { createMemo, Show } from 'solid-js';
-import { useWorkspace, useScriptRunner } from '../../context';
+import { useWorkspace, useScriptRunner, useTestRunner } from '../../context';
 import { RequestList } from '../request-list';
 import { ExecutionPanel } from '../execution';
-import { ScriptPanel, RunnerSelectDialog } from '../script';
+import { ScriptPanel, RunnerSelectDialog, FrameworkSelectDialog } from '../script';
 
 // File extensions that are considered scripts
 const SCRIPT_EXTENSIONS = ['.js', '.ts', '.mjs', '.mts', '.py'];
+
+// Test file patterns (common naming conventions)
+const TEST_FILE_PATTERNS = [
+  /\.test\.[jt]sx?$/,
+  /\.spec\.[jt]sx?$/,
+  /_test\.[jt]sx?$/,
+  /_spec\.[jt]sx?$/,
+  /test_.*\.py$/,
+  /.*_test\.py$/
+];
+
+function isTestFile(path: string): boolean {
+  const fileName = path.split('/').pop() ?? path;
+  return TEST_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
+}
 
 function isScriptFile(path: string): boolean {
   return SCRIPT_EXTENSIONS.some((ext) => path.endsWith(ext));
@@ -14,6 +29,7 @@ function isScriptFile(path: string): boolean {
 export function MainContent() {
   const store = useWorkspace();
   const scriptRunner = useScriptRunner();
+  const testRunner = useTestRunner();
 
   const selectedFileName = () => {
     const node = store.selectedNode();
@@ -22,9 +38,17 @@ export function MainContent() {
 
   const selectedPath = () => store.selectedPath();
 
+  const isTest = createMemo(() => {
+    const path = selectedPath();
+    return path ? isTestFile(path) : false;
+  });
+
   const isScript = createMemo(() => {
     const path = selectedPath();
-    return path ? isScriptFile(path) : false;
+    if (!path) return false;
+    // Test files should not be treated as plain scripts
+    if (isTestFile(path)) return false;
+    return isScriptFile(path);
   });
 
   return (
@@ -36,23 +60,35 @@ export function MainContent() {
       </div>
       <div class="flex-1 overflow-hidden px-6 py-4">
         <Show
-          when={isScript()}
+          when={isTest()}
           fallback={
-            <div class="flex h-full gap-6">
-              <div class="flex-1 min-w-[300px] max-w-[400px] overflow-y-auto">
-                <RequestList />
-              </div>
-              <div class="flex-[2] min-w-0 overflow-hidden">
-                <ExecutionPanel />
-              </div>
-            </div>
+            <Show
+              when={isScript()}
+              fallback={
+                <div class="flex h-full gap-6">
+                  <div class="flex-1 min-w-[300px] max-w-[400px] overflow-y-auto">
+                    <RequestList />
+                  </div>
+                  <div class="flex-[2] min-w-0 overflow-hidden">
+                    <ExecutionPanel />
+                  </div>
+                </div>
+              }
+            >
+              <ScriptPanel
+                scriptPath={selectedPath()!}
+                isRunning={scriptRunner.isRunning()}
+                onRun={() => scriptRunner.runScript(selectedPath()!)}
+                onCancel={() => scriptRunner.cancelScript()}
+              />
+            </Show>
           }
         >
           <ScriptPanel
             scriptPath={selectedPath()!}
-            isRunning={scriptRunner.isRunning()}
-            onRun={() => scriptRunner.runScript(selectedPath()!)}
-            onCancel={() => scriptRunner.cancelScript()}
+            isRunning={testRunner.isRunning()}
+            onRun={() => testRunner.runTest(selectedPath()!)}
+            onCancel={() => testRunner.cancelTest()}
           />
         </Show>
       </div>
@@ -63,6 +99,14 @@ export function MainContent() {
         options={scriptRunner.dialogOptions()}
         onSelect={scriptRunner.handleRunnerSelect}
         onClose={scriptRunner.handleDialogClose}
+      />
+
+      <FrameworkSelectDialog
+        isOpen={testRunner.dialogOpen()}
+        testPath={testRunner.dialogTestPath()}
+        options={testRunner.dialogOptions()}
+        onSelect={testRunner.handleFrameworkSelect}
+        onClose={testRunner.handleDialogClose}
       />
     </main>
   );

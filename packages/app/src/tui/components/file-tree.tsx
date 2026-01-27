@@ -84,6 +84,9 @@ function FileTreeRow(props: FileTreeRowProps) {
       return isExpanded ? '\u25BC ' : '> ';
     }
     // Show different icons for file types
+    if (node.fileType === 'test') {
+      return '\u2713 '; // ✓ for test files
+    }
     if (node.fileType === 'script') {
       return '\u25B7 '; // ▷ for runnable scripts
     }

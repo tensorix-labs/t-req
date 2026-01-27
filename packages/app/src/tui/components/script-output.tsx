@@ -99,7 +99,7 @@ export function ScriptOutput(props: ScriptOutputProps) {
           <For each={combinedLines()}>
             {(line, index) => (
               <box id={`output-${index()}`} height={1} flexShrink={0} paddingLeft={1}>
-                <text fg={rgba(line.isError ? theme.error : theme.text)}>{line.text}</text>
+                <text fg={rgba(line.isError ? theme.textMuted : theme.text)}>{line.text}</text>
               </box>
             )}
           </For>

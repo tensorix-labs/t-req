@@ -4,9 +4,9 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, type J
 import { useDialog, useStore } from '../context';
 import { rgba, theme } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
-import { isRunnableScript, isHttpFile } from '../store';
+import { isRunnableScript, isHttpFile, isTestFile } from '../store';
 
-type PickerItemType = 'script' | 'http';
+type PickerItemType = 'test' | 'script' | 'http';
 
 interface PickerItem {
   id: string;
@@ -36,6 +36,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
   // Build flat list of picker items from store files
   const pickerItems = createMemo((): PickerItem[] => {
     const files = store.files();
+    const tests: PickerItem[] = [];
     const scripts: PickerItem[] = [];
     const httpFiles: PickerItem[] = [];
 
@@ -43,7 +44,15 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
       const path = file.path;
       const fileName = path.includes('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
 
-      if (isRunnableScript(path)) {
+      if (isTestFile(path)) {
+        tests.push({
+          id: `test:${path}`,
+          type: 'test',
+          filePath: path,
+          fileName,
+          searchText: path
+        });
+      } else if (isRunnableScript(path)) {
         scripts.push({
           id: `script:${path}`,
           type: 'script',
@@ -63,11 +72,12 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     }
 
     // Sort alphabetically by file path
+    tests.sort((a, b) => a.filePath.localeCompare(b.filePath));
     scripts.sort((a, b) => a.filePath.localeCompare(b.filePath));
     httpFiles.sort((a, b) => a.filePath.localeCompare(b.filePath));
 
-    // Scripts first, then HTTP files
-    return [...scripts, ...httpFiles];
+    // Tests first, then scripts, then HTTP files
+    return [...tests, ...scripts, ...httpFiles];
   });
 
   // Filter items by fuzzy search on file path
@@ -260,9 +270,11 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
                 >
                   {isPendingSend()
                     ? 'Press ctrl+enter to confirm'
-                    : item.type === 'script'
-                      ? `▷ ${item.filePath}`
-                      : item.filePath}
+                    : item.type === 'test'
+                      ? `✓ ${item.filePath}`
+                      : item.type === 'script'
+                        ? `▷ ${item.filePath}`
+                        : item.filePath}
                 </text>
               </box>
             );

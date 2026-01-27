@@ -7,15 +7,17 @@ import { ExecutionList } from './components/execution-list';
 import { FileRequestPicker } from './components/file-request-picker';
 import { FileTree } from './components/file-tree';
 import { ExecutionDetailView } from './components/execution-detail';
+import { FrameworkSelectDialog } from './components/framework-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { useDialog, useExit, useObserver, useSDK, useStore } from './context';
-import { isRunnableScript, isHttpFile } from './store';
+import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
 import {
   useExecutionDetail,
   useFlowSubscription,
   useScriptRunner,
+  useTestRunner,
   useWorkspace,
   useRequestExecution,
   useKeyboardCommands
@@ -55,6 +57,14 @@ export function App() {
     }
   });
 
+  const testRunner = useTestRunner({
+    onFrameworkDialogNeeded: (testPath, options, onSelect) => {
+      dialog.replace(() => (
+        <FrameworkSelectDialog testPath={testPath} options={options} onSelect={onSelect} />
+      ));
+    }
+  });
+
   // Left panel mode state
   const [leftPanelMode, setLeftPanelMode] = createSignal<LeftPanelMode>('tree');
   const [panelHidden, setPanelHidden] = createSignal(false);
@@ -74,7 +84,9 @@ export function App() {
 
   // File execution handler - delegates to appropriate executor
   function handleFileExecute(filePath: string) {
-    if (isRunnableScript(filePath)) {
+    if (isTestFile(filePath)) {
+      void testRunner.runTest(filePath);
+    } else if (isRunnableScript(filePath)) {
       void scriptRunner.runScript(filePath);
     } else if (isHttpFile(filePath)) {
       void executeFirstRequest(filePath);
@@ -93,6 +105,7 @@ export function App() {
   // Cleanup handler
   async function cleanupAndExit() {
     scriptRunner.cleanup();
+    testRunner.cleanup();
     flowSubscription.cleanup();
     // Best-effort finish flow
     const flowId = observer.state.flowId;
@@ -135,7 +148,10 @@ export function App() {
         }
       }
     },
-    onCancel: scriptRunner.cancelScript,
+    onCancel: () => {
+      scriptRunner.cancelScript();
+      testRunner.cancelTest();
+    },
     onNavigateDown: () => {
       if (leftPanelMode() === 'tree') {
         store.selectNext();
@@ -170,6 +186,7 @@ export function App() {
   // Cleanup on unmount
   onCleanup(() => {
     scriptRunner.cleanup();
+    testRunner.cleanup();
     flowSubscription.cleanup();
   });
 
