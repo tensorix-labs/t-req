@@ -1,2 +1,8 @@
-@import "@t-req/ui/fonts";
+@import "tailwindcss";
 @import "@t-req/ui/styles";
+
+body {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  background-color: var(--color-treq-bg);
+  color: var(--color-treq-text);
+}
