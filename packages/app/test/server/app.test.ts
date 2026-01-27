@@ -532,11 +532,7 @@ describe('script token authentication', () => {
   describe('script token middleware', () => {
     test('valid script token sets authMethod=script and scriptTokenPayload', async () => {
       // Generate a valid script token
-      const { token, payload } = generateScriptToken(
-        serverToken,
-        'test-flow-id',
-        'test-session-id'
-      );
+      const { token } = generateScriptToken(serverToken, 'test-flow-id', 'test-session-id');
 
       // Make request to an endpoint that allows script tokens
       // Health endpoint is accessible to all auth methods
