@@ -11,8 +11,10 @@ import {
   ObserverProvider,
   SDKProvider,
   StoreProvider,
+  UpdateProvider,
   type ExitFn
 } from './context';
+import { ToastProvider } from './components/toast';
 
 export interface TuiConfig {
   serverUrl: string;
@@ -67,9 +69,13 @@ export async function startTui(config: TuiConfig): Promise<void> {
             <ExitProvider register={(fn) => (exitFn = fn)}>
               <KeybindProvider>
                 <LogProvider>
-                  <DialogProvider>
-                    <App />
-                  </DialogProvider>
+                  <ToastProvider>
+                    <DialogProvider>
+                      <UpdateProvider>
+                        <App />
+                      </UpdateProvider>
+                    </DialogProvider>
+                  </ToastProvider>
                 </LogProvider>
               </KeybindProvider>
             </ExitProvider>

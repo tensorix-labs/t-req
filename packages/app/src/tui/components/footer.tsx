@@ -1,7 +1,5 @@
+import { Installation } from '../../installation';
 import { theme, rgba } from '../theme';
-
-// Version from package.json - hardcoded for now, could be injected
-const VERSION = '0.1.0';
 
 export interface FooterProps {
   workspacePath: string;
@@ -28,7 +26,7 @@ export function Footer(props: FooterProps) {
       backgroundColor={rgba(theme.background)}
     >
       <text fg={rgba(theme.textMuted)}>{displayPath()}</text>
-      <text fg={rgba(theme.textMuted)}>v{VERSION}</text>
+      <text fg={rgba(theme.textMuted)}>v{Installation.VERSION}</text>
     </box>
   );
 }

@@ -2,6 +2,9 @@ import type { JSX } from 'solid-js';
 import { useDialog, type DialogContextValue } from '../context/dialog';
 import { useExit } from '../context/exit';
 import { useKeybind } from '../context/keybind';
+import { useUpdate } from '../context/update';
+import { Installation } from '../../installation';
+import { theme, rgba } from '../theme';
 import { DebugConsoleDialog } from './debug-console-dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
 import { FileRequestPicker } from './file-request-picker';
@@ -17,8 +20,36 @@ export function CommandDialog(): JSX.Element {
   const dialog = useDialog();
   const exit = useExit();
   const keybind = useKeybind();
+  const update = useUpdate();
 
   const commands: Command[] = [
+    ...(update.updateAvailable()
+      ? [
+          {
+            title: `Update Available (v${update.updateInfo()?.version})`,
+            value: 'check_update',
+            onSelect: (d: DialogContextValue) => {
+              const info = update.updateInfo();
+              if (info) {
+                d.replace(() => (
+                  <box flexDirection="column" padding={1}>
+                    <text fg={rgba(theme.text)} attributes={1}>
+                      Update Available
+                    </text>
+                    <text fg={rgba(theme.textMuted)}>
+                      {`v${Installation.VERSION} -> v${info.version}`}
+                    </text>
+                    <text fg={rgba(theme.text)} marginTop={1}>
+                      Run:
+                    </text>
+                    <text fg={rgba(theme.primary)}>{info.command}</text>
+                  </box>
+                ));
+              }
+            }
+          }
+        ]
+      : []),
     {
       title: 'Debug Console',
       value: 'debug_console',

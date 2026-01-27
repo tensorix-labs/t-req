@@ -5,6 +5,7 @@ import { openCommand } from './cmd/open';
 import { runCommand } from './cmd/run';
 import { serveCommand } from './cmd/serve';
 import { tuiCommand } from './cmd/tui';
+import { upgradeCommand } from './cmd/upgrade';
 
 export function cli(args: string[]): void {
   yargs(hideBin(['node', 'cli', ...args]))
@@ -15,6 +16,7 @@ export function cli(args: string[]): void {
     .command(runCommand)
     .command(serveCommand)
     .command(tuiCommand)
+    .command(upgradeCommand)
     .demandCommand(1, 'You need to specify a command')
     .strict()
     .help()
