@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import {
   generateConfig,
+  generateCreatePostRequest,
+  generateGetUserRequest,
   generateGitignore,
-  generateLoginRequest,
+  generateListUsersRequest,
   generatePackageJson,
   generateRunScript,
+  generateTsconfig,
   getInstallCommand,
   getNextSteps,
   validateProjectName
@@ -102,16 +105,24 @@ describe('generated file contents', () => {
     expect(pkg.private).toBe(true);
   });
 
-  test('should add tsx devDependency for node runtime', () => {
+  test('should add type devDependencies per runtime', () => {
     const bunPkg = JSON.parse(
       generatePackageJson('test', { name: 'test', runtime: 'bun', packageManager: 'bun' })
     ) as { devDependencies?: Record<string, string> };
-    expect(bunPkg.devDependencies).toBeUndefined();
+    expect(bunPkg.devDependencies?.['@types/bun']).toBe('latest');
 
     const nodePkg = JSON.parse(
       generatePackageJson('test', { name: 'test', runtime: 'node', packageManager: 'npm' })
     ) as { devDependencies?: Record<string, string> };
     expect(nodePkg.devDependencies?.tsx).toBe('^4.0.0');
+    expect(nodePkg.devDependencies?.['@types/node']).toBe('^22.0.0');
+  });
+
+  test('should use latest for @t-req/core dependency', () => {
+    const pkg = JSON.parse(
+      generatePackageJson('test', { name: 'test', runtime: 'bun', packageManager: 'bun' })
+    ) as { dependencies: Record<string, string> };
+    expect(pkg.dependencies['@t-req/core']).toBe('latest');
   });
 
   test('should generate .gitignore with common patterns', () => {
@@ -132,11 +143,44 @@ describe('generated file contents', () => {
   });
 
   test('should generate sample HTTP request files', () => {
-    const loginRequest = generateLoginRequest();
-    expect(loginRequest).toContain('POST');
-    expect(loginRequest).toContain('{{baseUrl}}');
-    expect(loginRequest).toContain('{{email}}');
-    expect(loginRequest).toContain('{{password}}');
+    const createPost = generateCreatePostRequest();
+    expect(createPost).toContain('POST');
+    expect(createPost).toContain('{{baseUrl}}/posts');
+    expect(createPost).toContain('"title"');
+    expect(createPost).not.toContain('{{email}}');
+    expect(createPost).not.toContain('{{password}}');
+  });
+
+  test('should generate run script with resolveProjectConfig and without getFlagValue', () => {
+    const script = generateRunScript('bun');
+    expect(script).toContain('resolveProjectConfig');
+    expect(script).not.toContain('getFlagValue');
+    expect(script).not.toContain('meta.warnings');
+  });
+
+  test('should generate tsconfig with bun-types for bun runtime', () => {
+    const tsconfig = JSON.parse(generateTsconfig('bun'));
+    expect(tsconfig.compilerOptions.types).toEqual(['bun-types']);
+  });
+
+  test('should generate tsconfig with node types for node runtime', () => {
+    const tsconfig = JSON.parse(generateTsconfig('node'));
+    expect(tsconfig.compilerOptions.types).toEqual(['node']);
+  });
+
+  test('all template variables should be defined in config', () => {
+    const config = generateConfig();
+    const templates = [
+      generateCreatePostRequest(),
+      generateListUsersRequest(),
+      generateGetUserRequest()
+    ];
+    for (const tpl of templates) {
+      const vars = [...tpl.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
+      for (const v of vars) {
+        expect(config).toContain(`"${v}"`);
+      }
+    }
   });
 });
 
