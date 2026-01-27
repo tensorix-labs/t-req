@@ -1,13 +1,3 @@
-/**
- * Web routes module for t-req server.
- *
- * Provides:
- * - /auth/init: Session creation (sets HttpOnly cookie)
- * - /auth/logout: Session destruction
- * - Proxy mode: Forward requests to hosted UI
- * - Security headers on all responses
- */
-
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import {
@@ -19,30 +9,14 @@ import {
   setSessionCookie
 } from './auth';
 
-// ============================================================================
-// Constants
-// ============================================================================
-
 /** Production URL for the hosted web UI */
-export const WEB_UI_PROXY_URL = 'https://app.t-req.io';
-
-// ============================================================================
-// Types
-// ============================================================================
+export const WEB_UI_PROXY_URL = 'https://app-dev.t-req.io';
 
 export interface WebConfig {
   /** Whether web UI is enabled */
   enabled: boolean;
 }
 
-// ============================================================================
-// Security Headers
-// ============================================================================
-
-/**
- * Get security headers for web responses.
- * These headers protect against common web vulnerabilities.
- */
 function securityHeaders(): Record<string, string> {
   return {
     'X-Frame-Options': 'DENY',
@@ -188,6 +162,8 @@ const API_PATHS = new Set([
   '/session',
   '/flows',
   '/workspace',
+  '/script',
+  '/test',
   '/event',
   '/doc'
 ]);

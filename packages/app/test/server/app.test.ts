@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { createApp, type ServerConfig } from '../../src/server/app';
+import { clearAllScriptTokens, generateScriptToken } from '../../src/server/auth';
 import type {
   CreateSessionResponse,
   ErrorResponse,
@@ -508,5 +509,398 @@ describe('GET /doc', () => {
     expect(status).toBe(200);
     expect(data.openapi).toBe('3.0.3');
     expect(data.info.title).toContain('t-req');
+  });
+});
+
+describe('script token authentication', () => {
+  const serverToken = 'test-server-token-secret';
+  let tmp: TempDir;
+  let server: TestServer;
+
+  beforeEach(async () => {
+    clearAllScriptTokens();
+    tmp = await tmpdir();
+    const { app } = createApp(createTestConfig(tmp.path, { token: serverToken }));
+    server = createTestServer(app);
+  });
+
+  afterEach(async () => {
+    clearAllScriptTokens();
+    await tmp[Symbol.asyncDispose]();
+  });
+
+  describe('script token middleware', () => {
+    test('valid script token sets authMethod=script and scriptTokenPayload', async () => {
+      // Generate a valid script token
+      const { token, payload } = generateScriptToken(
+        serverToken,
+        'test-flow-id',
+        'test-session-id'
+      );
+
+      // Make request to an endpoint that allows script tokens
+      // Health endpoint is accessible to all auth methods
+      const response = (await server.request('/health', {
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(200);
+    });
+
+    test('invalid script token returns 401', async () => {
+      const invalidToken = 'script.invalidpayload.invalidsignature';
+
+      const response = (await server.request('/health', {
+        headers: { Authorization: `Bearer ${invalidToken}` }
+      })) as { status: number; json: () => Promise<{ message?: string }> };
+
+      expect(response.status).toBe(401);
+    });
+
+    test('expired script token returns 401', async () => {
+      // Generate a token with 1ms TTL
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1', 1);
+
+      // Wait for expiration
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const response = (await server.request('/health', {
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(401);
+    });
+
+    test('script token takes precedence over main bearer token', async () => {
+      // Generate a valid script token
+      const { token } = generateScriptToken(serverToken, 'test-flow-id', 'test-session-id');
+
+      // Use script token in Authorization header (should be processed as script token, not main token)
+      const response = (await server.request('/health', {
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      // Should succeed with script token auth
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe('enforceScriptScope - blocked endpoints', () => {
+    test('POST /session blocked for script tokens (403)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('DELETE /session/:id blocked for script tokens (403)', async () => {
+      // First create a session with main token
+      const { data: createData } = await server.post<CreateSessionResponse>(
+        '/session',
+        {},
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      // Try to delete with script token
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request(`/session/${createData.sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('POST /flows blocked for script tokens (403)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/flows', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ label: 'test-flow' })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('GET /workspace/files blocked for script tokens (403)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/workspace/files', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('GET /workspace/requests blocked for script tokens (403)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      // Must include required 'path' query param to avoid validation error
+      const response = (await server.request('/workspace/requests?path=test.http', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('POST /script blocked for script tokens (no nested spawning)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/script', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filePath: 'test.js' })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('POST /test blocked for script tokens (no nested spawning)', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/test', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filePath: 'test.test.js' })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('POST /parse blocked for script tokens', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/parse', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content: 'GET https://example.com' })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('GET /config blocked for script tokens', async () => {
+      const { token } = generateScriptToken(serverToken, 'flow-1', 'session-1');
+
+      const response = (await server.request('/config', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+  });
+
+  describe('enforceScriptScope - allowed endpoints with scope match', () => {
+    let restoreFetch: () => void;
+
+    beforeEach(() => {
+      restoreFetch = installFetchMock(async () => mockResponse({ success: true }, { status: 200 }));
+    });
+
+    afterEach(() => {
+      restoreFetch();
+    });
+
+    test('POST /execute allowed with matching flowId and sessionId', async () => {
+      // Create session with main token
+      const sessionResponse = (await server.request('/session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serverToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      })) as { status: number; json: () => Promise<CreateSessionResponse> };
+      const sessionData = await sessionResponse.json();
+
+      // Create flow with main token
+      const flowResponse = (await server.request('/flows', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serverToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ label: 'test-flow' })
+      })) as { status: number; json: () => Promise<{ flowId: string }> };
+      const flowData = await flowResponse.json();
+
+      // Generate script token scoped to this flow and session
+      const { token } = generateScriptToken(serverToken, flowData.flowId, sessionData.sessionId);
+
+      // Execute with matching flow and session
+      const response = (await server.request('/execute', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: 'GET https://api.example.com\n',
+          flowId: flowData.flowId,
+          sessionId: sessionData.sessionId
+        })
+      })) as { status: number };
+
+      expect(response.status).toBe(200);
+    });
+
+    test('PUT /session/:id/variables allowed with matching sessionId', async () => {
+      // Create session with main token
+      const sessionResponse = (await server.request('/session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serverToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ variables: { foo: 'bar' } })
+      })) as { status: number; json: () => Promise<CreateSessionResponse> };
+      const sessionData = await sessionResponse.json();
+
+      // Generate script token scoped to this session
+      const { token } = generateScriptToken(serverToken, 'any-flow', sessionData.sessionId);
+
+      // Update variables for the matching session
+      const response = (await server.request(`/session/${sessionData.sessionId}/variables`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ variables: { newVar: 'value' }, mode: 'merge' })
+      })) as { status: number; json: () => Promise<UpdateVariablesResponse> };
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.snapshotVersion).toBe(2);
+    });
+  });
+
+  describe('enforceScriptScope - scope mismatch (403)', () => {
+    let restoreFetch: () => void;
+
+    beforeEach(() => {
+      restoreFetch = installFetchMock(async () => mockResponse({ success: true }, { status: 200 }));
+    });
+
+    afterEach(() => {
+      restoreFetch();
+    });
+
+    test('POST /execute rejected with wrong flowId', async () => {
+      // Create session with main token
+      const { data: sessionData } = await server.post<CreateSessionResponse>(
+        '/session',
+        {},
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      // Generate script token scoped to different flow
+      const { token } = generateScriptToken(serverToken, 'allowed-flow-id', sessionData.sessionId);
+
+      // Try to execute with different flowId
+      const response = (await server.request('/execute', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: 'GET https://api.example.com\n',
+          flowId: 'different-flow-id',
+          sessionId: sessionData.sessionId
+        })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('POST /execute rejected with wrong sessionId', async () => {
+      // Create two sessions with main token
+      const { data: session1 } = await server.post<CreateSessionResponse>(
+        '/session',
+        {},
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      const { data: session2 } = await server.post<CreateSessionResponse>(
+        '/session',
+        {},
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      // Generate script token scoped to session1
+      const { token } = generateScriptToken(serverToken, 'test-flow', session1.sessionId);
+
+      // Try to execute with session2
+      const response = (await server.request('/execute', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: 'GET https://api.example.com\n',
+          flowId: 'test-flow',
+          sessionId: session2.sessionId
+        })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
+
+    test('PUT /session/:id/variables rejected with wrong sessionId', async () => {
+      // Create two sessions with main token
+      const { data: session1 } = await server.post<CreateSessionResponse>(
+        '/session',
+        { variables: { foo: 'bar' } },
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      const { data: session2 } = await server.post<CreateSessionResponse>(
+        '/session',
+        { variables: { baz: 'qux' } },
+        { headers: { Authorization: `Bearer ${serverToken}` } }
+      );
+
+      // Generate script token scoped to session1
+      const { token } = generateScriptToken(serverToken, 'any-flow', session1.sessionId);
+
+      // Try to update session2
+      const response = (await server.request(`/session/${session2.sessionId}/variables`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ variables: { newVar: 'value' }, mode: 'merge' })
+      })) as { status: number };
+
+      expect(response.status).toBe(403);
+    });
   });
 });

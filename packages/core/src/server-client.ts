@@ -93,24 +93,33 @@ export function getEnvVar(name: string): string | undefined {
  * Called by createClient() when server URL is provided.
  * Automatically creates a session and flow on first use.
  *
- * When TREQ_FLOW_ID environment variable is present (e.g., when spawned by TUI),
- * the client will attach to the existing flow instead of creating a new one.
+ * When running as a server-spawned script:
+ * - TREQ_FLOW_ID: Attach to existing flow (don't create new one)
+ * - TREQ_SESSION_ID: Use pre-created session (skip session creation)
+ * - TREQ_TOKEN: Use scoped script token for authentication
  *
  * @internal
  */
 export function createServerClient(config: ServerClientConfig): Client {
-  const { serverUrl, token } = config;
+  const { serverUrl } = config;
   const attachedFlowId = getEnvVar('TREQ_FLOW_ID');
+  const preCreatedSessionId = getEnvVar('TREQ_SESSION_ID');
+  const envToken = getEnvVar('TREQ_TOKEN');
+
+  // Use environment token if available (for server-spawned scripts)
+  // Fall back to config token if provided
+  const token = envToken ?? config.token;
 
   const baseUrl = serverUrl.replace(/\/$/, '');
   let variables: Record<string, unknown> = { ...config.variables };
-  let sessionId: string | undefined;
+  let sessionId: string | undefined = preCreatedSessionId;
   let flowId: string | undefined = attachedFlowId;
   let initialized = false;
   let initPromise: Promise<void> | undefined;
 
-  // Track if we're attached to an external flow (TUI-created)
+  // Track if we're using pre-created resources (server-spawned script mode)
   const isAttachedFlow = !!attachedFlowId;
+  const hasPreCreatedSession = !!preCreatedSessionId;
 
   // Serialize variable sync operations so rapid updates cannot race.
   let variableSyncChain: Promise<void> = Promise.resolve();
@@ -130,7 +139,17 @@ export function createServerClient(config: ServerClientConfig): Client {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
-      // 1. Create session (always needed for variables/cookies)
+      // Check for pre-created session (server-spawned scripts)
+      // If TREQ_SESSION_ID is set, skip session creation - use the pre-created one
+      if (hasPreCreatedSession) {
+        // Session ID is already set from environment variable
+        // Flow ID is also set from TREQ_FLOW_ID
+        // Just mark as initialized and return
+        initialized = true;
+        return;
+      }
+
+      // 1. Create session (needed for variables/cookies)
       const sessionRes = await fetch(`${baseUrl}/session`, {
         method: 'POST',
         headers,

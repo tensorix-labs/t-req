@@ -6,10 +6,9 @@
  * and server-side process spawning with live output streaming.
  */
 
-import { type Accessor, createSignal } from 'solid-js';
-import { useObserver, useSDK } from '../context';
-import type { RunnerOption } from '../sdk';
-import { useFlowSubscription } from './use-flow-subscription';
+import { type Accessor, createSignal, onCleanup } from 'solid-js';
+import { useObserver, useWorkspace } from '../context';
+import type { RunnerOption, SDK } from '../sdk';
 
 export interface ScriptRunnerOptions {
   onRunnerDialogNeeded: (
@@ -27,29 +26,58 @@ export interface ScriptRunnerReturn {
 }
 
 export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerReturn {
-  const sdk = useSDK();
+  const workspace = useWorkspace();
   const observer = useObserver();
-  const flowSubscription = useFlowSubscription();
 
   // Track current run ID for cancellation
   let currentRunId: string | undefined;
+  let sseUnsubscribe: (() => void) | undefined;
 
   // Track startup state to avoid double-run during runner detection
   const [isStarting, setIsStarting] = createSignal(false);
 
+  // Subscribe to SSE events for a flow
+  function subscribeToFlow(sdk: SDK, flowId: string) {
+    // Cleanup existing subscription
+    if (sseUnsubscribe) {
+      sseUnsubscribe();
+      sseUnsubscribe = undefined;
+    }
+
+    observer.setState('flowId', flowId);
+    observer.setState('sseStatus', 'connecting');
+
+    sseUnsubscribe = sdk.subscribeEvents(
+      flowId,
+      (event) => {
+        if (observer.state.sseStatus !== 'open') {
+          observer.setState('sseStatus', 'open');
+        }
+        observer.handleSSEEvent(event);
+      },
+      (error) => {
+        console.error('SSE error:', error);
+        observer.setState('sseStatus', 'error');
+      },
+      () => {
+        observer.setState('sseStatus', 'closed');
+      }
+    );
+  }
+
   // Start script execution with a runner ID
   async function startScript(scriptPath: string, runnerId?: string) {
+    const sdk = workspace.sdk();
+    if (!sdk) return;
+
     let flowId: string | undefined;
     try {
       // Create flow first so we can subscribe before the script starts
       const createdFlow = await sdk.createFlow(`Script: ${scriptPath}`);
       flowId = createdFlow.flowId;
 
-      observer.setState('flowId', flowId);
-
       // Subscribe to SSE events for live output
-      // The events (scriptStarted, scriptOutput, scriptFinished) will update observer state
-      flowSubscription.subscribe(flowId);
+      subscribeToFlow(sdk, flowId);
 
       // Start script after subscription is active
       const { runId } = await sdk.runScript(scriptPath, runnerId, flowId);
@@ -61,14 +89,17 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
       if (!observer.state.runningScript) {
         observer.setState('runningScript', {
           path: scriptPath,
-          pid: 0, // PID is managed by server
+          pid: 0,
           startedAt: Date.now()
         });
       }
     } catch (err) {
       console.error('Failed to start script:', err);
       if (flowId) {
-        flowSubscription.unsubscribe();
+        if (sseUnsubscribe) {
+          sseUnsubscribe();
+          sseUnsubscribe = undefined;
+        }
         observer.setState('flowId', undefined);
       }
       observer.setState('sseStatus', 'error');
@@ -78,6 +109,9 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
 
   // Handle running a script - entry point
   async function handleRunScript(scriptPath: string) {
+    const sdk = workspace.sdk();
+    if (!sdk) return;
+
     // Don't allow running another script while one is running
     if (observer.state.runningScript || isStarting()) {
       return;
@@ -85,7 +119,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
 
     // Reset observer state for new run
     setIsStarting(true);
-    observer.reset();
+    observer.clearScriptOutput();
 
     try {
       // Get available runners and auto-detect best one from server
@@ -109,7 +143,8 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
   }
 
   async function cancelScript() {
-    if (currentRunId) {
+    const sdk = workspace.sdk();
+    if (currentRunId && sdk) {
       try {
         await sdk.cancelScript(currentRunId);
       } catch {
@@ -118,22 +153,28 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
       currentRunId = undefined;
     }
     setIsStarting(false);
-    flowSubscription.unsubscribe();
+    if (sseUnsubscribe) {
+      sseUnsubscribe();
+      sseUnsubscribe = undefined;
+    }
   }
 
   function cleanup() {
-    if (currentRunId) {
+    const sdk = workspace.sdk();
+    if (currentRunId && sdk) {
       // Fire and forget cancellation
       sdk.cancelScript(currentRunId).catch(() => {});
       currentRunId = undefined;
     }
-    flowSubscription.cleanup();
+    if (sseUnsubscribe) {
+      sseUnsubscribe();
+      sseUnsubscribe = undefined;
+    }
     setIsStarting(false);
   }
 
-  // Watch for scriptFinished event to update running state
-  // This is done via the flow subscription which updates observer.state.runningScript to undefined
-  // and observer.state.exitCode to the exit code
+  // Cleanup on unmount
+  onCleanup(cleanup);
 
   return {
     runScript: handleRunScript,

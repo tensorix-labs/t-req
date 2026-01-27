@@ -1,12 +1,20 @@
 import { Show } from 'solid-js';
 import type { FlatNode } from '../../stores/workspace';
-import { ChevronIcon, FolderIcon, FileIcon } from '../icons';
+import { ChevronIcon, FolderIcon, FileIcon, PlayIcon } from '../icons';
+
+// File extensions that are considered scripts
+const SCRIPT_EXTENSIONS = ['.js', '.ts', '.mjs', '.mts', '.py'];
+
+function isScriptFile(path: string): boolean {
+  return SCRIPT_EXTENSIONS.some((ext) => path.endsWith(ext));
+}
 
 interface FileTreeItemProps {
   flatNode: FlatNode;
   isSelected: boolean;
   onSelect: () => void;
   onToggle: () => void;
+  onRunScript?: (path: string) => void;
 }
 
 export function FileTreeItem(props: FileTreeItemProps) {
@@ -56,9 +64,18 @@ export function FileTreeItem(props: FileTreeItemProps) {
     return `${base} bg-treq-border-light text-treq-text-muted dark:bg-treq-dark-border-light dark:text-treq-dark-text-muted`;
   };
 
+  const handleRunClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (props.onRunScript && !node.isDir && isScriptFile(node.path)) {
+      props.onRunScript(node.path);
+    }
+  };
+
+  const showRunButton = !node.isDir && isScriptFile(node.path) && props.onRunScript;
+
   return (
     <div
-      class={itemClasses()}
+      class={`${itemClasses()} group`}
       style={{ 'padding-left': `calc(0.75rem + ${node.depth}rem)` }}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -83,6 +100,21 @@ export function FileTreeItem(props: FileTreeItemProps) {
 
       <Show when={!node.isDir && node.requestCount !== undefined}>
         <span class={badgeClasses()}>{node.requestCount}</span>
+      </Show>
+
+      <Show when={showRunButton}>
+        <button
+          type="button"
+          onClick={handleRunClick}
+          class={`opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded transition-opacity ${
+            props.isSelected
+              ? 'text-white hover:bg-white/20'
+              : 'text-treq-accent hover:bg-treq-accent/10'
+          }`}
+          title="Run script"
+        >
+          <PlayIcon />
+        </button>
       </Show>
     </div>
   );

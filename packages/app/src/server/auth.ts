@@ -4,11 +4,13 @@
  * Provides dual authentication support:
  * - Bearer token: For TUI and external clients
  * - Cookie session: For web UI (HttpOnly, SameSite=Strict)
+ * - Script token: For server-spawned scripts (scoped, short-lived, revocable)
  *
  * Web sessions are used for browser authentication only.
  * They are separate from API sessions which store execution state.
  */
 
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Context, Next } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
@@ -26,12 +28,43 @@ export interface AuthConfig {
   sessionTtlMs?: number;
 }
 
-export type AuthMethod = 'bearer' | 'cookie' | 'none';
+export type AuthMethod = 'bearer' | 'cookie' | 'script' | 'none';
+
+/**
+ * Payload embedded in script tokens.
+ * Contains scoping information for authorization enforcement.
+ */
+export interface ScriptTokenPayload {
+  /** Unique token ID for revocation */
+  jti: string;
+  /** Script's flow context */
+  flowId: string;
+  /** Pre-created session ID */
+  sessionId: string;
+  /** Token creation timestamp */
+  createdAt: number;
+  /** Expiration timestamp */
+  expiresAt: number;
+}
+
+/**
+ * Result from generateScriptToken containing the token and metadata.
+ */
+export interface GeneratedScriptToken {
+  /** The full token string (script.<payload>.<signature>) */
+  token: string;
+  /** Token ID for revocation tracking */
+  jti: string;
+  /** The decoded payload */
+  payload: ScriptTokenPayload;
+}
 
 declare module 'hono' {
   interface ContextVariableMap {
     authMethod: AuthMethod;
     webSessionId?: string;
+    /** Script token payload when authenticated via script token */
+    scriptTokenPayload?: ScriptTokenPayload;
   }
 }
 
@@ -120,6 +153,176 @@ export function clearAllWebSessions(): void {
 }
 
 // ============================================================================
+// Script Token Management
+// ============================================================================
+
+/**
+ * In-memory tracking of active script tokens for revocation.
+ * Maps jti -> expiration timestamp.
+ */
+const activeScriptTokens = new Map<string, { expiresAt: number }>();
+
+/** Interval handle for script token cleanup */
+let scriptTokenCleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
+/** Script token cleanup interval (1 minute) */
+const SCRIPT_TOKEN_CLEANUP_INTERVAL_MS = 60 * 1000;
+
+/** Default script token TTL (15 minutes) */
+const DEFAULT_SCRIPT_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * Start the script token cleanup interval.
+ * Removes expired tokens every minute.
+ */
+export function startScriptTokenCleanup(): void {
+  if (scriptTokenCleanupIntervalId) return; // Already running
+
+  scriptTokenCleanupIntervalId = setInterval(() => {
+    const now = Date.now();
+    for (const [jti, data] of activeScriptTokens) {
+      if (now > data.expiresAt) {
+        activeScriptTokens.delete(jti);
+      }
+    }
+  }, SCRIPT_TOKEN_CLEANUP_INTERVAL_MS);
+}
+
+/**
+ * Stop the script token cleanup interval.
+ */
+export function stopScriptTokenCleanup(): void {
+  if (scriptTokenCleanupIntervalId) {
+    clearInterval(scriptTokenCleanupIntervalId);
+    scriptTokenCleanupIntervalId = null;
+  }
+}
+
+/**
+ * Generate a scoped script token.
+ *
+ * Token format: script.<base64url-payload>.<hmac-signature>
+ *
+ * Security properties:
+ * - HMAC-SHA256 signed using server's main token as secret
+ * - Scoped to specific flowId and sessionId
+ * - Short TTL (default 15 minutes)
+ * - Revocable via jti tracking
+ *
+ * @param serverToken The server's main authentication token (used as HMAC secret)
+ * @param flowId The flow ID to scope the token to
+ * @param sessionId The session ID to scope the token to
+ * @param ttlMs Token time-to-live in milliseconds (default: 15 minutes)
+ */
+export function generateScriptToken(
+  serverToken: string,
+  flowId: string,
+  sessionId: string,
+  ttlMs: number = DEFAULT_SCRIPT_TOKEN_TTL_MS
+): GeneratedScriptToken {
+  const jti = randomUUID();
+  const now = Date.now();
+  const payload: ScriptTokenPayload = {
+    jti,
+    flowId,
+    sessionId,
+    createdAt: now,
+    expiresAt: now + ttlMs
+  };
+
+  // Track for revocation
+  activeScriptTokens.set(jti, { expiresAt: payload.expiresAt });
+
+  // Encode payload as base64url
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+  // Sign with HMAC-SHA256
+  const signature = createHmac('sha256', serverToken).update(encodedPayload).digest('base64url');
+
+  return {
+    token: `script.${encodedPayload}.${signature}`,
+    jti,
+    payload
+  };
+}
+
+/**
+ * Validate a script token.
+ *
+ * Checks:
+ * 1. Token format (script.<payload>.<signature>)
+ * 2. HMAC signature validity (timing-safe)
+ * 3. Token not expired
+ * 4. Token not revoked (jti still tracked)
+ *
+ * @param serverToken The server's main authentication token
+ * @param token The script token to validate
+ * @returns The decoded payload if valid, null otherwise
+ */
+export function validateScriptToken(serverToken: string, token: string): ScriptTokenPayload | null {
+  // Check prefix
+  if (!token.startsWith('script.')) return null;
+
+  const tokenBody = token.slice(7);
+  const parts = tokenBody.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const encodedPayload = parts[0];
+  const signature = parts[1];
+
+  // Verify signature with timing-safe comparison
+  const expectedSignature = createHmac('sha256', serverToken)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  const sigBuffer = new Uint8Array(Buffer.from(signature, 'base64url'));
+  const expectedBuffer = new Uint8Array(Buffer.from(expectedSignature, 'base64url'));
+
+  if (sigBuffer.length !== expectedBuffer.length || !timingSafeEqual(sigBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  // Decode and parse payload
+  let payload: ScriptTokenPayload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString()) as ScriptTokenPayload;
+  } catch {
+    return null;
+  }
+
+  // Check expiration
+  if (Date.now() > payload.expiresAt) return null;
+
+  // Check revocation (jti must still be tracked)
+  if (!activeScriptTokens.has(payload.jti)) return null;
+
+  return payload;
+}
+
+/**
+ * Revoke a script token immediately.
+ * Called when a script exits or is cancelled.
+ *
+ * @param jti The token ID to revoke
+ */
+export function revokeScriptToken(jti: string): void {
+  activeScriptTokens.delete(jti);
+}
+
+/**
+ * Clear all script tokens (for testing or shutdown).
+ */
+export function clearAllScriptTokens(): void {
+  activeScriptTokens.clear();
+}
+
+/**
+ * Get the number of active script tokens.
+ */
+export function getScriptTokenCount(): number {
+  return activeScriptTokens.size;
+}
+
+// ============================================================================
 // Auth Middleware
 // ============================================================================
 
@@ -147,6 +350,18 @@ export function createAuthMiddleware(config: AuthConfig) {
 
       // If token is configured, validate it
       if (config.token) {
+        // Check for script token FIRST (script.<payload>.<signature>)
+        if (token.startsWith('script.')) {
+          const payload = validateScriptToken(config.token, token);
+          if (!payload) {
+            throw new HTTPException(401, { message: 'Invalid or expired script token' });
+          }
+          c.set('authMethod', 'script');
+          c.set('scriptTokenPayload', payload);
+          return next();
+        }
+
+        // Check main server token
         if (token === config.token) {
           c.set('authMethod', 'bearer');
           return next();

@@ -48,9 +48,9 @@ export function App() {
   const { detail: executionDetail, isLoading: loadingDetail } = useExecutionDetail();
 
   const scriptRunner = useScriptRunner({
-    onRunnerDialogNeeded: (scriptPath, onSelect) => {
+    onRunnerDialogNeeded: (scriptPath, options, onSelect) => {
       dialog.replace(() => (
-        <RunnerSelectDialog scriptPath={scriptPath} onSelect={onSelect} />
+        <RunnerSelectDialog scriptPath={scriptPath} options={options} onSelect={onSelect} />
       ));
     }
   });

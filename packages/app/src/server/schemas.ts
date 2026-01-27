@@ -231,7 +231,15 @@ export const EventTypeSchema = z.enum([
   'flowFinished',
   // Execution-level events
   'requestQueued',
-  'executionFailed'
+  'executionFailed',
+  // Script events
+  'scriptStarted',
+  'scriptOutput',
+  'scriptFinished',
+  // Test events
+  'testStarted',
+  'testOutput',
+  'testFinished'
 ]);
 
 export const BaseEventSchema = z.object({
@@ -270,6 +278,49 @@ export const ErrorPayloadSchema = z.object({
 export const SessionUpdatedPayloadSchema = z.object({
   variablesChanged: z.boolean(),
   cookiesChanged: z.boolean()
+});
+
+// ============================================================================
+// Script Event Payload Schemas
+// ============================================================================
+
+export const ScriptStartedPayloadSchema = z.object({
+  runId: z.string(),
+  filePath: z.string(),
+  runner: z.string()
+});
+
+export const ScriptOutputPayloadSchema = z.object({
+  runId: z.string(),
+  stream: z.enum(['stdout', 'stderr']),
+  data: z.string()
+});
+
+export const ScriptFinishedPayloadSchema = z.object({
+  runId: z.string(),
+  exitCode: z.number().nullable()
+});
+
+// ============================================================================
+// Test Event Payload Schemas
+// ============================================================================
+
+export const TestStartedPayloadSchema = z.object({
+  runId: z.string(),
+  filePath: z.string(),
+  framework: z.string()
+});
+
+export const TestOutputPayloadSchema = z.object({
+  runId: z.string(),
+  stream: z.enum(['stdout', 'stderr']),
+  data: z.string()
+});
+
+export const TestFinishedPayloadSchema = z.object({
+  runId: z.string(),
+  exitCode: z.number().nullable(),
+  status: z.enum(['passed', 'failed'])
 });
 
 // ============================================================================
@@ -463,6 +514,56 @@ export const ListWorkspaceRequestsResponseSchema = z.object({
 });
 
 // ============================================================================
+// Script Execution Schemas
+// ============================================================================
+
+export const RunScriptRequestSchema = z.object({
+  filePath: z.string().max(MAX_PATH_LENGTH),
+  runnerId: z.string().max(50).optional(),
+  flowId: z.string().max(100).optional()
+});
+
+export const RunScriptResponseSchema = z.object({
+  runId: z.string(),
+  flowId: z.string()
+});
+
+export const RunnerOptionSchema = z.object({
+  id: z.string(),
+  label: z.string()
+});
+
+export const GetRunnersResponseSchema = z.object({
+  detected: z.string().nullable(),
+  options: z.array(RunnerOptionSchema)
+});
+
+// ============================================================================
+// Test Execution Schemas
+// ============================================================================
+
+export const RunTestRequestSchema = z.object({
+  filePath: z.string().max(MAX_PATH_LENGTH),
+  frameworkId: z.string().max(50).optional(),
+  flowId: z.string().max(100).optional()
+});
+
+export const RunTestResponseSchema = z.object({
+  runId: z.string(),
+  flowId: z.string()
+});
+
+export const TestFrameworkOptionSchema = z.object({
+  id: z.string(),
+  label: z.string()
+});
+
+export const GetTestFrameworksResponseSchema = z.object({
+  detected: z.string().nullable(),
+  options: z.array(TestFrameworkOptionSchema)
+});
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -502,3 +603,15 @@ export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
 export type ListWorkspaceFilesResponse = z.infer<typeof ListWorkspaceFilesResponseSchema>;
 export type WorkspaceRequest = z.infer<typeof WorkspaceRequestSchema>;
 export type ListWorkspaceRequestsResponse = z.infer<typeof ListWorkspaceRequestsResponseSchema>;
+
+// Script execution types
+export type RunScriptRequest = z.infer<typeof RunScriptRequestSchema>;
+export type RunScriptResponse = z.infer<typeof RunScriptResponseSchema>;
+export type RunnerOption = z.infer<typeof RunnerOptionSchema>;
+export type GetRunnersResponse = z.infer<typeof GetRunnersResponseSchema>;
+
+// Test execution types
+export type RunTestRequest = z.infer<typeof RunTestRequestSchema>;
+export type RunTestResponse = z.infer<typeof RunTestResponseSchema>;
+export type TestFrameworkOption = z.infer<typeof TestFrameworkOptionSchema>;
+export type GetTestFrameworksResponse = z.infer<typeof GetTestFrameworksResponseSchema>;
