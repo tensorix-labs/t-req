@@ -199,17 +199,21 @@ async function createProjectStructure(projectPath: string, config: ProjectConfig
   // Create directories using Bun shell
   await $`mkdir -p ${projectPath}`.quiet();
   await $`mkdir -p ${join(projectPath, '.treq')}`.quiet();
-  await $`mkdir -p ${join(projectPath, 'collection', 'auth')}`.quiet();
+  await $`mkdir -p ${join(projectPath, 'collection', 'posts')}`.quiet();
   await $`mkdir -p ${join(projectPath, 'collection', 'users')}`.quiet();
 
   // Write root files
   await Bun.write(join(projectPath, 'treq.jsonc'), generateConfig());
   await Bun.write(join(projectPath, 'run.ts'), generateRunScript(config.runtime));
   await Bun.write(join(projectPath, 'package.json'), generatePackageJson(projectName, config));
+  await Bun.write(join(projectPath, 'tsconfig.json'), generateTsconfig(config.runtime));
   await Bun.write(join(projectPath, '.gitignore'), generateGitignore());
 
   // Write collection
-  await Bun.write(join(projectPath, 'collection', 'auth', 'login.http'), generateLoginRequest());
+  await Bun.write(
+    join(projectPath, 'collection', 'posts', 'create.http'),
+    generateCreatePostRequest()
+  );
   await Bun.write(
     join(projectPath, 'collection', 'users', 'list.http'),
     generateListUsersRequest()
@@ -222,7 +226,8 @@ export function generateConfig(): string {
   "variables": {
     // Default base URL for the included sample requests.
     // Switch profiles with: treq run ... --profile dev
-    "baseUrl": "https://jsonplaceholder.typicode.com"
+    "baseUrl": "https://jsonplaceholder.typicode.com",
+    "userId": 1
     // Example substitutions:
     // "apiKey": "{env:API_KEY}",
     // "authToken": "{file:./secrets/token.txt}"
@@ -251,48 +256,23 @@ export function generateConfig(): string {
 export function generateRunScript(runtime: Runtime): string {
   const shebang = runtime === 'bun' ? '#!/usr/bin/env bun' : '#!/usr/bin/env npx tsx';
 
+  const nodeImport =
+    runtime === 'node' ? "\nimport { createNodeIO } from '@t-req/core/runtime';" : '';
+  const ioOption = runtime === 'node' ? '\n  io: createNodeIO(),' : '';
+
   return `${shebang}
 import { createClient } from '@t-req/core';
-import { resolveProjectConfig } from '@t-req/core/config';
-${runtime === 'node' ? "import { createNodeIO } from '@t-req/core/runtime';" : ''}
+import { resolveProjectConfig } from '@t-req/core/config';${nodeImport}
 
-function getFlagValue(name: string): string | undefined {
-  const idx = process.argv.indexOf(name);
-  if (idx === -1) return undefined;
-  const value = process.argv[idx + 1];
-  return value && !value.startsWith('-') ? value : undefined;
-}
+const { config } = await resolveProjectConfig({ startDir: process.cwd() });
 
-const profile = getFlagValue('--profile') ?? process.env.TREQ_PROFILE;
-const { config, meta } = await resolveProjectConfig({
-  startDir: process.cwd(),
-  profile: profile || undefined,
-});
-
-for (const warning of meta.warnings) {
-  console.warn(\`Warning: \${warning}\`);
-}
-
-const client = createClient({
-  ${runtime === 'node' ? 'io: createNodeIO(),' : ''}
+const client = createClient({${ioOption}
   variables: config.variables,
-  // Map config defaults into the client (timeout + headers/redirects/ssl/proxy).
-  timeout: config.defaults.timeoutMs,
   defaults: config.defaults,
 });
 
-// Example: Get a user
-console.log('Fetching user...');
-const response = await client.run('./collection/users/get.http', {
-  variables: { userId: 1 },
-});
-
-if (response.ok) {
-  const user = await response.json();
-  console.log('User:', user);
-} else {
-  console.error('Failed to fetch user:', response.status, response.statusText);
-}
+const response = await client.run('./collection/users/get.http');
+console.log(response.status, await response.json());
 `;
 }
 
@@ -308,12 +288,17 @@ export function generatePackageJson(projectName: string, config: ProjectConfig):
       start: runCommand
     },
     dependencies: {
-      '@t-req/core': '^0.1.0'
+      '@t-req/core': 'latest'
     }
   };
 
-  if (config.runtime === 'node') {
+  if (config.runtime === 'bun') {
     pkg['devDependencies'] = {
+      '@types/bun': 'latest'
+    };
+  } else {
+    pkg['devDependencies'] = {
+      '@types/node': '^22.0.0',
       tsx: '^4.0.0'
     };
   }
@@ -333,11 +318,33 @@ dist/
 `;
 }
 
-export function generateLoginRequest(): string {
-  return `POST {{baseUrl}}/auth/login
+export function generateTsconfig(runtime: Runtime): string {
+  const types = runtime === 'bun' ? 'bun-types' : 'node';
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        target: 'ESNext',
+        module: 'ESNext',
+        moduleResolution: 'bundler',
+        types: [types],
+        strict: true,
+        noEmit: true
+      }
+    },
+    null,
+    2
+  )}\n`;
+}
+
+export function generateCreatePostRequest(): string {
+  return `POST {{baseUrl}}/posts
 Content-Type: application/json
 
-{"email": "{{email}}", "password": "{{password}}"}
+{
+  "title": "Hello from t-req",
+  "body": "This is a sample post.",
+  "userId": 1
+}
 `;
 }
 
