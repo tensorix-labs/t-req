@@ -32,6 +32,7 @@ import {
   StatusBar
 } from './layouts';
 import { openInEditor } from './editor';
+import { Toast } from './components/toast';
 
 type LeftPanelMode = 'tree' | 'executions';
 
@@ -311,6 +312,7 @@ export function App() {
       </SplitPanel>
 
       <StatusBar isRunning={isRunning()} />
+      <Toast />
     </FullScreenLayout>
   );
 }

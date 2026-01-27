@@ -11,8 +11,10 @@ import {
   ObserverProvider,
   SDKProvider,
   StoreProvider,
+  UpdateProvider,
   type ExitFn
 } from './context';
+import { ToastProvider } from './components/toast';
 
 export interface TuiConfig {
   serverUrl: string;
@@ -67,9 +69,13 @@ export async function startTui(config: TuiConfig): Promise<void> {
             <ExitProvider register={(fn) => (exitFn = fn)}>
               <KeybindProvider>
                 <LogProvider>
-                  <DialogProvider>
-                    <App />
-                  </DialogProvider>
+                  <ToastProvider>
+                    <DialogProvider>
+                      <UpdateProvider>
+                        <App />
+                      </UpdateProvider>
+                    </DialogProvider>
+                  </ToastProvider>
                 </LogProvider>
               </KeybindProvider>
             </ExitProvider>
@@ -88,5 +94,5 @@ export async function startTui(config: TuiConfig): Promise<void> {
 
   // Keep process alive (ExitProvider exits the process).
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  return new Promise(() => {});
+  return new Promise(() => { });
 }
