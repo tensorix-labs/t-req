@@ -36,8 +36,7 @@
     "treq": "./bin/treq"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "files": [
     "bin",

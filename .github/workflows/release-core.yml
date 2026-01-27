@@ -72,7 +72,7 @@ jobs:
 
       - name: Publish to npm
         if: ${{ github.event_name == 'push' || !inputs.dry-run }}
-        run: npm publish --access public --provenance
+        run: npm publish --access public
         working-directory: packages/core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
