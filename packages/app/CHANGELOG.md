@@ -1,5 +1,11 @@
 # @t-req/app
 
+## 0.3.2
+
+### Patch Changes
+
+- b23d6d5: Fix bin/treq crash with "require is not defined in ES module scope" by converting to ESM imports
+
 ## 0.3.1
 
 ### Patch Changes
