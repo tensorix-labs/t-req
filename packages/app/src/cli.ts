@@ -6,6 +6,7 @@ import { runCommand } from './cmd/run';
 import { serveCommand } from './cmd/serve';
 import { tuiCommand } from './cmd/tui';
 import { upgradeCommand } from './cmd/upgrade';
+import { Installation } from './installation';
 
 export function cli(args: string[]): void {
   yargs(hideBin(['node', 'cli', ...args]))
@@ -20,6 +21,6 @@ export function cli(args: string[]): void {
     .demandCommand(1, 'You need to specify a command')
     .strict()
     .help()
-    .version()
+    .version(Installation.VERSION)
     .parse();
 }
