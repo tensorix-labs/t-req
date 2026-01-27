@@ -202,7 +202,6 @@ export function stopScriptTokenCleanup(): void {
  * Generate a scoped script token.
  *
  * Token format: script.<base64url-payload>.<hmac-signature>
- * Legacy format: script_<base64url-payload>_<hmac-signature>
  *
  * Security properties:
  * - HMAC-SHA256 signed using server's main token as secret
@@ -251,7 +250,7 @@ export function generateScriptToken(
  * Validate a script token.
  *
  * Checks:
- * 1. Token format (script.<payload>.<signature>, legacy script_<payload>_<signature>)
+ * 1. Token format (script.<payload>.<signature>)
  * 2. HMAC signature validity (timing-safe)
  * 3. Token not expired
  * 4. Token not revoked (jti still tracked)
@@ -261,31 +260,14 @@ export function generateScriptToken(
  * @returns The decoded payload if valid, null otherwise
  */
 export function validateScriptToken(serverToken: string, token: string): ScriptTokenPayload | null {
-  // Check prefix (current and legacy)
-  const isDotFormat = token.startsWith('script.');
-  const isLegacyUnderscore = token.startsWith('script_');
-  if (!isDotFormat && !isLegacyUnderscore) return null;
+  // Check prefix
+  if (!token.startsWith('script.')) return null;
 
   const tokenBody = token.slice(7);
-  let encodedPayload = '';
-  let signature = '';
-
-  if (isDotFormat) {
-    const parts = tokenBody.split('.');
-    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-    encodedPayload = parts[0];
-    signature = parts[1];
-  } else {
-    // Legacy format: script_<payload>_<signature> (signature is fixed-length base64url)
-    const signatureLength = 43; // base64url length for SHA-256 (32 bytes, no padding)
-    if (tokenBody.length <= signatureLength + 1) return null;
-    const separatorIndex = tokenBody.length - signatureLength - 1;
-    if (tokenBody[separatorIndex] !== '_') return null;
-    encodedPayload = tokenBody.slice(0, separatorIndex);
-    signature = tokenBody.slice(separatorIndex + 1);
-  }
-
-  if (!encodedPayload || !signature) return null;
+  const parts = tokenBody.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const encodedPayload = parts[0];
+  const signature = parts[1];
 
   // Verify signature with timing-safe comparison
   const expectedSignature = createHmac('sha256', serverToken)
@@ -369,7 +351,7 @@ export function createAuthMiddleware(config: AuthConfig) {
       // If token is configured, validate it
       if (config.token) {
         // Check for script token FIRST (script.<payload>.<signature>)
-        if (token.startsWith('script.') || token.startsWith('script_')) {
+        if (token.startsWith('script.')) {
           const payload = validateScriptToken(config.token, token);
           if (!payload) {
             throw new HTTPException(401, { message: 'Invalid or expired script token' });
