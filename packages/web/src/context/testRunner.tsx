@@ -102,7 +102,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
     }
 
     setIsStarting(true);
-    observer.clearScriptOutput();
+    observer.reset();
 
     try {
       const { detected, options: frameworkOptions } = await sdk.getTestFrameworks(testPath);
