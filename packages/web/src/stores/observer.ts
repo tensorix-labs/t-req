@@ -152,6 +152,32 @@ export function createObserverStore(): ObserverStore {
         setState('runningScript', undefined);
         break;
       }
+
+      // Test events (same handling as script events)
+      case 'testStarted': {
+        const p = payload as { runId: string; filePath: string; framework: string };
+        setState('runningScript', {
+          path: p.filePath,
+          pid: 0,
+          startedAt: event.ts
+        });
+        break;
+      }
+      case 'testOutput': {
+        const p = payload as { runId: string; stream: 'stdout' | 'stderr'; data: string };
+        if (p.stream === 'stdout') {
+          appendStdout(p.data);
+        } else {
+          appendStderr(p.data);
+        }
+        break;
+      }
+      case 'testFinished': {
+        const p = payload as { runId: string; exitCode: number | null; status: string };
+        setState('exitCode', p.exitCode);
+        setState('runningScript', undefined);
+        break;
+      }
     }
 
     // Request events require reqExecId

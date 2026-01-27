@@ -12,4 +12,9 @@ export {
   type ScriptRunnerReturn,
   useScriptRunner
 } from './use-script-runner';
+export {
+  type TestRunnerOptions,
+  type TestRunnerReturn,
+  useTestRunner
+} from './use-test-runner';
 export { useWorkspace, type WorkspaceReturn } from './use-workspace';

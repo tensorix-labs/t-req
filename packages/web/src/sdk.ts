@@ -165,6 +165,21 @@ export interface RunScriptResponse {
   flowId: string;
 }
 
+export interface TestFrameworkOption {
+  id: string;
+  label: string;
+}
+
+export interface GetTestFrameworksResponse {
+  detected: string | null;
+  options: TestFrameworkOption[];
+}
+
+export interface RunTestResponse {
+  runId: string;
+  flowId: string;
+}
+
 export interface SDK {
   /** Base URL for API requests (empty string for relative URLs) */
   baseUrl: string;
@@ -187,6 +202,11 @@ export interface SDK {
   getRunners(filePath?: string): Promise<GetRunnersResponse>;
   runScript(filePath: string, runnerId?: string, flowId?: string): Promise<RunScriptResponse>;
   cancelScript(runId: string): Promise<void>;
+
+  // Test execution
+  getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse>;
+  runTest(filePath: string, frameworkId?: string, flowId?: string): Promise<RunTestResponse>;
+  cancelTest(runId: string): Promise<void>;
 
   // SSE subscription
   subscribeEvents(
@@ -428,6 +448,40 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
 
     async cancelScript(runId: string): Promise<void> {
       const url = buildUrl(`/script/${encodeURIComponent(runId)}`);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers
+      });
+    },
+
+    // Test execution
+    async getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse> {
+      const query = filePath ? `?filePath=${encodeURIComponent(filePath)}` : '';
+      return request<GetTestFrameworksResponse>(`/test/frameworks${query}`);
+    },
+
+    async runTest(
+      filePath: string,
+      frameworkId?: string,
+      flowId?: string
+    ): Promise<RunTestResponse> {
+      return request<RunTestResponse>('/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath,
+          frameworkId,
+          flowId
+        })
+      });
+    },
+
+    async cancelTest(runId: string): Promise<void> {
+      const url = buildUrl(`/test/${encodeURIComponent(runId)}`);
       const headers: Record<string, string> = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
