@@ -1,0 +1,244 @@
+---
+interface Tab {
+  id: string;
+  label: string;
+  code: string;
+  language?: string;
+}
+
+interface Props {
+  tabs: Tab[];
+  defaultTab?: string;
+}
+
+const { tabs, defaultTab } = Astro.props;
+const activeTab = defaultTab || tabs[0]?.id;
+---
+
+<div class="code-tabs" data-active-tab={activeTab}>
+  <div class="tabs-header">
+    {tabs.map((tab) => (
+      <button
+        class={`tab-btn ${tab.id === activeTab ? 'active' : ''}`}
+        data-tab={tab.id}
+      >
+        {tab.label}
+      </button>
+    ))}
+  </div>
+  <div class="tabs-content">
+    {tabs.map((tab) => (
+      <div
+        class={`tab-panel ${tab.id === activeTab ? 'active' : ''}`}
+        data-panel={tab.id}
+      >
+        <div class="code-wrapper">
+          <pre><code class={`language-${tab.language || 'text'}`} set:html={tab.code} /></pre>
+          <button class="copy-btn" data-code={tab.code.replace(/<[^>]*>/g, '')} aria-label="Copy code">
+            <svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="check-icon hidden" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+<style>
+  .code-tabs {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .tabs-header {
+    display: flex;
+    gap: 0;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    overflow-x: auto;
+  }
+
+  .tab-btn {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .tab-btn:hover {
+    color: #0f172a;
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .tab-btn.active {
+    color: #0f172a;
+    background: #f8fafc;
+  }
+
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #f97316;
+  }
+
+  .tabs-content {
+    position: relative;
+  }
+
+  .tab-panel {
+    display: none;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  .code-wrapper {
+    position: relative;
+  }
+
+  pre {
+    margin: 0;
+    padding: 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  code {
+    color: #334155;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    border-radius: 6px;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .copy-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #0f172a;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  /* Syntax highlighting colors - light theme */
+  code :global(.keyword),
+  code :global(.kw) {
+    color: #8b5cf6;
+  }
+
+  code :global(.string),
+  code :global(.str) {
+    color: #059669;
+  }
+
+  code :global(.function),
+  code :global(.fn) {
+    color: #2563eb;
+  }
+
+  code :global(.comment),
+  code :global(.cmt) {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  code :global(.variable) {
+    color: #dc2626;
+  }
+
+  code :global(.number),
+  code :global(.num) {
+    color: #d97706;
+  }
+
+  code :global(.method) {
+    color: #16a34a;
+  }
+
+  code :global(.http-method) {
+    color: #16a34a;
+    font-weight: 600;
+  }
+
+  code :global(.http-url) {
+    color: #2563eb;
+  }
+
+  code :global(.http-header) {
+    color: #64748b;
+  }
+
+  code :global(.http-var) {
+    color: #f97316;
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.code-tabs').forEach((container) => {
+    const tabs = container.querySelectorAll('.tab-btn');
+    const panels = container.querySelectorAll('.tab-panel');
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const tabId = (tab as HTMLElement).dataset.tab;
+
+        tabs.forEach((t) => t.classList.remove('active'));
+        panels.forEach((p) => p.classList.remove('active'));
+
+        tab.classList.add('active');
+        container.querySelector(`[data-panel="${tabId}"]`)?.classList.add('active');
+      });
+    });
+
+    // Copy button functionality
+    container.querySelectorAll('.copy-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const code = (btn as HTMLElement).dataset.code || '';
+        await navigator.clipboard.writeText(code);
+
+        const copyIcon = btn.querySelector('.copy-icon');
+        const checkIcon = btn.querySelector('.check-icon');
+
+        copyIcon?.classList.add('hidden');
+        checkIcon?.classList.remove('hidden');
+
+        setTimeout(() => {
+          copyIcon?.classList.remove('hidden');
+          checkIcon?.classList.add('hidden');
+        }, 2000);
+      });
+    });
+  });
+</script>

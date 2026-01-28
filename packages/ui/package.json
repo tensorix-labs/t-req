@@ -46,6 +46,7 @@
     "build:css": "bunx @tailwindcss/cli -i ./src/styles/base.css -o ./dist/styles/base.css --minify"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.1.1",
     "@fontsource/jetbrains-mono": "^5.2.8"
   },
   "devDependencies": {
