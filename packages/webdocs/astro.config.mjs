@@ -8,7 +8,7 @@ export default defineConfig({
 		starlight({
 			title: 't-req',
 			logo: {
-				src: './public/logo.jpg',
+				src: './src/assets/logo.jpg',
 				replacesTitle: true,
 			},
 			favicon: '/favicon.png',

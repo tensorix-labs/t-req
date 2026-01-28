@@ -1,7 +1,9 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import CodeTabs from "../components/CodeTabs.astro";
-import FeatureCard from "../components/FeatureCard.astro";
+import { Image } from 'astro:assets';
+import heroMascot from '../assets/hero-mascot.jpg';
+import logo from '../assets/logo.jpg';
 ---
 
 <Layout>
@@ -10,7 +12,7 @@ import FeatureCard from "../components/FeatureCard.astro";
     class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between border-b border-treq-border-light"
   >
     <a href="/" aria-label="t-req home">
-      <img src="/logo.jpg" alt="t-req" class="h-8 w-auto" />
+      <Image src={logo} alt="t-req" class="h-8 w-auto" />
     </a>
     <nav class="flex items-center gap-6">
       <a
@@ -45,11 +47,11 @@ import FeatureCard from "../components/FeatureCard.astro";
     <!-- Hero Section -->
     <section class="hero-section">
       <div class="hero-mascot">
-        <img
-          src="/hero-mascot.jpg"
+        <Image
+          src={heroMascot}
           alt="t-req mascot - a friendly dinosaur coding"
-          width="320"
-          height="400"
+          width={320}
+          height={400}
         />
       </div>
       <div class="hero-content">
@@ -304,7 +306,7 @@ treq open</code></pre>
     <footer
       class="max-w-5xl mx-auto px-6 py-12 text-center text-sm text-treq-text-muted"
     >
-      &copy; {new Date().getFullYear()} tensorix-labs
+      &copy; {new Date().getFullYear()} <a href="https://www.tensorixlabs.com/" target="_blank" rel="noopener noreferrer" class="hover:text-treq-text-strong transition-colors">tensorix-labs</a>
     </footer>
   </main>
 
@@ -343,23 +345,19 @@ treq open</code></pre>
 
     .hero-mascot {
       flex-shrink: 0;
+      display: none;
     }
 
     @media (min-width: 768px) {
       .hero-mascot {
+        display: block;
         order: 2;
       }
     }
 
     .hero-mascot img {
-      width: 200px;
+      width: 280px;
       height: auto;
-    }
-
-    @media (min-width: 768px) {
-      .hero-mascot img {
-        width: 280px;
-      }
     }
 
     /* Hero typography - Tailwind-inspired */
