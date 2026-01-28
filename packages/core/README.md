@@ -7,6 +7,17 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
+## Part of the t-req Ecosystem
+
+`@t-req/core` is the foundation of the t-req ecosystem. On top of the library, t-req provides:
+
+- **CLI & TUI** ([`@t-req/app`](../app)) -- `treq open` launches an interactive terminal UI with a built-in server
+- **Web dashboard** ([`@t-req/web`](../web)) -- Browser-based request explorer and response viewer
+- **Multi-language server** -- `treq serve` exposes a REST API so any language can execute `.http` files
+- **Observer mode** -- `createClient()` auto-detects the `TREQ_SERVER` env var and routes requests through the server for zero-config observability
+
+See the [root README](../../README.md) for the full overview.
+
 ## Features
 
 - **Parse `.http` files** - Standard format used by VS Code REST Client, JetBrains HTTP Client

@@ -1,6 +1,22 @@
 # @t-req/app
 
-CLI for t-req - scaffold, execute, and serve HTTP request projects.
+CLI for t-req -- scaffold, execute, and serve HTTP request projects. Includes a terminal UI (TUI) and web dashboard for interactive exploration.
+
+## Developer Workflow
+
+```bash
+# 1. Scaffold a new project
+treq init my-api
+
+# 2. Open the TUI + server (starts everything)
+cd my-api && treq open
+
+# 3. Browse .http files, execute requests, run scripts -- all from the TUI
+#    Scripts automatically report HTTP requests back to the TUI (observer mode)
+
+# 4. Or add --web to also open the browser dashboard
+treq open --web
+```
 
 ## Installation
 
@@ -11,6 +27,36 @@ bun add -g @t-req/app
 ```
 
 ## Commands
+
+### `treq open` - Open workspace (recommended)
+
+Starts the server and TUI together. This is the primary way to use t-req interactively.
+
+```bash
+# Open current directory
+treq open
+
+# Open a specific workspace
+treq open ./my-api
+
+# Open with the web dashboard in your browser
+treq open --web
+
+# Custom port
+treq open --port 8080
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `[workspace]` | Workspace root directory (default: `.`) |
+| `--port, -p` | Port to listen on (default: 4097) |
+| `--host, -H` | Host to bind to (default: 127.0.0.1) |
+| `--web` | Open the browser dashboard |
+| `--expose` | Allow non-loopback binding (disables cookie auth) |
+
+Security: a random token is generated on every launch. `--web` and `--expose` cannot be combined (SSRF protection).
 
 ### `treq init` - Create a new project
 
@@ -169,6 +215,37 @@ resp, _ := http.Post("http://localhost:4096/execute", "application/json",
 
 See `examples/app/` for complete client examples in Python, Go, and TypeScript.
 
+### `treq tui` - Connect to existing server
+
+Launch the TUI and connect to a server that is already running (started separately with `treq serve`).
+
+```bash
+# Connect to default server
+treq tui
+
+# Connect to a custom server
+treq tui --server http://localhost:8080 --token my-token
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--server, -s` | Server URL to connect to (default: http://localhost:4096) |
+| `--token, -t` | Bearer token for authentication |
+
+### `treq upgrade` - Upgrade treq
+
+Upgrade treq to the latest version (or a specific version). Auto-detects the installation method.
+
+```bash
+# Upgrade to latest
+treq upgrade
+
+# Upgrade to a specific version
+treq upgrade 0.3.0
+```
+
 ### Help
 
 ```bash
@@ -176,7 +253,60 @@ treq --help
 treq init --help
 treq run --help
 treq serve --help
+treq open --help
 ```
+
+## TUI
+
+The TUI provides an interactive terminal interface for browsing and executing your workspace.
+
+### Layout
+
+- **Left panel**: File tree (browse `.http` files, scripts, and tests) or Executions view (request list + script output)
+- **Right panel**: Execution detail (full HTTP request and response)
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `j` / `Down` | Navigate down |
+| `k` / `Up` | Navigate up |
+| `Enter` | Execute selected file / toggle directory |
+| `Tab` | Toggle between File Tree and Executions panel |
+| `Ctrl+H` | Hide/show left panel |
+| `Ctrl+T` | File/request picker |
+| `Ctrl+P` | Command palette |
+| `Ctrl+E` | Open in external editor |
+| `Escape` | Cancel running script |
+| `Ctrl+C` | Quit |
+
+### Script & Test Runner
+
+The TUI can run scripts and tests directly. Supported runners:
+
+**Scripts**: `bun`, `node`, `npx tsx`, `npx ts-node`, `python`
+**Test frameworks**: `bun test`, `vitest`, `jest`, `pytest`
+
+Runners are auto-detected from your project's lockfiles, config files, and `package.json` devDependencies.
+
+## Observer Mode
+
+Observer mode lets your scripts report HTTP requests back to the TUI and web dashboard with zero code changes.
+
+When you run a script from the TUI (or web dashboard), t-req injects these environment variables into the child process:
+
+| Variable | Purpose |
+|----------|---------|
+| `TREQ_SERVER` | Server URL (e.g. `http://localhost:4097`) |
+| `TREQ_FLOW_ID` | Flow ID grouping related requests |
+| `TREQ_SESSION_ID` | Pre-created session ID |
+| `TREQ_TOKEN` | Scoped, short-lived auth token |
+
+`@t-req/core`'s `createClient()` auto-detects `TREQ_SERVER` and routes requests through the server instead of executing them locally. Every request appears in the TUI/dashboard in real time via SSE.
+
+The injected token is scoped to the specific flow and session, and is revoked when the script exits.
+
+**No code changes needed** -- if your script already uses `createClient()`, observer mode works automatically.
 
 ## Protocol Version
 

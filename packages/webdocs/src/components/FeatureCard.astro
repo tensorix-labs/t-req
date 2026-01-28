@@ -1,0 +1,74 @@
+---
+interface Props {
+  icon: string;
+  title: string;
+  description: string;
+  color?: 'orange' | 'blue' | 'green' | 'purple' | 'cyan' | 'pink';
+}
+
+const { icon, title, description, color = 'orange' } = Astro.props;
+
+const colorClasses: Record<string, { bg: string; stroke: string }> = {
+  orange: { bg: 'bg-orange-500/10', stroke: '#f97316' },
+  blue: { bg: 'bg-blue-500/10', stroke: '#3b82f6' },
+  green: { bg: 'bg-green-500/10', stroke: '#22c55e' },
+  purple: { bg: 'bg-purple-500/10', stroke: '#a855f7' },
+  cyan: { bg: 'bg-cyan-500/10', stroke: '#06b6d4' },
+  pink: { bg: 'bg-pink-500/10', stroke: '#ec4899' },
+};
+
+const { bg, stroke } = colorClasses[color];
+---
+
+<div class="feature-card">
+  <div class={`feature-icon ${bg}`}>
+    <Fragment set:html={icon.replace('currentColor', stroke)} />
+  </div>
+  <h3 class="feature-title">{title}</h3>
+  <p class="feature-desc">{description}</p>
+</div>
+
+<style>
+  .feature-card {
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--color-treq-border-light);
+    background: var(--color-treq-bg-card);
+    transition: all 0.2s ease;
+  }
+
+  .feature-card:hover {
+    border-color: rgba(249, 115, 22, 0.3);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    transition: transform 0.2s ease;
+  }
+
+  .feature-card:hover .feature-icon {
+    transform: scale(1.05);
+  }
+
+  .feature-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-treq-text-strong);
+    margin-bottom: 8px;
+  }
+
+  .feature-desc {
+    font-size: 14px;
+    color: var(--color-treq-text-muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+</style>

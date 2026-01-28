@@ -1,49 +1,79 @@
-# Starlight Starter Kit: Basics
+# @t-req/webdocs
 
-[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
+Documentation site for the t-req ecosystem. Covers the core library, CLI, server API, TUI, web dashboard, and configuration reference.
 
-```
-bun create astro@latest -- --template starlight
-```
+## Development
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+### Prerequisites
 
-## 🚀 Project Structure
+- [Bun](https://bun.sh) runtime
+- The monorepo root dependencies installed (`bun install` from the repo root)
 
-Inside of your Astro + Starlight project, you'll see the following folders and files:
+### Dev server
 
-```
-.
-├── public/
-├── src/
-│   ├── assets/
-│   ├── content/
-│   │   └── docs/
-│   └── content.config.ts
-├── astro.config.mjs
-├── package.json
-└── tsconfig.json
+```bash
+bun dev
 ```
 
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
+Starts the Astro dev server at `http://localhost:4321`.
 
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
+### Build
 
-Static assets, like favicons, can be placed in the `public/` directory.
+```bash
+bun run build
+```
 
-## 🧞 Commands
+Outputs the static site to `dist/`.
 
-All commands are run from the root of the project, from a terminal:
+### Preview
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
+```bash
+bun preview
+```
 
-## 👀 Want to learn more?
+Preview the production build locally before deploying.
 
-Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
+## Contributing Content
+
+Documentation pages live in `src/content/docs/`. Each `.md` or `.mdx` file becomes a route based on its file name.
+
+### Adding a page
+
+Create a new markdown file in `src/content/docs/`:
+
+```markdown
+---
+title: My New Page
+description: A brief description for SEO and link previews.
+---
+
+Page content here.
+```
+
+### Images
+
+Place images in `src/assets/` and reference them with a relative path in markdown.
+
+### Static assets
+
+Favicons, fonts, and other static files go in `public/`.
+
+## Tech Stack
+
+- [Astro](https://astro.build/) -- Static site generator
+- [Starlight](https://starlight.astro.build/) -- Documentation theme for Astro
+- [Tailwind CSS](https://tailwindcss.com/) via [@t-req/ui](../ui) -- Styling and theme
+
+## Part of the t-req Ecosystem
+
+| Package | Role |
+|---------|------|
+| [@t-req/core](../core) | HTTP parsing and execution library |
+| [@t-req/app](../app) | CLI, TUI, and server |
+| [@t-req/web](../web) | Browser dashboard |
+| [@t-req/ui](../ui) | Shared theme and Tailwind config |
+| **@t-req/webdocs** | **Documentation site** |
+
+## License
+
+[MIT](../../LICENSE)

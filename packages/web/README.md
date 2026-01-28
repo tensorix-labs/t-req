@@ -1,28 +1,66 @@
+# @t-req/web
+
+Browser dashboard for the t-req server. Browse `.http` files, execute requests, view responses, and observe script activity in real time.
+
+## Features
+
+- **File tree** -- Browse workspace `.http` files, scripts, and tests
+- **Request execution** -- Select and execute requests from `.http` files
+- **Response viewer** -- Inspect status, headers, and body of HTTP responses
+- **Script runner** -- Run scripts with auto-detected runners (bun, node, tsx, python)
+- **Test runner** -- Run tests with auto-detected frameworks (vitest, jest, bun test, pytest)
+- **SSE observer mode** -- Watch HTTP requests from running scripts appear in real time
+
 ## Usage
 
+The dashboard is served through `treq open --web`, which starts the server and opens the dashboard in your browser:
+
 ```bash
-$ npm install # or pnpm install or yarn install
+treq open --web
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+The web app connects to the server via relative URLs and uses cookie-based authentication (same-origin). No token configuration is needed.
 
-## Available Scripts
+## Development
 
-In the project directory, you can run:
+### Prerequisites
 
-### `npm run dev`
+- [Bun](https://bun.sh) runtime
+- The monorepo root dependencies installed (`bun install` from the repo root)
 
-Runs the app in the development mode.<br>
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+### Dev server
 
-### `npm run build`
+```bash
+bun dev
+```
 
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
+Starts the Vite dev server. You'll need a running t-req server to connect to (e.g. `treq serve` in another terminal).
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+### Build
 
-## Deployment
+```bash
+bun run build
+```
 
-Learn more about deploying your application with the [documentations](https://vite.dev/guide/static-deploy.html)
+Outputs production files to `dist/`.
+
+## Tech Stack
+
+- [Solid.js](https://www.solidjs.com/) -- Reactive UI framework
+- [Vite](https://vite.dev/) -- Build tool and dev server
+- [Tailwind CSS](https://tailwindcss.com/) via [@t-req/ui](../ui) -- Styling and theme
+- [TypeScript](https://www.typescriptlang.org/)
+
+## Part of the t-req Ecosystem
+
+| Package | Role |
+|---------|------|
+| [@t-req/core](../core) | HTTP parsing and execution library |
+| [@t-req/app](../app) | CLI, TUI, and server |
+| **@t-req/web** | **Browser dashboard** |
+| [@t-req/ui](../ui) | Shared theme and Tailwind config |
+| [@t-req/webdocs](../webdocs) | Documentation site |
+
+## License
+
+[MIT](../../LICENSE)

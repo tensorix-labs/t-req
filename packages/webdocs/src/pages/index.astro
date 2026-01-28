@@ -1,14 +1,24 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import CodeTabs from "../components/CodeTabs.astro";
+import FeatureCard from "../components/FeatureCard.astro";
 ---
 
 <Layout>
   <!-- Header -->
   <header
-    class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between border-b border-treq-border-light"
+    class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between border-b border-treq-border-light"
   >
-    <a href="/" class="text-2xl" aria-label="t-req home">🦖</a>
+    <a href="/" aria-label="t-req home">
+      <img src="/logo.jpg" alt="t-req" class="h-8 w-auto" />
+    </a>
     <nav class="flex items-center gap-6">
+      <a
+        href="/docs/getting-started"
+        class="text-treq-text-strong hover:text-treq-accent transition-colors text-sm font-semibold"
+      >
+        Docs
+      </a>
       <a
         href="https://github.com/tensorix-labs/t-req"
         target="_blank"
@@ -32,96 +42,719 @@ import Layout from "../layouts/Layout.astro";
   </header>
 
   <main class="max-w-4xl mx-auto px-6">
-    <!-- Hero -->
-    <section class="text-center py-16 space-y-6">
-      <h1
-        class="text-4xl sm:text-6xl font-bold text-treq-text-strong tracking-tight"
-      >
-        HTTP Requests as Code
-      </h1>
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-mascot">
+        <img
+          src="/hero-mascot.jpg"
+          alt="t-req mascot - a friendly dinosaur coding"
+          width="320"
+          height="400"
+        />
+      </div>
+      <div class="hero-content">
+        <h1 class="hero-title">
+          Test APIs programmatically<br />without ever leaving your code.
+        </h1>
 
-      <p class="text-base sm:text-lg text-treq-text-muted max-w-xl mx-auto">
-        Parse, interpolate, and execute .http files in JavaScript.
-      </p>
+        <p class="hero-subtitle">
+          t-req is a utility-first HTTP client with standard <code
+            class="inline-code">.http</code
+          > files that work with
+          <span class="text-accent">Vitest</span>, <span class="text-accent"
+            >Jest</span
+          >, and <span class="text-accent">Bun test</span>
+          — no proprietary DSLs, no vendor lock-in.
+        </p>
 
-      <div class="flex items-center justify-center gap-4 pt-2">
-        <a
-          href="https://github.com/tensorix-labs/t-req"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center gap-2 rounded-lg border border-treq-border px-6 py-3 text-sm font-semibold text-treq-text-strong no-underline transition-colors hover:bg-treq-bg-card"
-        >
-          GitHub
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            ><path
-              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
-            ></path></svg
+        <div class="hero-buttons">
+          <a href="/docs/getting-started" class="btn-primary"> Get started </a>
+          <a
+            href="https://github.com/tensorix-labs/t-req"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-secondary"
           >
-        </a>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="opacity-70"
+            >
+              <path
+                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+              ></path>
+            </svg>
+            GitHub
+          </a>
+        </div>
       </div>
     </section>
 
-    <!-- Divider -->
-    <hr class="border-treq-border-light" />
+    <!-- Problem Statement Section -->
+    <section class="py-16">
+      <h2 class="section-title">API Testing is Broken</h2>
+      <p class="section-subtitle">
+        Current tools force you to choose between convenience and control.
+      </p>
+
+      <div class="problem-table-wrapper">
+        <table class="problem-table">
+          <thead>
+            <tr>
+              <th>Pain Point</th>
+              <th>The Problem</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="pain-point">Vendor Lock-in</td>
+              <td
+                >Your collections live in proprietary formats. Switching tools
+                means starting over.</td
+              >
+            </tr>
+            <tr>
+              <td class="pain-point">No Programmatic Access</td>
+              <td
+                >Their stack, not yours. No programmatic API, no way to import
+                into your test suite.</td
+              >
+            </tr>
+            <tr>
+              <td class="pain-point">Yet Another DSL</td>
+              <td
+                ><code class="inline-code">jsonpath "$.id" exists</code> when you
+                already know <code class="inline-code"
+                  >expect(body.id).toBeDefined()</code
+                ></td
+              >
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Three Pillars Section -->
+    <section class="py-16">
+      <h2 class="section-title">A Better Way</h2>
+      <p class="section-subtitle mb-16">
+        t-req gives you a programmatic API, your choice of test runner, and a
+        standard file format.
+      </p>
+
+      <!-- Pillar 1: Programmatic API -->
+      <div class="pillar-section">
+        <div class="pillar-content">
+          <span class="pillar-badge">Programmatic API</span>
+          <h3 class="pillar-title">Import, Don't Install</h3>
+          <p class="pillar-desc">
+            <code class="inline-code">createClient()</code> gives you a JavaScript/TypeScript
+            API. Import directly into Vitest, Jest, Bun test, or any runner.
+          </p>
+        </div>
+        <div class="pillar-code">
+          <pre
+            class="code-block"><code><span class="kw">import</span> &#123; createClient &#125; <span class="kw">from</span> <span class="str">'@t-req/core'</span>;
+
+<span class="kw">const</span> client = <span class="fn">createClient</span>();
+<span class="kw">const</span> response = <span class="kw">await</span> client.<span class="fn">run</span>(<span class="str">'./api.http'</span>);
+
+<span class="cmt">// Standard Response object</span>
+console.<span class="fn">log</span>(response.status);
+console.<span class="fn">log</span>(<span class="kw">await</span> response.<span class="fn">json</span>());</code></pre>
+        </div>
+      </div>
+
+      <!-- Pillar 2: BYO Test Runner -->
+      <div class="pillar-section pillar-reverse">
+        <div class="pillar-content">
+          <span class="pillar-badge">Bring Your Own Test Runner</span>
+          <h3 class="pillar-title">Your Assertions. Your Framework.</h3>
+          <p class="pillar-desc">
+            t-req returns standard <code class="inline-code">Response</code> objects.
+            Use <code class="inline-code">expect()</code>, <code
+              class="inline-code">assert</code
+            >, or any assertion library you already know.
+          </p>
+        </div>
+        <div class="pillar-code">
+          <CodeTabs
+            tabs={[
+              {
+                id: "vitest",
+                label: "Vitest",
+                language: "typescript",
+                code: '<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">\'@t-req/core\'</span>;\n<span class="kw">import</span> { expect, test } <span class="kw">from</span> <span class="str">\'vitest\'</span>;\n\n<span class="kw">const</span> client = <span class="fn">createClient</span>();\n\n<span class="fn">test</span>(<span class="str">\'creates user\'</span>, <span class="kw">async</span> () =&gt; {\n  <span class="kw">const</span> res = <span class="kw">await</span> client.<span class="fn">run</span>(<span class="str">\'./api.http\'</span>);\n  <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">201</span>);\n});',
+              },
+              {
+                id: "jest",
+                label: "Jest",
+                language: "typescript",
+                code: '<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">\'@t-req/core\'</span>;\n\n<span class="kw">const</span> client = <span class="fn">createClient</span>();\n\n<span class="fn">test</span>(<span class="str">\'creates user\'</span>, <span class="kw">async</span> () =&gt; {\n  <span class="kw">const</span> res = <span class="kw">await</span> client.<span class="fn">run</span>(<span class="str">\'./api.http\'</span>);\n  <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">201</span>);\n});',
+              },
+              {
+                id: "bun",
+                label: "Bun",
+                language: "typescript",
+                code: '<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">\'@t-req/core\'</span>;\n<span class="kw">import</span> { expect, test } <span class="kw">from</span> <span class="str">\'bun&#58;test\'</span>;\n\n<span class="kw">const</span> client = <span class="fn">createClient</span>();\n\n<span class="fn">test</span>(<span class="str">\'creates user\'</span>, <span class="kw">async</span> () =&gt; {\n  <span class="kw">const</span> res = <span class="kw">await</span> client.<span class="fn">run</span>(<span class="str">\'./api.http\'</span>);\n  <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">201</span>);\n});',
+              },
+            ]}
+          />
+        </div>
+      </div>
+
+      <!-- Interactive Code Demo -->
+      <section class="py-20">
+        <h2 class="section-title">See It In Action</h2>
+        <p class="section-subtitle">
+          Define your request, write your test, run with any test framework.
+        </p>
+
+        <div class="max-w-3xl mx-auto">
+          <CodeTabs
+            tabs={[
+              {
+                id: "http",
+                label: "api.http",
+                language: "http",
+                code: '<span class="cmt"># @name getUser</span>\n<span class="http-method">GET</span> <span class="http-var">&#123;&#123;baseUrl&#125;&#125;</span><span class="http-url">/users/</span><span class="http-var">&#123;&#123;userId&#125;&#125;</span>\n<span class="http-header">Authorization&#58; Bearer <span class="http-var">&#123;&#123;token&#125;&#125;</span></span>',
+              },
+              {
+                id: "test",
+                label: "api.test.ts",
+                language: "typescript",
+                code: '<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">\'@t-req/core\'</span>;\n<span class="kw">import</span> { expect, test } <span class="kw">from</span> <span class="str">\'vitest\'</span>;\n\n<span class="kw">const</span> client = <span class="fn">createClient</span>();\n\n<span class="fn">test</span>(<span class="str">\'get user returns 200\'</span>, <span class="kw">async</span> () =&gt; {\n  <span class="kw">const</span> res = <span class="kw">await</span> client.<span class="fn">run</span>(<span class="str">\'./api.http\'</span>);\n  <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">200</span>);\n  <span class="kw">const</span> body = <span class="kw">await</span> res.<span class="fn">json</span>();\n  <span class="fn">expect</span>(body.id).<span class="fn">toBeDefined</span>();\n});',
+              },
+              {
+                id: "run",
+                label: "Run",
+                language: "bash",
+                code: '<span class="cmt">$ vitest</span>\n\n <span class="fn">\u2713</span> api.test.ts (1 test) 45ms\n   <span class="fn">\u2713</span> get user returns 200',
+              },
+            ]}
+          />
+        </div>
+      </section>
+
+      <!-- Quick Start Section -->
+      <section class="py-20">
+        <h2 class="section-title">Quick Start</h2>
+        <p class="section-subtitle">Get up and running in seconds.</p>
+
+        <div class="max-w-2xl mx-auto">
+          <!-- CLI Install -->
+          <div class="quickstart-card">
+            <h3 class="quickstart-title">Use the CLI</h3>
+            <div class="install-tabs-wrapper">
+              <div class="flex flex-wrap gap-2 mb-4">
+                <button class="install-tab active" data-tab="npm">npm</button>
+                <button class="install-tab" data-tab="yarn">yarn</button>
+                <button class="install-tab" data-tab="pnpm">pnpm</button>
+                <button class="install-tab" data-tab="bun">bun</button>
+              </div>
+              <pre
+                class="quickstart-code"><code id="install-command"># 1. Initialize
+treq init my-api
+cd my-api
+
+# 2. Install dependencies
+npm install
+
+# 3. Open TUI
+treq open</code></pre>
+            </div>
+          </div>
+
+          <!-- Library Install -->
+          <div class="quickstart-card mt-6">
+            <h3 class="quickstart-title">Or use as a library</h3>
+            <pre
+              class="quickstart-code"><code>npm install @t-req/core</code></pre>
+          </div>
+
+          <div class="text-center mt-10">
+            <a href="/docs/getting-started" class="link-accent">
+              Read the full guide
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Divider -->
+      <hr class="border-treq-border-light my-8" />
+    </section>
+
+    <footer
+      class="max-w-5xl mx-auto px-6 py-12 text-center text-sm text-treq-text-muted"
+    >
+      &copy; {new Date().getFullYear()} tensorix-labs
+    </footer>
   </main>
 
-  <footer class="max-w-4xl mx-auto px-6 py-8 text-center text-sm text-treq-text-muted">
-    &copy; {new Date().getFullYear()} tensorix-labs
-  </footer>
-</Layout>
+  <style>
+    /* Hero section layout */
+    .hero-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
 
-<style>
-  .install-tab {
-    color: var(--color-treq-text-muted);
-    background: transparent;
-  }
-  .install-tab:hover {
-    color: var(--color-treq-text-strong);
-  }
-  .install-tab.active {
-    color: white;
-    background-color: var(--color-treq-dark-bg);
-  }
-</style>
+    @media (min-width: 768px) {
+      .hero-section {
+        flex-direction: row;
+        align-items: center;
+        gap: 3rem;
+        padding-top: 5rem;
+        padding-bottom: 5rem;
+      }
+    }
 
-<script>
-  const commands: Record<string, string> = {
-    curl: "curl -fsSL https://t-req.io/install | bash",
-    npm: "npm install -g @t-req/app",
-    bun: "bun add -g @t-req/app",
-    pnpm: "pnpm add -g @t-req/app",
-  };
+    .hero-content {
+      flex: 1;
+      text-align: center;
+    }
 
-  const tabs = document.querySelectorAll<HTMLButtonElement>(".install-tab");
-  const commandEl = document.getElementById("install-command");
-  const copyBtn = document.getElementById("copy-btn");
-  const copyIcon = document.getElementById("copy-icon");
-  const checkIcon = document.getElementById("check-icon");
+    @media (min-width: 768px) {
+      .hero-content {
+        text-align: left;
+        order: 1;
+      }
+    }
 
-  let activeCommand = commands.curl;
+    .hero-mascot {
+      flex-shrink: 0;
+    }
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      tabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      const key = tab.dataset.tab!;
-      activeCommand = commands[key];
-      if (commandEl) commandEl.textContent = activeCommand;
+    @media (min-width: 768px) {
+      .hero-mascot {
+        order: 2;
+      }
+    }
+
+    .hero-mascot img {
+      width: 200px;
+      height: auto;
+    }
+
+    @media (min-width: 768px) {
+      .hero-mascot img {
+        width: 280px;
+      }
+    }
+
+    /* Hero typography - Tailwind-inspired */
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: #0f172a;
+      text-wrap: balance;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (min-width: 640px) {
+      .hero-title {
+        font-size: 3rem;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .hero-title {
+        font-size: 3.25rem;
+      }
+    }
+
+    .hero-subtitle {
+      font-size: 1.125rem;
+      line-height: 1.75;
+      color: #334155;
+      max-width: 42rem;
+      margin: 0 0 2rem;
+    }
+
+    @media (max-width: 767px) {
+      .hero-subtitle {
+        margin: 0 auto 2rem;
+      }
+    }
+
+    .hero-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding-top: 1rem;
+    }
+
+    @media (min-width: 768px) {
+      .hero-buttons {
+        justify-content: flex-start;
+      }
+    }
+
+    .text-accent {
+      color: #f97316;
+      font-weight: 500;
+    }
+
+    /* Video placeholder */
+    .video-placeholder {
+      max-width: 800px;
+      margin: 0 auto;
+      aspect-ratio: 16 / 9;
+      border-radius: 12px;
+      border: 2px dashed #e2e8f0;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-placeholder-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #64748b;
+    }
+
+    .video-placeholder-inner svg {
+      opacity: 0.4;
+    }
+
+    .video-placeholder-inner span {
+      font-size: 14px;
+    }
+
+    /* Inline code styling */
+    .inline-code {
+      background-color: #f1f5f9;
+      border-radius: 0.375rem;
+      padding: 0.125rem 0.5rem;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.875em;
+      color: #0f172a;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 0.5rem;
+      background-color: #0f172a;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: white;
+      text-decoration: none;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      background-color: #1e293b;
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #475569;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      background: white;
+    }
+
+    .btn-secondary:hover {
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+
+    .link-accent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #f97316;
+      font-weight: 600;
+    }
+
+    .link-accent:hover {
+      color: #ea580c;
+    }
+
+    /* Section typography */
+    .section-title {
+      font-size: 1.875rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-subtitle {
+      font-size: 1rem;
+      color: #64748b;
+      text-align: center;
+      max-width: 36rem;
+      margin: 0 auto 3rem;
+    }
+
+    /* Problem table */
+    .problem-table-wrapper {
+      max-width: 700px;
+      margin: 0 auto;
+      overflow-x: auto;
+    }
+
+    .problem-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9375rem;
+    }
+
+    .problem-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .problem-table td {
+      padding: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      line-height: 1.6;
+    }
+
+    .problem-table .pain-point {
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+
+    .problem-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Pillar sections */
+    .pillar-section {
+      display: grid;
+      gap: 40px;
+      align-items: center;
+      margin-bottom: 64px;
+    }
+
+    @media (min-width: 768px) {
+      .pillar-section {
+        grid-template-columns: 1fr 1.2fr;
+      }
+
+      .pillar-reverse {
+        direction: rtl;
+      }
+
+      .pillar-reverse > * {
+        direction: ltr;
+      }
+    }
+
+    .pillar-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #ea580c;
+      background: #fff7ed;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+
+    .pillar-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+      margin-bottom: 12px;
+    }
+
+    .pillar-desc {
+      font-size: 1rem;
+      color: #475569;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .pillar-code {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* Code blocks - clean light style */
+    .code-block {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #334155;
+      margin: 0;
+      border: 1px solid #e2e8f0;
+    }
+
+    .code-block .kw {
+      color: #8b5cf6;
+    }
+    .code-block .str {
+      color: #059669;
+    }
+    .code-block .fn {
+      color: #2563eb;
+    }
+    .code-block .cmt {
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .code-block .num {
+      color: #d97706;
+    }
+    .code-block .http-method {
+      color: #16a34a;
+      font-weight: 600;
+    }
+    .code-block .http-url {
+      color: #2563eb;
+    }
+    .code-block .http-header {
+      color: #64748b;
+    }
+    .code-block .http-var {
+      color: #f97316;
+    }
+
+    /* Compatibility note */
+    .compatibility-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #22c55e;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: rgba(34, 197, 94, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    /* Quick start */
+    .quickstart-card {
+      background: var(--color-treq-bg-card);
+      border: 1px solid var(--color-treq-border-light);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .quickstart-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-treq-text-strong);
+      margin-bottom: 16px;
+    }
+
+    .quickstart-code {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #334155;
+      margin: 0;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Install tabs */
+    .install-tab {
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-treq-text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .install-tab:hover {
+      color: var(--color-treq-text-strong);
+      background-color: var(--color-treq-bg);
+    }
+
+    .install-tab.active {
+      color: #0f172a;
+      background-color: #e2e8f0;
+    }
+  </style>
+
+  <script>
+    const commands = {
+      npm: "# 1. Initialize\ntreq init my-api\ncd my-api\n\n# 2. Install dependencies\nnpm install\n\n# 3. Open TUI\ntreq open",
+      yarn: "# 1. Initialize\ntreq init my-api\ncd my-api\n\n# 2. Install dependencies\nyarn\n\n# 3. Open TUI\ntreq open",
+      pnpm: "# 1. Initialize\ntreq init my-api\ncd my-api\n\n# 2. Install dependencies\npnpm install\n\n# 3. Open TUI\ntreq open",
+      bun: "# 1. Initialize\ntreq init my-api\ncd my-api\n\n# 2. Install dependencies\nbun install\n\n# 3. Open TUI\ntreq open",
+    } as const;
+
+    const tabs = document.querySelectorAll<HTMLElement>(".install-tab");
+    const commandEl = document.getElementById("install-command");
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        const key = tab.dataset.tab;
+        if (!commandEl || !key) return;
+
+        if (Object.prototype.hasOwnProperty.call(commands, key)) {
+          commandEl.textContent = commands[key as keyof typeof commands];
+        }
+      });
     });
-  });
-
-  copyBtn?.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(activeCommand);
-    copyIcon?.classList.add("hidden");
-    checkIcon?.classList.remove("hidden");
-    setTimeout(() => {
-      copyIcon?.classList.remove("hidden");
-      checkIcon?.classList.add("hidden");
-    }, 2000);
-  });
-</script>
+  </script>
+</Layout>

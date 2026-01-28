@@ -1,41 +1,41 @@
 @import "tailwindcss";
 
-/* t-req.ai theme - Warm industrial aesthetic */
+/* t-req.ai theme - Modern developer-focused aesthetic */
 @theme {
-  /* Light mode colors (default) */
-  --color-treq-bg: #e8e4e0;
-  --color-treq-bg-nav: #e8e4e0;
-  --color-treq-bg-card: #f5f2ee;
+  /* Light mode colors (default) - Pure white like Tailwind */
+  --color-treq-bg: #ffffff;
+  --color-treq-bg-nav: #ffffff;
+  --color-treq-bg-card: #f8fafc;
 
-  /* Accent colors */
-  --color-treq-accent: #ff6b35;
-  --color-treq-accent-light: #ff8555;
+  /* Accent colors - t-req orange */
+  --color-treq-accent: #f97316;
+  --color-treq-accent-light: #fb923c;
 
-  /* Text colors */
-  --color-treq-text: #666666;
-  --color-treq-text-strong: #000000;
-  --color-treq-text-muted: #888888;
+  /* Text colors - High contrast like Tailwind */
+  --color-treq-text: #334155;
+  --color-treq-text-strong: #0f172a;
+  --color-treq-text-muted: #64748b;
 
   /* Border colors */
-  --color-treq-border: #000000;
-  --color-treq-border-light: rgba(0, 0, 0, 0.2);
+  --color-treq-border: #1e293b;
+  --color-treq-border-light: #e2e8f0;
 
-  /* Dark mode colors */
-  --color-treq-dark-bg: #1a1816;
-  --color-treq-dark-bg-nav: #1a1816;
-  --color-treq-dark-bg-card: #222018;
+  /* Dark mode colors - Neutral zinc scale */
+  --color-treq-dark-bg: #18181b;
+  --color-treq-dark-bg-nav: #18181b;
+  --color-treq-dark-bg-card: #1f1f23;
 
-  --color-treq-dark-text: #b0aca8;
-  --color-treq-dark-text-strong: #e8e4e0;
-  --color-treq-dark-text-muted: #8a8682;
+  --color-treq-dark-text: #a1a1aa;
+  --color-treq-dark-text-strong: #fafafa;
+  --color-treq-dark-text-muted: #71717a;
 
-  --color-treq-dark-border: #3a3632;
-  --color-treq-dark-border-light: rgba(232, 228, 224, 0.1);
+  --color-treq-dark-border: #27272a;
+  --color-treq-dark-border-light: #27272a;
 
   /* HTTP method colors */
-  --color-http-get: #238636;
-  --color-http-post: #1f6feb;
-  --color-http-put: #9e6a03;
-  --color-http-delete: #da3633;
-  --color-http-patch: #8957e5;
+  --color-http-get: #22c55e;
+  --color-http-post: #3b82f6;
+  --color-http-put: #eab308;
+  --color-http-delete: #ef4444;
+  --color-http-patch: #a855f7;
 }

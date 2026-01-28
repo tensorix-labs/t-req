@@ -10,6 +10,8 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/starlight": "^0.37.4",
+    "@astrojs/starlight-tailwind": "^4.0.2",
     "@t-req/ui": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.15",
