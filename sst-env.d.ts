@@ -11,7 +11,7 @@ declare module 'sst' {
       url: string;
     };
     Webdocs: {
-      type: 'sst.cloudflare.StaticSite';
+      type: 'sst.cloudflare.Astro';
       url: string;
     };
   }

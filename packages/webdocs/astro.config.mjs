@@ -1,9 +1,14 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
+import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
-	output: 'static',
+	output: 'server',
+	adapter: cloudflare(),
+	redirects: {
+		'/install': 'https://raw.githubusercontent.com/tensorix-labs/t-req/main/install',
+	},
 	integrations: [
 		starlight({
 			title: 't-req',
