@@ -379,14 +379,36 @@
     border-bottom-color: #334155;
   }
 
-  /* Site title */
+  /* Site title with beta badge */
   .site-title {
     font-weight: 700;
     color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .site-title::after {
+    content: 'beta';
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #f97316;
+    background: #fff7ed;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid #fed7aa;
   }
 
   :root[data-theme='dark'] .site-title {
     color: #f8fafc;
+  }
+
+  :root[data-theme='dark'] .site-title::after {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.3);
+    color: #fb923c;
   }
 
   /* Links styling */

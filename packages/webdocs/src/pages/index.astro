@@ -53,6 +53,7 @@ import FeatureCard from "../components/FeatureCard.astro";
         />
       </div>
       <div class="hero-content">
+        <span class="beta-badge">Beta</span>
         <h1 class="hero-title">
           Test APIs programmatically<br />without ever leaving your code.
         </h1>
@@ -396,6 +397,20 @@ treq open</code></pre>
       .hero-subtitle {
         margin: 0 auto 2rem;
       }
+    }
+
+    .beta-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #f97316;
+      background: #fff7ed;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid #fed7aa;
+      margin-bottom: 1rem;
     }
 
     .hero-buttons {
