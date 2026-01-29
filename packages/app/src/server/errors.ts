@@ -1,7 +1,3 @@
-// ============================================================================
-// Error Taxonomy - OpenCode NamedError pattern
-// ============================================================================
-
 /**
  * Base error class for all t-req errors.
  * Provides consistent error structure with code and message.
@@ -123,7 +119,7 @@ export class FileNotFoundError extends TreqError {
 }
 
 // ============================================================================
-// Status Code Mapping - OpenCode pattern
+// Status Code Mapping
 // ============================================================================
 
 // Valid HTTP status codes for Hono responses
