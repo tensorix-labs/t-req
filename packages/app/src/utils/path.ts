@@ -30,7 +30,6 @@ export function resolve(...parts: string[]): string {
 
 /**
  * Check if child path is contained within parent path.
- * Uses OpenCode pattern: simple relative path check.
  */
 export function contains(parent: string, child: string): boolean {
   const rel = relative(parent, child);
@@ -66,7 +65,6 @@ export function existsSync(p: string): boolean {
 
 /**
  * Validates that a requested path is safe to access within a workspace.
- * Uses OpenCode pattern with proper symlink resolution.
  *
  * @param workspaceRoot - The root directory of the workspace
  * @param requestedPath - The path requested by the user (relative to workspace)

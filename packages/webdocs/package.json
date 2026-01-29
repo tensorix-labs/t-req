@@ -1,5 +1,6 @@
 {
   "name": "@t-req/webdocs",
+  "private": true,
   "type": "module",
   "version": "0.0.1",
   "scripts": {

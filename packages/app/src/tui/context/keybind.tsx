@@ -4,7 +4,7 @@ import { createContext, createMemo, onCleanup, useContext, type JSX } from 'soli
 import { Keybind } from '../util/keybind';
 import { normalizeKey } from '../util/normalize-key';
 
-export type KeybindAction = 'command_list' | 'debug_console' | 'file_picker' | 'quit' | 'open_in_editor';
+export type KeybindAction = 'command_list' | 'debug_console' | 'file_picker' | 'quit' | 'open_in_editor' | 'profile_select';
 
 export type KeyEventSnapshot = {
   at: number;
@@ -36,7 +36,8 @@ const DEFAULTS: Record<KeybindAction, string> = {
   debug_console: 'ctrl+`',
   file_picker: 'ctrl+t',
   quit: 'ctrl+c',
-  open_in_editor: 'ctrl+e'
+  open_in_editor: 'ctrl+e',
+  profile_select: 'ctrl+o'
 };
 
 const KeybindContext = createContext<KeybindContextValue>();
@@ -60,7 +61,8 @@ export function KeybindProvider(props: { children: JSX.Element }) {
       debug_console: Keybind.parse(DEFAULTS.debug_console),
       file_picker: Keybind.parse(DEFAULTS.file_picker),
       quit: Keybind.parse(DEFAULTS.quit),
-      open_in_editor: Keybind.parse(DEFAULTS.open_in_editor)
+      open_in_editor: Keybind.parse(DEFAULTS.open_in_editor),
+      profile_select: Keybind.parse(DEFAULTS.profile_select)
     } satisfies Record<KeybindAction, Keybind.Info[]>;
   });
 

@@ -10,7 +10,7 @@ import {
 } from './auth';
 
 /** Production URL for the hosted web UI */
-export const WEB_UI_PROXY_URL = 'https://app-dev.t-req.io';
+export const WEB_UI_PROXY_URL = 'https://app.t-req.io';
 
 export interface WebConfig {
   /** Whether web UI is enabled */

@@ -346,6 +346,7 @@ export const ConfigSummaryResponseSchema = z.object({
   projectRoot: z.string(),
   format: z.enum(['jsonc', 'json', 'ts', 'js', 'mjs']).optional(),
   profile: z.string().optional(),
+  availableProfiles: z.array(z.string()),
   layersApplied: z.array(z.string()),
   resolvedConfig: z.object({
     variables: z.record(z.string(), z.unknown()),

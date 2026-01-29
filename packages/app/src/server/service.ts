@@ -2,6 +2,8 @@ import { createEngine, parse } from '@t-req/core';
 import {
   buildEngineOptions,
   type ConfigMeta,
+  listProfiles,
+  loadConfig,
   type ResolvedConfig,
   resolveProjectConfig
 } from '@t-req/core/config';
@@ -496,6 +498,9 @@ export function createService(config: ServiceConfig) {
 
     const { config: projectConfig, meta } = resolved;
 
+    const rawConfig = await loadConfig({ startDir, stopDir: config.workspaceRoot });
+    const availableProfiles = listProfiles(rawConfig.config);
+
     // Sanitize variables (redact sensitive values)
     const sanitizedVariables = sanitizeVariables(projectConfig.variables);
 
@@ -504,6 +509,7 @@ export function createService(config: ServiceConfig) {
       projectRoot: meta.projectRoot,
       format: meta.format,
       profile: meta.profile,
+      availableProfiles,
       layersApplied: meta.layersApplied,
       resolvedConfig: {
         variables: sanitizedVariables,

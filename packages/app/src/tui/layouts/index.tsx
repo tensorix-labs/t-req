@@ -130,6 +130,7 @@ export function StatusBar(props: StatusBarProps) {
   const keybind = useKeybind();
   const store = useStore();
   const statusDisplay = () => getStatusDisplay(store.connectionStatus());
+  const activeProfile = () => store.activeProfile();
 
   return (
     <box
@@ -142,6 +143,9 @@ export function StatusBar(props: StatusBarProps) {
     >
       <box flexDirection="row" gap={2}>
         <text fg={rgba(theme.text)}>t-req</text>
+        <Show when={activeProfile()}>
+          <text fg={rgba(theme.primary)}>[{activeProfile()}]</text>
+        </Show>
         <Show when={props.isRunning}>
           <text fg={rgba(theme.warning)}>Running</text>
         </Show>

@@ -8,6 +8,7 @@ import { theme, rgba } from '../theme';
 import { DebugConsoleDialog } from './debug-console-dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
 import { FileRequestPicker } from './file-request-picker';
+import { ProfileSelectDialog } from './profile-select';
 
 export type Command = {
   title: string;
@@ -58,6 +59,12 @@ export function CommandDialog(props: CommandDialogProps): JSX.Element {
       value: 'debug_console',
       keybind: keybind.print('debug_console'),
       onSelect: (d) => d.replace(() => <DebugConsoleDialog />)
+    },
+    {
+      title: 'Select Profile',
+      value: 'profile_select',
+      keybind: keybind.print('profile_select'),
+      onSelect: (d) => d.replace(() => <ProfileSelectDialog />)
     },
     {
       title: 'View Workspace Tree',

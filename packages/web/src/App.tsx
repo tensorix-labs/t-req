@@ -8,6 +8,7 @@ import {
   Sidebar,
   MainContent,
 } from './components/layout';
+import { Toast } from './components/Toast';
 
 function App() {
   const store = useWorkspace();
@@ -27,6 +28,7 @@ function App() {
           <MainContent />
         </div>
       </Show>
+      <Toast />
     </AppShell>
   );
 }

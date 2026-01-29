@@ -67,7 +67,6 @@ for (const { os, arch, bunTarget } of filteredTargets) {
     compile: {
       target: bunTarget,
       outfile,
-      // Match OpenCode defaults: avoid config/env autoload surprises during compile.
       autoloadBunfig: false,
       autoloadDotenv: false,
       autoloadTsconfig: true,
