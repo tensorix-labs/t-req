@@ -4,16 +4,20 @@ import type { CommandModule } from 'yargs';
 
 type Runtime = 'bun' | 'node';
 type PackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn';
+type TestRunner = 'bun' | 'vitest' | 'jest' | 'none';
 
 interface InitOptions {
   name?: string;
   yes?: boolean;
+  'no-tests'?: boolean;
+  'test-runner'?: TestRunner;
 }
 
 interface ProjectConfig {
   name: string;
   runtime: Runtime;
   packageManager: PackageManager;
+  testRunner: TestRunner;
 }
 
 export const initCommand: CommandModule<object, InitOptions> = {
@@ -29,6 +33,16 @@ export const initCommand: CommandModule<object, InitOptions> = {
       type: 'boolean',
       describe: 'Skip prompts and use defaults (bun runtime, bun package manager)',
       default: false
+    },
+    'no-tests': {
+      type: 'boolean',
+      describe: 'Skip test file generation',
+      default: false
+    },
+    'test-runner': {
+      type: 'string',
+      choices: ['bun', 'vitest', 'jest'] as const,
+      describe: 'Test runner to use (auto-detected if not specified)'
     }
   },
   handler: async (argv) => {
@@ -80,6 +94,10 @@ function resolve(...parts: string[]): string {
 // ============================================================================
 
 const NPM_RESERVED = new Set(['node_modules', 'package', 'npm', 'node', 'bun', 'test', 'tests']);
+
+function getDefaultTestRunner(runtime: Runtime): TestRunner {
+  return runtime === 'bun' ? 'bun' : 'vitest';
+}
 
 // ============================================================================
 // Validation
@@ -144,10 +162,15 @@ async function gatherConfig(argv: InitOptions): Promise<ProjectConfig | symbol> 
       p.cancel(validationError);
       process.exit(1);
     }
+    const runtime: Runtime = 'bun';
+    const testRunner: TestRunner = argv['no-tests']
+      ? 'none'
+      : (argv['test-runner'] ?? getDefaultTestRunner(runtime));
     return {
       name,
-      runtime: 'bun',
-      packageManager: 'bun'
+      runtime,
+      packageManager: 'bun',
+      testRunner
     };
   }
 
@@ -186,10 +209,16 @@ async function gatherConfig(argv: InitOptions): Promise<ProjectConfig | symbol> 
 
   if (p.isCancel(packageManager)) return packageManager;
 
+  const selectedRuntime = runtime as Runtime;
+  const testRunner: TestRunner = argv['no-tests']
+    ? 'none'
+    : (argv['test-runner'] ?? getDefaultTestRunner(selectedRuntime));
+
   return {
     name: name as string,
-    runtime: runtime as Runtime,
-    packageManager: packageManager as PackageManager
+    runtime: selectedRuntime,
+    packageManager: packageManager as PackageManager,
+    testRunner
   };
 }
 
@@ -202,12 +231,27 @@ async function createProjectStructure(projectPath: string, config: ProjectConfig
   await $`mkdir -p ${join(projectPath, 'collection', 'posts')}`.quiet();
   await $`mkdir -p ${join(projectPath, 'collection', 'users')}`.quiet();
 
+  // Create tests directory if tests enabled
+  if (config.testRunner !== 'none') {
+    await $`mkdir -p ${join(projectPath, 'tests')}`.quiet();
+  }
+
   // Write root files
   await Bun.write(join(projectPath, 'treq.jsonc'), generateConfig());
+  await Bun.write(join(projectPath, 'client.ts'), generateClientFile(config.runtime));
   await Bun.write(join(projectPath, 'run.ts'), generateRunScript(config.runtime));
   await Bun.write(join(projectPath, 'package.json'), generatePackageJson(projectName, config));
   await Bun.write(join(projectPath, 'tsconfig.json'), generateTsconfig(config.runtime));
   await Bun.write(join(projectPath, '.gitignore'), generateGitignore());
+  await Bun.write(join(projectPath, 'README.md'), generateReadme(projectName, config));
+
+  // Write test file if tests enabled
+  if (config.testRunner !== 'none') {
+    await Bun.write(
+      join(projectPath, 'tests', 'list.test.ts'),
+      generateTestFile(config.testRunner)
+    );
+  }
 
   // Write collection
   await Bun.write(
@@ -253,55 +297,161 @@ export function generateConfig(): string {
 `;
 }
 
-export function generateRunScript(runtime: Runtime): string {
-  const shebang = runtime === 'bun' ? '#!/usr/bin/env bun' : '#!/usr/bin/env npx tsx';
-
+export function generateClientFile(runtime: Runtime): string {
   const nodeImport =
     runtime === 'node' ? "\nimport { createNodeIO } from '@t-req/core/runtime';" : '';
   const ioOption = runtime === 'node' ? '\n  io: createNodeIO(),' : '';
 
-  return `${shebang}
-import { createClient } from '@t-req/core';
+  return `import { createClient } from '@t-req/core';
 import { resolveProjectConfig } from '@t-req/core/config';${nodeImport}
 
 const { config } = await resolveProjectConfig({ startDir: process.cwd() });
 
-const client = createClient({${ioOption}
+export const client = createClient({${ioOption}
   variables: config.variables,
   defaults: config.defaults,
 });
+`;
+}
+
+export function generateRunScript(runtime: Runtime): string {
+  const shebang = runtime === 'bun' ? '#!/usr/bin/env bun' : '#!/usr/bin/env npx tsx';
+
+  return `${shebang}
+import { client } from './client';
 
 const response = await client.run('./collection/users/get.http');
 console.log(response.status, await response.json());
 `;
 }
 
+export function generateTestFile(testRunner: TestRunner): string {
+  if (testRunner === 'none') return '';
+
+  let imports: string;
+  if (testRunner === 'bun') {
+    imports = "import { describe, expect, test } from 'bun:test';";
+  } else if (testRunner === 'vitest') {
+    imports = "import { describe, expect, test } from 'vitest';";
+  } else {
+    imports = '// Jest globals are available (describe, expect, test)';
+  }
+
+  return `${imports}
+import { client } from '../client';
+
+describe('collection/users/list.http', () => {
+  test('returns a list of users', async () => {
+    const response = await client.run('./collection/users/list.http');
+
+    expect(response.ok).toBe(true);
+    expect(response.status).toBe(200);
+
+    const users = await response.json();
+    expect(Array.isArray(users)).toBe(true);
+    expect(users.length).toBeGreaterThan(0);
+  });
+});
+`;
+}
+
+export function generateReadme(projectName: string, config: ProjectConfig): string {
+  const installCmd = getInstallCommand(config.packageManager);
+  const runCmd = config.runtime === 'bun' ? 'bun run.ts' : 'npx tsx run.ts';
+
+  let testSection = '';
+  if (config.testRunner !== 'none') {
+    let testCmd: string;
+    if (config.testRunner === 'bun') {
+      testCmd = 'bun test';
+    } else if (config.testRunner === 'vitest') {
+      testCmd = config.packageManager === 'npm' ? 'npm test' : `${config.packageManager} test`;
+    } else {
+      testCmd = config.packageManager === 'npm' ? 'npm test' : `${config.packageManager} test`;
+    }
+
+    testSection = `
+## Running Tests
+
+\`\`\`bash
+${testCmd}
+\`\`\`
+
+Tests are located in the \`tests/\` directory. The example test demonstrates how to use the t-req client to test your HTTP requests.
+`;
+  }
+
+  return `# ${projectName}
+
+A t-req API testing project.
+
+## Getting Started
+
+\`\`\`bash
+${installCmd}
+${runCmd}
+\`\`\`
+${testSection}
+## Project Structure
+
+- \`treq.jsonc\` - Project configuration (variables, profiles, defaults)
+- \`client.ts\` - Shared t-req client (import this in your scripts and tests)
+- \`run.ts\` - Example script showing programmatic usage
+- \`collection/\` - HTTP request files organized by resource
+${config.testRunner !== 'none' ? '- `tests/` - Test files for your HTTP requests\n' : ''}
+## Learn More
+
+- [t-req Documentation](https://t-req.io)
+`;
+}
+
 export function generatePackageJson(projectName: string, config: ProjectConfig): string {
   const runCommand = config.runtime === 'bun' ? 'bun run.ts' : 'npx tsx run.ts';
+
+  const scripts: Record<string, string> = {
+    start: runCommand
+  };
+
+  // Add test script based on runner
+  if (config.testRunner === 'bun') {
+    scripts.test = 'bun test';
+  } else if (config.testRunner === 'vitest') {
+    scripts.test = 'vitest';
+  } else if (config.testRunner === 'jest') {
+    scripts.test = 'jest';
+  }
 
   const pkg: Record<string, unknown> = {
     name: projectName,
     version: '0.0.1',
     private: true,
     type: 'module',
-    scripts: {
-      start: runCommand
-    },
+    scripts,
     dependencies: {
       '@t-req/core': 'latest'
     }
   };
 
+  const devDeps: Record<string, string> = {};
+
+  // Add runtime-specific devDependencies
   if (config.runtime === 'bun') {
-    pkg['devDependencies'] = {
-      '@types/bun': 'latest'
-    };
+    devDeps['@types/bun'] = 'latest';
   } else {
-    pkg['devDependencies'] = {
-      '@types/node': '^22.0.0',
-      tsx: '^4.0.0'
-    };
+    devDeps['@types/node'] = '^22.0.0';
+    devDeps['tsx'] = '^4.0.0';
   }
+
+  // Add test runner devDependencies
+  if (config.testRunner === 'vitest') {
+    devDeps['vitest'] = '^3.0.0';
+  } else if (config.testRunner === 'jest') {
+    devDeps['jest'] = '^29.0.0';
+    devDeps['@types/jest'] = '^29.0.0';
+    devDeps['ts-jest'] = '^29.0.0';
+  }
+
+  pkg['devDependencies'] = devDeps;
 
   return `${JSON.stringify(pkg, null, 2)}\n`;
 }
@@ -363,9 +513,19 @@ export function getNextSteps(config: ProjectConfig): string {
   const installCmd = getInstallCommand(config.packageManager);
   const runCmd = config.runtime === 'bun' ? 'bun run.ts' : 'npx tsx run.ts';
 
+  let testCmd = '';
+  if (config.testRunner !== 'none') {
+    if (config.testRunner === 'bun') {
+      testCmd = '\nbun test';
+    } else {
+      const pm = config.packageManager;
+      testCmd = pm === 'npm' ? '\nnpm test' : `\n${pm} test`;
+    }
+  }
+
   return `cd ${config.name}
 ${installCmd}
-${runCmd}`;
+${runCmd}${testCmd}`;
 }
 
 export function getInstallCommand(pm: PackageManager): string {
