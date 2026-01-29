@@ -565,6 +565,28 @@ export const GetTestFrameworksResponseSchema = z.object({
 });
 
 // ============================================================================
+// Plugin Schemas
+// ============================================================================
+
+export const PluginInfoSchema = z.object({
+  name: z.string(),
+  version: z.string().optional(),
+  source: z.enum(['npm', 'file', 'inline', 'subprocess']),
+  permissions: z.array(z.string()),
+  capabilities: z.object({
+    hooks: z.array(z.string()),
+    resolvers: z.array(z.string()),
+    commands: z.array(z.string()),
+    hasMiddleware: z.boolean()
+  })
+});
+
+export const PluginsResponseSchema = z.object({
+  plugins: z.array(PluginInfoSchema),
+  count: z.number()
+});
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -616,3 +638,7 @@ export type RunTestRequest = z.infer<typeof RunTestRequestSchema>;
 export type RunTestResponse = z.infer<typeof RunTestResponseSchema>;
 export type TestFrameworkOption = z.infer<typeof TestFrameworkOptionSchema>;
 export type GetTestFrameworksResponse = z.infer<typeof GetTestFrameworksResponseSchema>;
+
+// Plugin types
+export type PluginInfo = z.infer<typeof PluginInfoSchema>;
+export type PluginsResponse = z.infer<typeof PluginsResponseSchema>;

@@ -36,6 +36,7 @@ import {
   listWorkspaceFilesRoute,
   listWorkspaceRequestsRoute,
   parseRoute,
+  pluginsRoute,
   runScriptRoute,
   runTestRoute,
   updateSessionVariablesRoute
@@ -432,6 +433,18 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
+  // Plugin Endpoints
+  // ============================================================================
+
+  app.openapi(pluginsRoute, (c) => {
+    // Script tokens cannot list plugins
+    enforceScriptScope(c, { allowedEndpoint: false });
+
+    const result = service.getPlugins();
+    return c.json(result, 200);
+  });
+
+  // ============================================================================
   // Event Streaming (SSE)
   // ============================================================================
 
@@ -545,6 +558,7 @@ export function createApp(config: ServerConfig) {
         name: 'Tests',
         description: 'Run tests with detected frameworks (bun, vitest, jest, pytest)'
       },
+      { name: 'Plugins', description: 'List and manage loaded plugins' },
       { name: 'Events', description: 'Real-time event streaming via Server-Sent Events' }
     ],
     externalDocs: {

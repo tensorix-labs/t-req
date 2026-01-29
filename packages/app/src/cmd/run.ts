@@ -1,5 +1,10 @@
 import { createEngine, parse } from '@t-req/core';
-import { buildEngineOptions, DEFAULT_TIMEOUT_MS, resolveProjectConfig } from '@t-req/core/config';
+import {
+  buildEngineOptions,
+  type ConfigOverrideLayer,
+  DEFAULT_TIMEOUT_MS,
+  resolveProjectConfig
+} from '@t-req/core/config';
 import { createCookieJar } from '@t-req/core/cookies';
 import {
   cookieJarToData,
@@ -27,6 +32,8 @@ interface RunOptions {
   timeout?: number;
   workspace?: string;
   verbose?: boolean;
+  noPlugins?: boolean;
+  plugin?: string[];
 }
 
 export const runCommand: CommandModule<object, RunOptions> = {
@@ -79,6 +86,17 @@ export const runCommand: CommandModule<object, RunOptions> = {
       type: 'boolean',
       describe: 'Show detailed output',
       default: false
+    },
+    'no-plugins': {
+      type: 'boolean',
+      describe: 'Disable plugin loading',
+      default: false
+    },
+    plugin: {
+      type: 'array',
+      string: true,
+      describe: 'Load additional plugins (npm package or file:// path)',
+      alias: 'P'
     }
   },
   handler: async (argv) => {
@@ -239,10 +257,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
   }
   const cliVars = parseVariables(argv.var);
 
-  const overrideLayers: Array<{
-    name: string;
-    overrides: { variables: Record<string, unknown> };
-  }> = [];
+  const overrideLayers: ConfigOverrideLayer[] = [];
 
   if (argv.env && Object.keys(envVariables).length > 0) {
     overrideLayers.push({
@@ -255,6 +270,23 @@ async function runRequest(argv: RunOptions): Promise<void> {
     overrideLayers.push({
       name: 'cli',
       overrides: { variables: cliVars }
+    });
+  }
+
+  // Build plugin overrides from CLI flags
+  const pluginOverrides: { plugins?: string[] } = {};
+  if (argv.noPlugins) {
+    // Disable all plugins by setting empty array
+    pluginOverrides.plugins = [];
+  } else if (argv.plugin && argv.plugin.length > 0) {
+    // Add CLI-specified plugins
+    pluginOverrides.plugins = argv.plugin;
+  }
+
+  if (pluginOverrides.plugins !== undefined) {
+    overrideLayers.push({
+      name: 'cli-plugins',
+      overrides: pluginOverrides
     });
   }
 
@@ -275,6 +307,21 @@ async function runRequest(argv: RunOptions): Promise<void> {
     console.error(`Config: ${meta.configPath}`);
     console.error(`Profile: ${meta.profile ?? '(none)'}`);
     console.error(`Layers: ${meta.layersApplied.join(' < ')}`);
+  }
+
+  // Show plugin info in verbose mode
+  if (argv.verbose && config.pluginManager) {
+    const pluginInfo = config.pluginManager.getPluginInfo();
+    if (pluginInfo.length > 0) {
+      console.error('Plugins loaded:');
+      for (const plugin of pluginInfo) {
+        const perms =
+          plugin.permissions.length > 0 ? ` [permissions: ${plugin.permissions.join(', ')}]` : '';
+        console.error(
+          `  ✓ ${plugin.name}${plugin.version ? `@${plugin.version}` : ''} (${plugin.source})${perms}`
+        );
+      }
+    }
   }
 
   // Read and parse file

@@ -56,6 +56,7 @@ import type {
   ParsedRequestInfo,
   ParseRequest,
   ParseResponse,
+  PluginsResponse,
   ResolvedPaths,
   ResponseHeader,
   RunScriptRequest,
@@ -1914,6 +1915,21 @@ export function createService(config: ServiceConfig) {
     return detectTestFramework(config.workspaceRoot, filePath);
   }
 
+  // ============================================================================
+  // Plugins
+  // ============================================================================
+
+  function getPlugins(): PluginsResponse {
+    // Get plugin manager from resolved config (if any)
+    // Note: This is a simplified implementation. In a full implementation,
+    // the plugin manager would be initialized at service startup and stored.
+    // For now, we return an empty list since plugins are loaded per-request.
+    return {
+      plugins: [],
+      count: 0
+    };
+  }
+
   // Cleanup
   function dispose(): void {
     clearInterval(cleanupInterval);
@@ -1956,6 +1972,8 @@ export function createService(config: ServiceConfig) {
     executeTest,
     stopTest,
     getTestFrameworks,
+    // Plugins
+    getPlugins,
     dispose,
     // For testing
     getSessions: () => sessions,

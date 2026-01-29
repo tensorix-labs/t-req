@@ -78,6 +78,11 @@ export function buildEngineOptions(input: BuildEngineOptionsInput): BuildEngineO
     engineOptions.onEvent = onEvent;
   }
 
+  // Plugin manager - only include if available
+  if (config.pluginManager) {
+    engineOptions.pluginManager = config.pluginManager;
+  }
+
   // Build request defaults conditionally
   const requestDefaults: RequestDefaults = {
     timeoutMs: config.defaults.timeoutMs,
