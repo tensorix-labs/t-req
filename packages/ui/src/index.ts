@@ -12,20 +12,32 @@ export * from './components/index.js';
 // Re-export theme colors for programmatic access
 export const themeColors = {
   treq: {
-    bg: '#0d1117',
-    bgNav: '#161b22',
-    accent: '#4f8cff',
-    accentLight: '#7aa8ff',
-    text: '#e6edf3',
-    textMuted: '#8b949e',
-    border: '#30363d'
+    bg: '#ffffff',
+    bgNav: '#ffffff',
+    bgCard: '#f8fafc',
+    accent: '#f97316',
+    accentLight: '#fb923c',
+    text: '#334155',
+    textStrong: '#0f172a',
+    textMuted: '#64748b',
+    border: '#1e293b',
+    borderLight: '#e2e8f0',
+    // Dark mode
+    darkBg: '#18181b',
+    darkBgNav: '#18181b',
+    darkBgCard: '#1f1f23',
+    darkText: '#a1a1aa',
+    darkTextStrong: '#fafafa',
+    darkTextMuted: '#71717a',
+    darkBorder: '#27272a',
+    darkBorderLight: '#27272a'
   },
   http: {
-    get: '#238636',
-    post: '#1f6feb',
-    put: '#9e6a03',
-    delete: '#da3633',
-    patch: '#8957e5'
+    get: '#22c55e',
+    post: '#3b82f6',
+    put: '#eab308',
+    delete: '#ef4444',
+    patch: '#a855f7'
   }
 } as const;
 

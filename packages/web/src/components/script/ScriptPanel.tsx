@@ -35,7 +35,7 @@ export function ScriptPanel(props: ScriptPanelProps) {
               <button
                 type="button"
                 onClick={props.onCancel}
-                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-500 rounded-treq hover:bg-red-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-http-delete rounded-treq hover:bg-http-delete/90 transition-all duration-150"
               >
                 <StopIcon />
                 Cancel
@@ -45,7 +45,7 @@ export function ScriptPanel(props: ScriptPanelProps) {
             <button
               type="button"
               onClick={props.onRun}
-              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-treq-accent rounded-treq hover:bg-treq-accent-light transition-colors"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-treq-accent rounded-treq hover:bg-treq-accent-light transition-all duration-150"
             >
               <PlayIcon />
               Run Script

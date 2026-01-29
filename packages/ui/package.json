@@ -30,14 +30,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./styles": "./dist/styles/base.css",
+    "./styles": {
+      "types": "./src/styles/styles.d.ts",
+      "default": "./dist/styles/base.css"
+    },
     "./tailwind": "./tailwind.config.ts",
-    "./fonts": "./src/styles/fonts.css"
+    "./fonts": {
+      "types": "./src/styles/styles.d.ts",
+      "default": "./src/styles/fonts.css"
+    }
   },
   "files": [
     "dist",
     "tailwind.config.ts",
-    "src/styles/fonts.css"
+    "src/styles/fonts.css",
+    "src/styles/styles.d.ts"
   ],
   "scripts": {
     "build": "bun run build:js && bun run build:types && bun run build:css",

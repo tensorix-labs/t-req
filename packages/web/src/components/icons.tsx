@@ -38,10 +38,40 @@ export function FileIcon() {
   );
 }
 
+export function HttpFileIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/>
+      <ellipse cx="8" cy="8" rx="2.5" ry="5.5" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M2.5 8H13.5" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+  );
+}
+
+export function ScriptFileIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M5 4L2 8L5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M11 4L14 8L11 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 3L7 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+  );
+}
+
 export function PlayIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M3.5 2.5L11.5 7L3.5 11.5V2.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function HistoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 4V8L10.5 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M2.5 8C2.5 11.0376 4.96243 13.5 8 13.5C11.0376 13.5 13.5 11.0376 13.5 8C13.5 4.96243 11.0376 2.5 8 2.5C5.79493 2.5 3.88546 3.85254 3.01111 5.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M2.5 3V6H5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   );
 }

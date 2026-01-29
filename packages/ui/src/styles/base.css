@@ -38,4 +38,32 @@
   --color-http-put: #eab308;
   --color-http-delete: #ef4444;
   --color-http-patch: #a855f7;
+
+  /* Border radius */
+  --radius-treq: 0.5rem;
+  --radius-treq-lg: 0.75rem;
+
+  /* Transitions */
+  --transition-default: 150ms;
+}
+
+/* Typography utilities */
+.text-heading-1 {
+  @apply text-4xl font-extrabold tracking-tighter leading-tight;
+}
+
+.text-heading-2 {
+  @apply text-2xl font-bold tracking-tight leading-tight;
+}
+
+.text-heading-3 {
+  @apply text-xl font-bold tracking-tight leading-tight;
+}
+
+.text-body {
+  @apply text-base leading-relaxed;
+}
+
+.text-label {
+  @apply text-xs font-medium uppercase tracking-wide;
 }

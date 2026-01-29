@@ -1,10 +1,9 @@
 import { For } from 'solid-js';
-import { useWorkspace, useScriptRunner } from '../../context';
+import { useWorkspace } from '../../context';
 import { FileTreeItem } from './FileTreeItem';
 
 export function FileTree() {
   const store = useWorkspace();
-  const scriptRunner = useScriptRunner();
 
   const handleSelect = (path: string) => {
     const flatNode = store.flattenedVisible().find(f => f.node.path === path);
@@ -13,12 +12,6 @@ export function FileTree() {
     } else {
       store.setSelectedPath(path);
     }
-  };
-
-  const handleRunScript = (path: string) => {
-    // Select the file first, then run it
-    store.setSelectedPath(path);
-    void scriptRunner.runScript(path);
   };
 
   return (
@@ -30,7 +23,6 @@ export function FileTree() {
             isSelected={store.selectedPath() === flatNode.node.path}
             onSelect={() => handleSelect(flatNode.node.path)}
             onToggle={() => store.toggleDir(flatNode.node.path)}
-            onRunScript={handleRunScript}
           />
         )}
       </For>
