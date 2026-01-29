@@ -77,21 +77,48 @@ Skip prompts with defaults:
 treq init my-project --yes
 ```
 
-Uses defaults: bun runtime, bun package manager.
+Uses defaults: bun runtime, bun package manager, bun test runner.
+
+Skip test file generation:
+
+```bash
+treq init my-project --yes --no-tests
+```
+
+Use a specific test runner:
+
+```bash
+treq init my-project --yes --test-runner vitest
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `[name]` | Project name / directory |
+| `--yes, -y` | Skip prompts, use defaults |
+| `--no-tests` | Skip test file generation |
+| `--test-runner` | Test runner to use (bun, vitest, jest) |
 
 #### Generated project structure
 
 ```
 my-project/
-├── treq.jsonc            # Project configuration (JSONC-first)
-├── .treq/                # Local state (optional, e.g. cookie jar)
+├── treq.jsonc            # Project configuration
+├── client.ts             # Shared t-req client
+├── run.ts                # Example script (imports client)
+├── tests/                # Test files (when tests enabled)
+│   └── list.test.ts      # Example test for users/list.http
 ├── collection/
-│   ├── auth/
-│   │   └── login.http    # Example POST request
+│   ├── posts/
+│   │   └── create.http   # Example POST request
 │   └── users/
-│       └── get.http      # Example GET request
-├── run.ts                # Example script using createClient
+│       ├── list.http     # Example GET request (list)
+│       └── get.http      # Example GET request (single)
+├── README.md
 ├── package.json
+├── tsconfig.json
+├── .treq/                # Local state (e.g. cookie jar)
 └── .gitignore
 ```
 

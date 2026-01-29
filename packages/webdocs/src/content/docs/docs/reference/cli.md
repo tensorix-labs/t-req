@@ -31,6 +31,8 @@ treq init [name]
 |--------|-------|------|---------|-------------|
 | `name` | — | string | — | Project name / directory (positional) |
 | `--yes` | `-y` | boolean | false | Skip prompts, use defaults |
+| `--no-tests` | — | boolean | false | Skip test file generation |
+| `--test-runner` | — | string | — | Test runner (bun, vitest, jest) |
 
 ## treq run
 
