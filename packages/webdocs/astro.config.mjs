@@ -28,8 +28,15 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Interfaces',
+					items: [
+						{ label: 'Core Library', slug: 'docs/interfaces/core-library' },
+					],
+				},
+				{
 					label: 'Reference',
 					items: [
+						{ label: 'HTTP File Format', slug: 'docs/reference/http-file-format' },
 						{ label: 'Configuration', slug: 'docs/reference/configuration' },
 						{ label: 'CLI', slug: 'docs/reference/cli' },
 					],

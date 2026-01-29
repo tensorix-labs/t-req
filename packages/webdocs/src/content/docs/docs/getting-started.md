@@ -102,7 +102,9 @@ This is the foundation of the [BYO test runner](/docs/guides/byo-test-runner) pa
 
 ## Next steps
 
+- [HTTP File Format](/docs/reference/http-file-format) — complete syntax reference for `.http` files
 - [BYO Test Runner](/docs/guides/byo-test-runner) — integrate with Vitest, Jest, Bun test, or pytest
 - [Observer Mode](/docs/guides/observer-mode) — get request observability in the TUI for free
+- [Core Library](/docs/interfaces/core-library) — use t-req as a JavaScript library
 - [Configuration Reference](/docs/reference/configuration) — profiles, variables, resolvers
 - [CLI Reference](/docs/reference/cli) — all commands and options
