@@ -5,7 +5,7 @@
  * Handles the full lifecycle: create flow → subscribe SSE → execute → finish flow.
  */
 
-import { useObserver, useSDK } from '../context';
+import { useObserver, useSDK, useStore } from '../context';
 import { useFlowSubscription } from './use-flow-subscription';
 
 export interface RequestExecutionReturn {
@@ -17,6 +17,7 @@ export interface RequestExecutionReturn {
 
 export function useRequestExecution(): RequestExecutionReturn {
   const sdk = useSDK();
+  const store = useStore();
   const observer = useObserver();
   const flowSubscription = useFlowSubscription();
 
@@ -48,8 +49,9 @@ export function useRequestExecution(): RequestExecutionReturn {
       // Subscribe to SSE events
       const unsubscribe = flowSubscription.subscribe(flowId);
 
-      // Execute the request via SDK
-      await sdk.executeRequest(flowId, filePath, requestIndex);
+      // Execute the request via SDK with active profile
+      const profile = store.activeProfile();
+      await sdk.executeRequest(flowId, filePath, requestIndex, profile);
 
       // Finish flow after request completes
       await sdk.finishFlow(flowId);

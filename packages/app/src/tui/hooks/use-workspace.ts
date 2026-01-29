@@ -5,6 +5,7 @@
  * Provides a clean interface for file tree operations without exposing store internals.
  */
 
+import { onMount } from 'solid-js';
 import { useSDK, useStore } from '../context';
 
 export interface WorkspaceReturn {
@@ -21,6 +22,15 @@ export interface WorkspaceReturn {
 export function useWorkspace(): WorkspaceReturn {
   const store = useStore();
   const sdk = useSDK();
+
+  onMount(async () => {
+    try {
+      const config = await sdk.getConfig();
+      store.setAvailableProfiles(config.availableProfiles);
+    } catch {
+      // Ignore errors - profiles just won't be available
+    }
+  });
 
   /**
    * Navigate to a file in the tree view.

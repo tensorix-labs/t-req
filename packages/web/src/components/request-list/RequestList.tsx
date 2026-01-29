@@ -12,7 +12,8 @@ export function RequestList() {
     const sdk = store.sdk();
     const path = store.selectedPath();
     if (!sdk || !path) return;
-    observer.execute(sdk, path, request.index);
+    const profile = store.activeProfile();
+    observer.execute(sdk, path, request.index, profile);
   };
 
   return (

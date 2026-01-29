@@ -33,6 +33,10 @@ export interface WorkspaceStore {
   workspaceRoot: () => string;
   files: () => WorkspaceFile[];
 
+  activeProfile: () => string | undefined;
+  setActiveProfile: (profile: string | undefined) => void;
+  availableProfiles: () => string[];
+
   // Tree state
   tree: () => TreeNode[];
   flattenedVisible: () => FlatNode[];
@@ -180,6 +184,10 @@ export function createWorkspaceStore(): WorkspaceStore {
   const [workspaceRoot, setWorkspaceRoot] = createSignal<string>('');
   const [files, setFiles] = createSignal<WorkspaceFile[]>([]);
 
+  // Profile state
+  const [activeProfile, setActiveProfile] = createSignal<string | undefined>(undefined);
+  const [availableProfiles, setAvailableProfiles] = createSignal<string[]>([]);
+
   // Selection and expansion state
   const [selectedPath, setSelectedPath] = createSignal<string | undefined>(undefined);
   const [expandedDirs, setExpandedDirs] = createSignal<Set<string>>(new Set());
@@ -227,6 +235,8 @@ export function createWorkspaceStore(): WorkspaceStore {
     setFiles([]);
     setSelectedPath(undefined);
     setRequestsByPath({});
+    setActiveProfile(undefined);
+    setAvailableProfiles([]);
 
     try {
       // Create SDK with provided config
@@ -247,6 +257,14 @@ export function createWorkspaceStore(): WorkspaceStore {
       setWorkspaceRoot(response.workspaceRoot);
       setSdk(newSdk);
       setConnectionStatus('connected');
+
+      // Fetch available profiles
+      try {
+        const configResponse = await newSdk.getConfig();
+        setAvailableProfiles(configResponse.availableProfiles);
+      } catch {
+        // Ignore errors - profiles just won't be available
+      }
 
       // Auto-expand first level directories
       const firstLevelDirs = response.files
@@ -315,6 +333,11 @@ export function createWorkspaceStore(): WorkspaceStore {
     // Workspace
     workspaceRoot,
     files,
+
+    // Profile
+    activeProfile,
+    setActiveProfile,
+    availableProfiles,
 
     // Tree
     tree,

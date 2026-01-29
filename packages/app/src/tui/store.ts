@@ -84,6 +84,11 @@ export interface TuiStore {
   files: () => WorkspaceFile[];
   setFiles: (files: WorkspaceFile[]) => void;
 
+  activeProfile: () => string | undefined;
+  setActiveProfile: (profile: string | undefined) => void;
+  availableProfiles: () => string[];
+  setAvailableProfiles: (profiles: string[]) => void;
+
   // Tree state (derived + interactive)
   tree: () => TreeNode[];
   flattenedVisible: () => FlatNode[];
@@ -240,6 +245,9 @@ export function createStore(): TuiStore {
   const [workspaceRoot, setWorkspaceRoot] = createSignal<string>('');
   const [files, setFiles] = createSignal<WorkspaceFile[]>([]);
 
+  const [activeProfile, setActiveProfile] = createSignal<string | undefined>(undefined);
+  const [availableProfiles, setAvailableProfiles] = createSignal<string[]>([]);
+
   // Selection and expansion state
   const [selectedIndex, setSelectedIndex] = createSignal<number>(0);
   const [expandedDirs, setExpandedDirs] = createSignal<Set<string>>(new Set());
@@ -342,6 +350,12 @@ export function createStore(): TuiStore {
     setWorkspaceRoot,
     files,
     setFiles,
+
+    // Profile
+    activeProfile,
+    setActiveProfile,
+    availableProfiles,
+    setAvailableProfiles,
 
     // Tree
     tree,

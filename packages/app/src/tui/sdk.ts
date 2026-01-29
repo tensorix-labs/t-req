@@ -115,6 +115,12 @@ export interface ExecuteRequestParams {
   flowId?: string;
   sessionId?: string;
   reqLabel?: string;
+  profile?: string;
+}
+
+export interface ConfigResponse {
+  availableProfiles: string[];
+  profile?: string;
 }
 
 // Script execution types
@@ -182,13 +188,20 @@ export interface SDK {
   listWorkspaceFiles(): Promise<ListWorkspaceFilesResponse>;
   listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse>;
 
+  getConfig(profile?: string): Promise<ConfigResponse>;
+
   // Flow management
   createFlow(label?: string): Promise<CreateFlowResponse>;
   finishFlow(flowId: string): Promise<FinishFlowResponse>;
   getExecution(flowId: string, reqExecId: string): Promise<ExecutionDetail>;
 
   // Request execution
-  executeRequest(flowId: string, path: string, requestIndex: number): Promise<ExecuteResponse>;
+  executeRequest(
+    flowId: string,
+    path: string,
+    requestIndex: number,
+    profile?: string
+  ): Promise<ExecuteResponse>;
 
   // Script execution
   getRunners(filePath?: string): Promise<GetRunnersResponse>;
@@ -285,6 +298,11 @@ export function createSDK(serverUrl: string, token?: string): SDK {
       return request<ListWorkspaceRequestsResponse>(`/workspace/requests?path=${encodedPath}`);
     },
 
+    async getConfig(profile?: string): Promise<ConfigResponse> {
+      const query = profile ? `?profile=${encodeURIComponent(profile)}` : '';
+      return request<ConfigResponse>(`/config${query}`);
+    },
+
     async createFlow(label?: string): Promise<CreateFlowResponse> {
       return request<CreateFlowResponse>('/flows', {
         method: 'POST',
@@ -307,14 +325,16 @@ export function createSDK(serverUrl: string, token?: string): SDK {
     async executeRequest(
       flowId: string,
       path: string,
-      requestIndex: number
+      requestIndex: number,
+      profile?: string
     ): Promise<ExecuteResponse> {
       return request<ExecuteResponse>('/execute', {
         method: 'POST',
         body: JSON.stringify({
           path,
           requestIndex,
-          flowId
+          flowId,
+          profile
         })
       });
     },

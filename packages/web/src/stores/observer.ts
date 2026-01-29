@@ -71,7 +71,12 @@ export interface ObserverStore {
   setState: SetStoreFunction<ObserverState>;
 
   // Actions
-  execute: (sdk: SDK, path: string, requestIndex: number) => Promise<ExecuteResponse | undefined>;
+  execute: (
+    sdk: SDK,
+    path: string,
+    requestIndex: number,
+    profile?: string
+  ) => Promise<ExecuteResponse | undefined>;
   clearExecutions: () => void;
   selectExecution: (reqExecId: string | undefined) => void;
 
@@ -297,7 +302,8 @@ export function createObserverStore(): ObserverStore {
   const execute = async (
     sdk: SDK,
     path: string,
-    requestIndex: number
+    requestIndex: number,
+    profile?: string
   ): Promise<ExecuteResponse | undefined> => {
     setState('executing', true);
     setState('executeError', undefined);
@@ -311,8 +317,8 @@ export function createObserverStore(): ObserverStore {
         subscribeToFlow(sdk, flowId);
       }
 
-      // Execute the request
-      const response = await sdk.executeRequest(flowId, path, requestIndex);
+      // Execute the request with profile
+      const response = await sdk.executeRequest(flowId, path, requestIndex, profile);
 
       // If we got a response directly (non-SSE mode), add it to state
       if (response.reqExecId && !state.executionsById[response.reqExecId]) {

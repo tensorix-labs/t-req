@@ -8,6 +8,7 @@ import { FileRequestPicker } from './components/file-request-picker';
 import { FileTree } from './components/file-tree';
 import { ExecutionDetailView } from './components/execution-detail';
 import { FrameworkSelectDialog } from './components/framework-select';
+import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
@@ -137,6 +138,9 @@ export function App() {
             onExecute={handleFileExecute}
           />
         ))
+      },
+      profile_select: {
+        action: () => dialog.replace(() => <ProfileSelectDialog />)
       },
       quit: {
         action: cleanupAndExit
