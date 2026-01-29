@@ -2,7 +2,7 @@ import type { JSX } from 'solid-js';
 import { useDialog, type DialogContextValue } from '../context/dialog';
 import { useExit } from '../context/exit';
 import { useKeybind } from '../context/keybind';
-import { useUpdate } from '../context/update';
+import type { UpdateContextValue } from '../context/update';
 import { Installation } from '../../installation';
 import { theme, rgba } from '../theme';
 import { DebugConsoleDialog } from './debug-console-dialog';
@@ -16,20 +16,23 @@ export type Command = {
   onSelect: (dialog: DialogContextValue) => void;
 };
 
-export function CommandDialog(): JSX.Element {
+export interface CommandDialogProps {
+  update: UpdateContextValue;
+}
+
+export function CommandDialog(props: CommandDialogProps): JSX.Element {
   const dialog = useDialog();
   const exit = useExit();
   const keybind = useKeybind();
-  const update = useUpdate();
 
   const commands: Command[] = [
-    ...(update.updateAvailable()
+    ...(props.update.updateAvailable()
       ? [
           {
-            title: `Update Available (v${update.updateInfo()?.version})`,
+            title: `Update Available (v${props.update.updateInfo()?.version})`,
             value: 'check_update',
             onSelect: (d: DialogContextValue) => {
-              const info = update.updateInfo();
+              const info = props.update.updateInfo();
               if (info) {
                 d.replace(() => (
                   <box flexDirection="column" padding={1}>
