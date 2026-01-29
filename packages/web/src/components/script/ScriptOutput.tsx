@@ -47,9 +47,9 @@ export function ScriptOutput(props: ScriptOutputProps) {
   const exitStatus = createMemo(() => {
     const code = props.exitCode;
     if (code === undefined) return null;
-    if (code === null) return { text: 'Killed', colorClass: 'text-yellow-500' };
-    if (code === 0) return { text: 'Exited (0)', colorClass: 'text-green-500' };
-    return { text: `Exited (${code})`, colorClass: 'text-red-500' };
+    if (code === null) return { text: 'Killed', colorClass: 'text-http-put' };
+    if (code === 0) return { text: 'Exited (0)', colorClass: 'text-http-get' };
+    return { text: `Exited (${code})`, colorClass: 'text-http-delete' };
   });
 
   // Script name for header
@@ -60,10 +60,10 @@ export function ScriptOutput(props: ScriptOutputProps) {
   });
 
   return (
-    <div class="flex flex-col h-full overflow-hidden bg-treq-bg-card dark:bg-treq-dark-bg-card rounded-treq border border-treq-border-light dark:border-treq-dark-border-light">
+    <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-treq-dark-bg-card rounded-treq border border-treq-border-light dark:border-treq-dark-border-light">
       <div class="flex items-center justify-between px-4 py-2 border-b border-treq-border-light dark:border-treq-dark-border-light">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold text-treq-accent">Output</span>
+          <span class="text-label text-treq-accent">Output</span>
           <Show when={props.scriptPath}>
             <span class="text-sm text-treq-text-muted dark:text-treq-dark-text-muted">
               - {scriptName()}
@@ -72,13 +72,13 @@ export function ScriptOutput(props: ScriptOutputProps) {
         </div>
         <div class="flex items-center gap-2">
           <Show when={props.isRunning}>
-            <span class="text-sm text-yellow-500 flex items-center gap-1">
-              <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            <span class="text-sm text-http-put flex items-center gap-1">
+              <span class="inline-block w-2 h-2 bg-http-put rounded-full animate-pulse" />
               Running
             </span>
           </Show>
           <Show when={exitStatus()}>
-            <span class={`text-sm ${exitStatus()!.colorClass}`}>
+            <span class={`text-sm font-medium ${exitStatus()!.colorClass}`}>
               {exitStatus()!.text}
             </span>
           </Show>
@@ -86,7 +86,7 @@ export function ScriptOutput(props: ScriptOutputProps) {
       </div>
       <div
         ref={scrollRef}
-        class="flex-1 overflow-y-auto p-3 font-mono text-sm bg-treq-bg dark:bg-treq-dark-bg"
+        class="flex-1 overflow-y-auto p-3 font-mono text-[13px] leading-relaxed bg-slate-50 dark:bg-slate-800"
       >
         <Show
           when={combinedLines().length > 0 || props.isRunning}
@@ -106,8 +106,8 @@ export function ScriptOutput(props: ScriptOutputProps) {
               <div
                 class={`py-0.5 whitespace-pre-wrap break-all ${
                   line.isError
-                    ? 'text-red-500'
-                    : 'text-treq-text dark:text-treq-dark-text'
+                    ? 'text-http-delete'
+                    : 'text-treq-text-strong dark:text-treq-dark-text-strong'
                 }`}
               >
                 {line.text}

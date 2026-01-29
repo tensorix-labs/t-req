@@ -63,6 +63,8 @@ export interface ObserverState {
   stdoutLines: string[];
   stderrLines: string[];
   exitCode: number | null | undefined;
+  // History modal state
+  showHistory: boolean;
 }
 
 export interface ObserverStore {
@@ -96,6 +98,10 @@ export interface ObserverStore {
   // SSE event handling
   handleSSEEvent: (event: EventEnvelope) => void;
 
+  // History modal
+  openHistory: () => void;
+  closeHistory: () => void;
+
   // Reset
   reset: () => void;
 }
@@ -117,7 +123,9 @@ function createInitialState(): ObserverState {
     runningScript: undefined,
     stdoutLines: [],
     stderrLines: [],
-    exitCode: undefined
+    exitCode: undefined,
+    // History modal state
+    showHistory: false
   };
 }
 
@@ -270,6 +278,9 @@ export function createObserverStore(): ObserverStore {
     setState('stderrLines', []);
     setState('exitCode', undefined);
   };
+
+  const openHistory = () => setState('showHistory', true);
+  const closeHistory = () => setState('showHistory', false);
 
   const subscribeToFlow = (sdk: SDK, flowId: string) => {
     // Cleanup existing subscription
@@ -435,6 +446,10 @@ export function createObserverStore(): ObserverStore {
 
     // SSE event handling
     handleSSEEvent,
+
+    // History modal
+    openHistory,
+    closeHistory,
 
     reset
   };

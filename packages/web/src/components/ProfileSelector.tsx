@@ -1,7 +1,6 @@
 import { For, Show } from 'solid-js';
 import { useWorkspace } from '../context';
 
-
 export function ProfileSelector() {
   const store = useWorkspace();
 
@@ -16,13 +15,13 @@ export function ProfileSelector() {
       <div class="flex items-center gap-2">
         <label
           for="profile-select"
-          class="text-sm text-treq-text-muted dark:text-treq-dark-text-muted"
+          class="text-xs font-medium uppercase tracking-wide text-treq-text-muted dark:text-treq-dark-text-muted"
         >
-          Profile:
+          Profile
         </label>
         <select
           id="profile-select"
-          class="px-2 py-1 text-sm rounded border border-treq-border-light dark:border-treq-dark-border-light bg-treq-surface dark:bg-treq-dark-surface text-treq-text dark:text-treq-dark-text focus:outline-none focus:ring-1 focus:ring-treq-primary"
+          class="px-3 py-1.5 text-sm rounded-treq border border-treq-border-light dark:border-treq-dark-border-light bg-white dark:bg-treq-dark-bg-card text-treq-text-strong dark:text-treq-dark-text-strong focus:outline-none focus:ring-2 focus:ring-treq-accent focus:border-treq-accent transition-all duration-150 cursor-pointer"
           value={store.activeProfile() ?? ''}
           onChange={handleChange}
         >

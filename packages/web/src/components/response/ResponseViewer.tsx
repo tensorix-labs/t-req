@@ -58,7 +58,7 @@ export function ResponseViewer(props: ResponseViewerProps) {
 
   return (
     <div class="flex flex-col h-full">
-      <div class="flex items-center justify-between px-3 py-2 border-b border-treq-border-light bg-treq-bg dark:border-treq-dark-border-light dark:bg-treq-dark-bg">
+      <div class="flex items-center justify-between px-3 py-2 border-b border-treq-border-light bg-white dark:border-treq-dark-border-light dark:bg-treq-dark-bg">
         <span class={typeClasses()}>
           {contentType().toUpperCase()}
         </span>
@@ -67,7 +67,7 @@ export function ResponseViewer(props: ResponseViewerProps) {
           {props.truncated && ' (truncated)'}
         </span>
       </div>
-      <pre class="flex-1 m-0 p-4 overflow-auto font-mono text-xs leading-relaxed bg-treq-bg whitespace-pre-wrap break-all dark:bg-treq-dark-bg">
+      <pre class="flex-1 m-0 p-4 overflow-auto font-mono text-[13px] leading-relaxed bg-slate-50 dark:bg-slate-800 whitespace-pre-wrap break-all">
         <code class="text-treq-text-strong dark:text-treq-dark-text-strong">
           <Show when={contentType() === 'json'} fallback={formattedBody()}>
             <JsonHighlighter json={formattedBody()} />

@@ -20,10 +20,11 @@ export function AppHeader() {
   };
 
   return (
-    <header class="flex justify-between items-center px-6 py-4 border-b border-treq-border-light dark:border-treq-dark-border-light">
+    <header class="sticky top-0 z-50 flex justify-between items-center px-6 py-4 bg-white/90 dark:bg-treq-dark-bg/90 backdrop-blur-sm border-b border-treq-border-light dark:border-treq-dark-border-light shadow-sm">
       <div class="flex items-center gap-6">
-        <div class="flex items-baseline font-mono font-semibold">
-          <span class="text-xl text-treq-text-strong dark:text-treq-dark-text-strong">t-req</span>
+        <div class="flex items-center gap-2">
+          <img src="/logo.jpg" alt="t-req" class="h-7" />
+          <span class="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full bg-treq-accent/15 text-treq-accent uppercase tracking-wide">beta</span>
         </div>
         <ProfileSelector />
       </div>

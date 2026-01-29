@@ -135,6 +135,10 @@ function buildTree(files: WorkspaceFile[]): TreeNode[] {
   return sortNodes(Array.from(root.values()));
 }
 
+function isHttpFile(name: string): boolean {
+  return name.endsWith('.http') || name.endsWith('.rest');
+}
+
 function sortNodes(nodes: TreeNode[]): TreeNode[] {
   return nodes
     .map((node) => ({
@@ -142,9 +146,12 @@ function sortNodes(nodes: TreeNode[]): TreeNode[] {
       children: node.children ? sortNodes(node.children) : undefined
     }))
     .sort((a, b) => {
-      // Directories first, then alphabetically
       if (a.isDir && !b.isDir) return -1;
       if (!a.isDir && b.isDir) return 1;
+      const aIsHttp = isHttpFile(a.name);
+      const bIsHttp = isHttpFile(b.name);
+      if (aIsHttp && !bIsHttp) return -1;
+      if (!aIsHttp && bIsHttp) return 1;
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
 }
