@@ -16,7 +16,7 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 - **Multi-language server** -- `treq serve` exposes a REST API so any language can execute `.http` files
 - **Observer mode** -- `createClient()` auto-detects the `TREQ_SERVER` env var and routes requests through the server for zero-config observability
 
-See the [root README](../../README.md) for the full overview.
+See the [documentation](https://t-req.io) for the full overview.
 
 ## Features
 

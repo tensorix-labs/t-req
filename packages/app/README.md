@@ -21,8 +21,11 @@ treq open --web
 ## Installation
 
 ```bash
+# Install via curl
+curl -fsSL https://t-req.io/install | bash
+
+# Or via package manager
 npm install -g @t-req/app
-# or
 bun add -g @t-req/app
 ```
 

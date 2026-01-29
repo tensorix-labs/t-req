@@ -5,6 +5,8 @@
 
 HTTP request parsing, execution, and testing. Define requests in `.http` files, test them in isolation.
 
+**Visit the docs at [t-req.io](https://t-req.io)**
+
 ## Why t-req
 
 - **`.http` files as source of truth** -- Standard format supported by VS Code REST Client and JetBrains HTTP Client. Version-controllable, diffable, shareable.
@@ -63,8 +65,14 @@ const { token } = await response.json();
 ### As a CLI tool
 
 ```bash
-npm install -g @t-req/app
+# Install via curl
+curl -fsSL https://t-req.io/install | bash
 
+# Or via npm
+npm install -g @t-req/app
+```
+
+```bash
 # Scaffold a project
 treq init my-api
 
@@ -98,7 +106,7 @@ curl -X POST http://localhost:4096/execute \
 
 ## Documentation
 
-Visit [packages/webdocs](./packages/webdocs) for the full documentation site.
+Visit [t-req.io](https://t-req.io) for full documentation, guides, and API reference.
 
 ## Monorepo Structure
 
