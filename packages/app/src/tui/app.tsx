@@ -10,7 +10,7 @@ import { ExecutionDetailView } from './components/execution-detail';
 import { FrameworkSelectDialog } from './components/framework-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
-import { useDialog, useExit, useObserver, useSDK, useStore } from './context';
+import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
 import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
 import {
@@ -43,6 +43,7 @@ export function App() {
   const dialog = useDialog();
   const renderer = useRenderer();
   const store = useStore();
+  const update = useUpdate();
 
   // Custom hooks encapsulate business logic
   const workspace = useWorkspace();
@@ -127,7 +128,7 @@ export function App() {
         action: () => dialog.replace(() => <DebugConsoleDialog />)
       },
       command_list: {
-        action: () => dialog.replace(() => <CommandDialog />)
+        action: () => dialog.replace(() => <CommandDialog update={update} />)
       },
       file_picker: {
         action: () => dialog.replace(() => (
