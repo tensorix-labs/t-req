@@ -97,6 +97,11 @@ function enforceScriptScope(c: Context, opts: EnforceScriptScopeOptions): void {
   }
 }
 
+export type PluginMiddleware = (
+  req: Request,
+  next: () => Promise<Response>
+) => Promise<Response> | Response;
+
 export type ServerConfig = {
   workspace?: string;
   port: number;
@@ -108,6 +113,8 @@ export type ServerConfig = {
   /** Allow cookie-based authentication (default: true). Set to false for expose mode. */
   allowCookieAuth?: boolean;
   web?: WebConfig;
+  /** Plugin middleware to apply (from PluginManager.getMiddleware()) */
+  pluginMiddleware?: PluginMiddleware[];
 };
 
 export function createApp(config: ServerConfig) {
@@ -143,6 +150,27 @@ export function createApp(config: ServerConfig) {
       credentials: true
     })
   );
+
+  // Apply plugin middleware (if any)
+  if (config.pluginMiddleware && config.pluginMiddleware.length > 0) {
+    for (const middleware of config.pluginMiddleware) {
+      app.use('*', async (c, next) => {
+        try {
+          const response = await middleware(c.req.raw, async () => {
+            await next();
+            return c.res;
+          });
+          // If middleware returns a different response, use it
+          if (response !== c.res) {
+            return response;
+          }
+        } catch (err) {
+          console.error('Plugin middleware error:', err);
+          // Continue to next middleware on error (graceful degradation)
+        }
+      });
+    }
+  }
 
   // Auth middleware (supports bearer token + cookie sessions)
   // Note: Auth is applied to API paths. Web routes handle their own auth for /auth/* paths.

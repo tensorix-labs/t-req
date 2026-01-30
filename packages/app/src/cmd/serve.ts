@@ -1,13 +1,15 @@
+import { resolveProjectConfig } from '@t-req/core/config';
 import { flushPendingCookieSaves } from '@t-req/core/cookies/persistence';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
-import { createApp, type ServerConfig } from '../server/app';
+import { createApp, type PluginMiddleware, type ServerConfig } from '../server/app';
 import {
   CreateSessionRequestSchema,
   ExecuteRequestSchema,
   ParseRequestSchema
 } from '../server/schemas';
 import { WEB_UI_PROXY_URL } from '../server/web';
+import { resolveWorkspaceRoot } from '../utils';
 
 // ============================================================================
 // Constants
@@ -108,6 +110,28 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   // Parse CORS origins for function-based validation
   const corsOrigins = argv.cors ? argv.cors.split(',').map((s) => s.trim()) : undefined;
 
+  // Resolve workspace root
+  const workspaceRoot = resolveWorkspaceRoot(argv.workspace);
+
+  // Load plugin middleware (non-blocking - don't fail if no config)
+  let pluginMiddleware: PluginMiddleware[] | undefined;
+  try {
+    const { config: projectConfig } = await resolveProjectConfig({
+      startDir: workspaceRoot,
+      stopDir: workspaceRoot
+    });
+
+    if (projectConfig.pluginManager) {
+      const middleware = projectConfig.pluginManager.getMiddleware();
+      if (middleware.length > 0) {
+        pluginMiddleware = middleware as PluginMiddleware[];
+        console.log(`Loaded ${middleware.length} plugin middleware(s)`);
+      }
+    }
+  } catch {
+    // Ignore errors - plugins are optional
+  }
+
   const config: ServerConfig = {
     port: argv.port,
     host: argv.host,
@@ -116,10 +140,11 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     corsOrigins,
     maxBodyBytes: argv.maxBodySize,
     maxSessions: argv.maxSessions,
-    web: argv.web ? { enabled: true } : undefined
+    web: argv.web ? { enabled: true } : undefined,
+    pluginMiddleware
   };
 
-  const { app, service, eventManager, workspaceRoot, dispose } = createApp(config);
+  const { app, service, eventManager, workspaceRoot: wsRoot, dispose } = createApp(config);
 
   console.log('t-req server starting...');
   console.log(`  Workspace: ${workspaceRoot}`);

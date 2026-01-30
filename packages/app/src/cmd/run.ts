@@ -32,6 +32,7 @@ interface RunOptions {
   timeout?: number;
   workspace?: string;
   verbose?: boolean;
+  json?: boolean;
   noPlugins?: boolean;
   plugin?: string[];
 }
@@ -85,6 +86,11 @@ export const runCommand: CommandModule<object, RunOptions> = {
     verbose: {
       type: 'boolean',
       describe: 'Show detailed output',
+      default: false
+    },
+    json: {
+      type: 'boolean',
+      describe: 'Output response as JSON (includes plugin info)',
       default: false
     },
     'no-plugins': {
@@ -443,23 +449,72 @@ async function runRequest(argv: RunOptions): Promise<void> {
 
     // Cast to FetchResponse for Bun type compatibility
     const fetchResponse = response as unknown as FetchResponse;
-
-    // Output response
-    console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
-    console.log(formatHeaders(fetchResponse.headers));
-    console.log('');
-
-    // Output body
     const contentType = fetchResponse.headers.get('content-type') ?? '';
     const body = await fetchResponse.text();
 
-    if (body) {
-      console.log(formatResponseBody(contentType, body));
-    }
+    // JSON output mode
+    if (argv.json) {
+      // Collect headers as array
+      const headers: Array<{ name: string; value: string }> = [];
+      fetchResponse.headers.forEach((value, name) => {
+        headers.push({ name, value });
+      });
 
-    if (argv.verbose) {
-      console.error('---');
-      console.error(`Duration: ${endTime - startTime}ms`);
+      // Collect plugin info if available
+      const plugins = config.pluginManager
+        ? config.pluginManager.getPluginInfo().map((p) => ({
+            name: p.name,
+            version: p.version,
+            source: p.source,
+            permissions: p.permissions
+          }))
+        : [];
+
+      // Build JSON output
+      const jsonOutput = {
+        request: {
+          index: selectedIndex,
+          name: selectedRequest.name,
+          method: selectedRequest.method,
+          url: selectedRequest.url
+        },
+        response: {
+          status: fetchResponse.status,
+          statusText: fetchResponse.statusText,
+          headers,
+          body: contentType.includes('application/json')
+            ? (() => {
+                try {
+                  return JSON.parse(body);
+                } catch {
+                  return body;
+                }
+              })()
+            : body
+        },
+        timing: {
+          startTime,
+          endTime,
+          durationMs: endTime - startTime
+        },
+        plugins
+      };
+
+      console.log(JSON.stringify(jsonOutput, null, 2));
+    } else {
+      // Standard text output
+      console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
+      console.log(formatHeaders(fetchResponse.headers));
+      console.log('');
+
+      if (body) {
+        console.log(formatResponseBody(contentType, body));
+      }
+
+      if (argv.verbose) {
+        console.error('---');
+        console.error(`Duration: ${endTime - startTime}ms`);
+      }
     }
   } catch (err) {
     console.error('Request failed:', err instanceof Error ? err.message : String(err));
