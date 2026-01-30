@@ -30,8 +30,5 @@ jobs:
       - name: Run unit tests
         run: bun run test:unit
 
-      # E2E tests depend on external network/services and can be flaky.
-      # Keep signal without blocking contributors.
       - name: Run E2E tests
-        continue-on-error: true
         run: bun run test:e2e

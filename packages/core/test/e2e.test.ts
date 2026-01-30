@@ -1,10 +1,21 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createCookieJar } from '../src/cookies.ts';
 import { execute } from '../src/execute.ts';
 import { createClient, parse } from '../src/index';
+import { installHttpbinMock } from './utils/httpbin-mock.ts';
 
 // Create test fixtures directory and files for e2e tests
 const FIXTURES = './test/fixtures/e2e';
+
+let restoreFetch: () => void;
+
+beforeEach(() => {
+  restoreFetch = installHttpbinMock();
+});
+
+afterEach(() => {
+  restoreFetch();
+});
 
 beforeAll(async () => {
   await Bun.write(`${FIXTURES}/simple-get.http`, 'GET https://httpbin.org/get\n');
