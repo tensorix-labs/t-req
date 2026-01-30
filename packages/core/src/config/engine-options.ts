@@ -1,4 +1,5 @@
 import type { EngineConfig } from '../engine/engine';
+import type { CombinedEvent } from '../plugin/types';
 import type { CookieStore, EngineEvent } from '../runtime/types';
 import type { ResolvedConfig } from './types';
 
@@ -16,7 +17,8 @@ export type RequestDefaults = {
 export type BuildEngineOptionsInput = {
   config: ResolvedConfig;
   cookieStore?: CookieStore;
-  onEvent?: (event: EngineEvent) => void;
+  /** Event handler for both engine and plugin events */
+  onEvent?: (event: CombinedEvent) => void;
 };
 
 export type BuildEngineOptionsResult = {
@@ -75,7 +77,18 @@ export function buildEngineOptions(input: BuildEngineOptionsInput): BuildEngineO
 
   // Event handler - only include if provided
   if (onEvent) {
-    engineOptions.onEvent = onEvent;
+    // Engine only receives EngineEvent, so we cast appropriately
+    engineOptions.onEvent = onEvent as (event: EngineEvent) => void;
+  }
+
+  // Plugin manager - only include if available
+  if (config.pluginManager) {
+    engineOptions.pluginManager = config.pluginManager;
+
+    // Wire up plugin event sink so plugin events are also forwarded
+    if (onEvent) {
+      config.pluginManager.setEventSink(onEvent);
+    }
   }
 
   // Build request defaults conditionally

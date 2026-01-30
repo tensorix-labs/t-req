@@ -144,6 +144,9 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
         break;
       }
 
+      // Plugin events: pluginHookFinished events are stored on the server
+      // and returned via getExecution endpoint. No client-side handling needed.
+
       // Test events (same handling as script events)
       case 'testStarted': {
         const payload = event.payload as { runId: string; filePath: string; framework: string };

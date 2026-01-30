@@ -56,6 +56,7 @@ import type {
   ParsedRequestInfo,
   ParseRequest,
   ParseResponse,
+  PluginsResponse,
   ResolvedPaths,
   ResponseHeader,
   RunScriptRequest,
@@ -102,6 +103,10 @@ export type ServiceConfig = {
     runId: string,
     event: { type: string } & Record<string, unknown>
   ) => void;
+  /**
+   * Profile to use for workspace-level config (optional).
+   */
+  profile?: string;
 };
 
 export type Session = {
@@ -130,6 +135,13 @@ export type Flow = {
   seq: number;
 };
 
+export type PluginHookInfo = {
+  pluginName: string;
+  hook: string;
+  durationMs: number;
+  modified: boolean;
+};
+
 export type StoredExecution = {
   reqExecId: string;
   flowId: string;
@@ -156,6 +168,7 @@ export type StoredExecution = {
     truncated: boolean;
     bodyBytes: number;
   };
+  pluginHooks?: PluginHookInfo[];
   status: ExecutionStatus;
   error?: { stage: string; message: string };
 };
@@ -374,6 +387,30 @@ export function createService(config: ServiceConfig) {
     const n = nowMs();
     return n > prev ? n : prev + 1;
   };
+
+  // Cached workspace-level config for plugins
+  let workspaceConfigCache: { config: ResolvedConfig; meta: ConfigMeta } | null = null;
+  let workspaceConfigPromise: Promise<{ config: ResolvedConfig; meta: ConfigMeta }> | null = null;
+
+  // Lazily resolve and cache workspace-level config
+  async function getWorkspaceConfig(): Promise<{ config: ResolvedConfig; meta: ConfigMeta }> {
+    if (workspaceConfigCache) {
+      return workspaceConfigCache;
+    }
+    if (workspaceConfigPromise) {
+      return workspaceConfigPromise;
+    }
+    workspaceConfigPromise = resolveProjectConfig({
+      startDir: config.workspaceRoot,
+      stopDir: config.workspaceRoot,
+      profile: config.profile
+    }).then((result) => {
+      workspaceConfigCache = result;
+      workspaceConfigPromise = null;
+      return result;
+    });
+    return workspaceConfigPromise;
+  }
 
   // Session and flow cleanup interval
   const cleanupInterval = setInterval(() => {
@@ -821,6 +858,21 @@ export function createService(config: ServiceConfig) {
           const stage = String(event.stage ?? 'unknown');
           const message = String(event.message ?? 'Unknown error');
           failExecution(stage, message);
+        }
+
+        // Capture plugin hook execution info
+        if (event.type === 'pluginHookFinished' && flow && reqExecId) {
+          const exec = flow.executions.get(reqExecId);
+          if (exec) {
+            const hookInfo: PluginHookInfo = {
+              pluginName: String(event.name ?? 'unknown'),
+              hook: String(event.hook ?? 'unknown'),
+              durationMs: typeof event.durationMs === 'number' ? event.durationMs : 0,
+              modified: Boolean(event.modified)
+            };
+            exec.pluginHooks = exec.pluginHooks ?? [];
+            exec.pluginHooks.push(hookInfo);
+          }
         }
 
         // Emit to subscribers with flow context
@@ -1428,6 +1480,7 @@ export function createService(config: ServiceConfig) {
             headers: sanitizeHeaders(exec.response.headers)
           }
         : undefined,
+      pluginHooks: exec.pluginHooks,
       status: exec.status,
       error: exec.error
     };
@@ -1914,8 +1967,44 @@ export function createService(config: ServiceConfig) {
     return detectTestFramework(config.workspaceRoot, filePath);
   }
 
+  // ============================================================================
+  // Plugins
+  // ============================================================================
+
+  async function getPlugins(): Promise<PluginsResponse> {
+    const workspaceConfig = await getWorkspaceConfig();
+    const pluginManager = workspaceConfig.config.pluginManager;
+
+    if (!pluginManager) {
+      return {
+        plugins: [],
+        count: 0
+      };
+    }
+
+    const pluginInfo = pluginManager.getPluginInfo();
+    const plugins = pluginInfo.map((p) => ({
+      name: p.name,
+      version: p.version,
+      source: p.source as 'npm' | 'file' | 'inline' | 'subprocess',
+      permissions: p.permissions,
+      capabilities: {
+        hasHooks: !!pluginManager.getPlugin(p.name)?.plugin.hooks,
+        hasResolvers: !!pluginManager.getPlugin(p.name)?.plugin.resolvers,
+        hasCommands: !!pluginManager.getPlugin(p.name)?.plugin.commands,
+        hasMiddleware: !!pluginManager.getPlugin(p.name)?.plugin.middleware,
+        hasTools: !!pluginManager.getPlugin(p.name)?.plugin.tools
+      }
+    }));
+
+    return {
+      plugins,
+      count: plugins.length
+    };
+  }
+
   // Cleanup
-  function dispose(): void {
+  async function dispose(): Promise<void> {
     clearInterval(cleanupInterval);
     // Kill all running scripts
     for (const entry of runningScripts.values()) {
@@ -1929,6 +2018,10 @@ export function createService(config: ServiceConfig) {
     runningTests.clear();
     sessions.clear();
     flows.clear();
+    // Teardown plugin manager if initialized
+    if (workspaceConfigCache?.config.pluginManager) {
+      await workspaceConfigCache.config.pluginManager.teardown();
+    }
   }
 
   return {
@@ -1956,6 +2049,8 @@ export function createService(config: ServiceConfig) {
     executeTest,
     stopTest,
     getTestFrameworks,
+    // Plugins
+    getPlugins,
     dispose,
     // For testing
     getSessions: () => sessions,

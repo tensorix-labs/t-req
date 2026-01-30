@@ -1,3 +1,5 @@
+import type { PluginManager } from '../plugin/manager';
+import type { PluginConfigRef, PluginPermissionsConfig } from '../plugin/types';
 import type { Resolver } from '../types';
 
 // ============================================================================
@@ -41,6 +43,10 @@ export type ResolvedCookiesConfig = {
 
 export type SecurityConfig = {
   allowExternalFiles?: boolean;
+  /** Allow plugins from paths outside project root */
+  allowPluginsOutsideProject?: boolean;
+  /** Per-plugin permission overrides */
+  pluginPermissions?: PluginPermissionsConfig;
 };
 
 // ============================================================================
@@ -62,6 +68,8 @@ export type TreqProfileInput = {
   defaults?: TreqDefaults;
   cookies?: CookiesConfig;
   resolvers?: Record<string, Resolver | CommandResolverDef>;
+  /** Plugins for this profile (appended to base plugins) */
+  plugins?: PluginConfigRef[];
 };
 
 // ============================================================================
@@ -75,6 +83,8 @@ export type TreqConfigInput = {
   resolvers?: Record<string, Resolver | CommandResolverDef>;
   profiles?: Record<string, TreqProfileInput>;
   security?: SecurityConfig;
+  /** Plugin configuration */
+  plugins?: PluginConfigRef[];
 };
 
 // ============================================================================
@@ -90,7 +100,11 @@ export type ResolvedConfig = {
   resolvers: Record<string, Resolver>;
   security: {
     allowExternalFiles: boolean;
+    allowPluginsOutsideProject: boolean;
+    pluginPermissions?: PluginPermissionsConfig;
   };
+  /** Plugin manager (initialized if plugins are configured) */
+  pluginManager?: PluginManager;
 };
 
 // ============================================================================

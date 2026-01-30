@@ -423,6 +423,13 @@ export const ExecutionErrorSchema = z.object({
   message: z.string()
 });
 
+export const PluginHookInfoSchema = z.object({
+  pluginName: z.string(),
+  hook: z.string(),
+  durationMs: z.number(),
+  modified: z.boolean()
+});
+
 export const ExecutionDetailSchema = z.object({
   reqExecId: z.string(),
   flowId: z.string(),
@@ -455,6 +462,9 @@ export const ExecutionDetailSchema = z.object({
       bodyBytes: z.number()
     })
     .optional(),
+
+  // Plugin hooks that ran for this execution
+  pluginHooks: z.array(PluginHookInfoSchema).optional(),
 
   // Status
   status: ExecutionStatusSchema,
@@ -565,6 +575,29 @@ export const GetTestFrameworksResponseSchema = z.object({
 });
 
 // ============================================================================
+// Plugin Schemas
+// ============================================================================
+
+export const PluginInfoSchema = z.object({
+  name: z.string(),
+  version: z.string().optional(),
+  source: z.enum(['npm', 'file', 'inline', 'subprocess']),
+  permissions: z.array(z.string()),
+  capabilities: z.object({
+    hasHooks: z.boolean(),
+    hasResolvers: z.boolean(),
+    hasCommands: z.boolean(),
+    hasMiddleware: z.boolean(),
+    hasTools: z.boolean()
+  })
+});
+
+export const PluginsResponseSchema = z.object({
+  plugins: z.array(PluginInfoSchema),
+  count: z.number()
+});
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -597,6 +630,7 @@ export type ExecutionSource = z.infer<typeof ExecutionSourceSchema>;
 export type ExecutionTiming = z.infer<typeof ExecutionTimingSchema>;
 export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>;
 export type ExecutionError = z.infer<typeof ExecutionErrorSchema>;
+export type PluginHookInfo = z.infer<typeof PluginHookInfoSchema>;
 export type ExecutionDetail = z.infer<typeof ExecutionDetailSchema>;
 
 // Workspace types
@@ -616,3 +650,7 @@ export type RunTestRequest = z.infer<typeof RunTestRequestSchema>;
 export type RunTestResponse = z.infer<typeof RunTestResponseSchema>;
 export type TestFrameworkOption = z.infer<typeof TestFrameworkOptionSchema>;
 export type GetTestFrameworksResponse = z.infer<typeof GetTestFrameworksResponseSchema>;
+
+// Plugin types
+export type PluginInfo = z.infer<typeof PluginInfoSchema>;
+export type PluginsResponse = z.infer<typeof PluginsResponseSchema>;

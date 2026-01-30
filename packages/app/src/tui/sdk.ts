@@ -62,6 +62,13 @@ export interface ExecutionSource {
   requestName?: string;
 }
 
+export interface PluginHookInfo {
+  pluginName: string;
+  hook: string;
+  durationMs: number;
+  modified: boolean;
+}
+
 export interface ExecutionDetail {
   reqExecId: string;
   flowId: string;
@@ -93,6 +100,7 @@ export interface ExecutionDetail {
     stage: string;
     message: string;
   };
+  pluginHooks?: PluginHookInfo[];
 }
 
 // SSE Event types

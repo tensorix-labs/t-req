@@ -3,9 +3,18 @@ import { loadFileBody } from '../file-loader';
 import { buildFormData, buildUrlEncoded, hasFileFields } from '../form-data-builder';
 import { createInterpolator } from '../interpolate';
 import { parse, parseFileWithIO } from '../parser';
+import type { PluginManager } from '../plugin/manager';
+import type {
+  CompiledRequest,
+  ErrorOutput,
+  ParsedHttpFile,
+  ResponseOutput,
+  RetrySignal,
+  TimingInfo
+} from '../plugin/types';
 import { createAutoTransport } from '../runtime/auto-transport';
 import type { CookieStore, EngineEvent, EventSink, IO, Transport } from '../runtime/types';
-import type { ExecuteOptions, ExecuteRequest, FormField, Resolver } from '../types';
+import type { ExecuteOptions, ExecuteRequest, FormField, ParsedRequest, Resolver } from '../types';
 import { setOptional } from '../utils/optional';
 
 export type EngineConfig = {
@@ -15,6 +24,8 @@ export type EngineConfig = {
   resolvers?: Record<string, Resolver>;
   onEvent?: EventSink;
   headerDefaults?: Record<string, string>;
+  pluginManager?: PluginManager;
+  maxRetries?: number;
 };
 
 export type EngineRunOptions = {
@@ -90,74 +101,241 @@ function withCookieHeader(
   };
 }
 
+/**
+ * Delay for retry.
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function createEngine(config: EngineConfig = {}): Engine {
   const transport = config.transport ?? createAutoTransport();
   const io = config.io;
   const cookieStore = config.cookieStore;
   const onEvent = config.onEvent;
   const headerDefaults = config.headerDefaults;
+  const pluginManager = config.pluginManager;
+  const maxRetries = config.maxRetries ?? 3;
 
   const interpolator = createInterpolator({ resolvers: config.resolvers ?? {} });
+
+  // Helper to emit to both event sink and plugin manager
+  function emitEvent(event: EngineEvent): void {
+    emit(onEvent, event);
+    pluginManager?.emitEngineEvent(event);
+  }
 
   async function compileFromString(
     httpText: string,
     options: EngineRunOptions
   ): Promise<{
-    executeRequest: ExecuteRequest;
-    baseUrl: string;
+    requests: ParsedRequest[];
+    filePath?: string;
+    basePath: string;
   }> {
-    emit(onEvent, { type: 'parseStarted', source: 'string' });
+    emitEvent({ type: 'parseStarted', source: 'string' });
     const requests = parse(httpText);
-    emit(onEvent, { type: 'parseFinished', source: 'string', requestCount: requests.length });
+    emitEvent({ type: 'parseFinished', source: 'string', requestCount: requests.length });
 
-    const request = firstOrThrow(requests, 'No valid requests found in provided content.');
-
-    emit(onEvent, { type: 'interpolateStarted' });
-    const mergedVars = { ...(options.variables ?? {}) };
-    const interpolated = await interpolator.interpolate(request, mergedVars);
-    emit(onEvent, { type: 'interpolateFinished' });
-
-    emit(onEvent, { type: 'compileStarted' });
     const basePath =
       options.basePath ??
       io?.cwd() ??
       (globalThis as unknown as { process?: { cwd?: () => string } }).process?.cwd?.() ??
       '.';
 
-    const { executeRequest } = await compileExecuteRequest(
-      interpolated,
-      setOptional<{ basePath: string; io?: IO; headerDefaults?: Record<string, string> }>({
-        basePath
-      })
-        .ifDefined('io', io)
-        .ifDefined('headerDefaults', headerDefaults)
-        .build()
-    );
-    emit(onEvent, { type: 'compileFinished' });
+    // Trigger parse.after hook if plugin manager exists
+    if (pluginManager) {
+      const parsedFile: ParsedHttpFile = {
+        path: 'string',
+        requests
+      };
+      const parseOutput = { file: parsedFile };
+      await pluginManager.triggerParseAfter({ file: parsedFile, path: 'string' }, parseOutput);
+      // Use potentially modified requests
+      return { requests: parseOutput.file.requests, basePath };
+    }
 
-    return { executeRequest, baseUrl: interpolated.url };
+    return { requests, basePath };
   }
 
   async function compileFromFile(
     path: string,
-    options: EngineRunOptions
+    _options: EngineRunOptions
   ): Promise<{
-    executeRequest: ExecuteRequest;
-    baseUrl: string;
+    requests: ParsedRequest[];
+    filePath: string;
+    basePath: string;
   }> {
-    emit(onEvent, { type: 'parseStarted', source: 'file' });
+    emitEvent({ type: 'parseStarted', source: 'file' });
     const requests = await parseFileWithIO(path, io);
-    emit(onEvent, { type: 'parseFinished', source: 'file', requestCount: requests.length });
+    emitEvent({ type: 'parseFinished', source: 'file', requestCount: requests.length });
 
-    const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
-
-    emit(onEvent, { type: 'interpolateStarted' });
-    const mergedVars = { ...(options.variables ?? {}) };
-    const interpolated = await interpolator.interpolate(request, mergedVars);
-    emit(onEvent, { type: 'interpolateFinished' });
-
-    emit(onEvent, { type: 'compileStarted' });
     const basePath = getFileBasePath(path, io);
+
+    // Trigger parse.after hook if plugin manager exists
+    if (pluginManager) {
+      const parsedFile: ParsedHttpFile = {
+        path,
+        requests
+      };
+      const parseOutput = { file: parsedFile };
+      await pluginManager.triggerParseAfter({ file: parsedFile, path }, parseOutput);
+      // Use potentially modified requests
+      return { requests: parseOutput.file.requests, filePath: path, basePath };
+    }
+
+    return { requests, filePath: path, basePath };
+  }
+
+  async function processRequest(
+    request: ParsedRequest,
+    options: EngineRunOptions,
+    basePath: string
+  ): Promise<Response> {
+    const variables = options.variables ?? {};
+    let retries = 0;
+
+    // Create hook context
+    const createCtx = () =>
+      pluginManager?.createHookContext({
+        retries,
+        maxRetries,
+        variables
+      }) ?? {
+        retries,
+        maxRetries,
+        session: { id: 'default', variables: {} },
+        variables,
+        config: {
+          projectRoot: '.',
+          variables: {},
+          security: { allowExternalFiles: false, allowPluginsOutsideProject: false }
+        },
+        projectRoot: '.'
+      };
+
+    // Retry loop
+    while (true) {
+      try {
+        const result = await executeRequest(request, options, basePath, createCtx(), retries);
+
+        // Check for retry signal
+        if (result.retry && retries < maxRetries) {
+          retries++;
+          await delay(result.retry.delayMs);
+          // Update cookies before retry (default behavior)
+          continue;
+        }
+
+        return result.response;
+      } catch (error) {
+        // Handle error with error hook
+        if (pluginManager) {
+          const compiledRequest: CompiledRequest = {
+            method: request.method,
+            url: request.url,
+            headers: request.headers,
+            ...(request.body !== undefined ? { body: request.body } : {})
+          };
+
+          const errorOutput: ErrorOutput = {
+            error: error instanceof Error ? error : new Error(String(error)),
+            suppress: false
+          };
+
+          await pluginManager.triggerError(
+            {
+              request: compiledRequest,
+              error: error instanceof Error ? error : new Error(String(error)),
+              ctx: createCtx()
+            },
+            errorOutput
+          );
+
+          // Check for retry signal from error hook
+          if (errorOutput.retry && retries < maxRetries) {
+            retries++;
+            await delay(errorOutput.retry.delayMs);
+            continue;
+          }
+
+          // Suppress error if requested
+          if (errorOutput.suppress) {
+            // Return a synthetic error response
+            return new Response(errorOutput.error.message, {
+              status: 0,
+              statusText: 'Suppressed Error'
+            });
+          }
+
+          throw errorOutput.error;
+        }
+
+        throw error;
+      }
+    }
+  }
+
+  async function executeRequest(
+    request: ParsedRequest,
+    options: EngineRunOptions,
+    basePath: string,
+    ctx: ReturnType<
+      typeof pluginManager extends undefined
+        ? never
+        : NonNullable<typeof pluginManager>['createHookContext']
+    >,
+    _retries: number
+  ): Promise<{ response: Response; retry?: RetrySignal }> {
+    // Step 1: request.before hook (before interpolation)
+    let requestData: {
+      method: string;
+      url: string;
+      headers: Record<string, string>;
+      body?: string;
+    } = {
+      method: request.method,
+      url: request.url,
+      headers: { ...request.headers },
+      ...(request.body !== undefined ? { body: request.body } : {})
+    };
+
+    if (pluginManager) {
+      const beforeOutput = { request: requestData, skip: false };
+      const result = await pluginManager.triggerRequestBefore(
+        { request: requestData, variables: options.variables ?? {}, ctx },
+        beforeOutput
+      );
+
+      if (result.skip) {
+        // Return a synthetic "skipped" response (use 204 No Content as placeholder)
+        return {
+          response: new Response(null, { status: 204, statusText: 'Skipped by Plugin' })
+        };
+      }
+
+      requestData = beforeOutput.request;
+    }
+
+    // Step 2: Interpolation
+    emitEvent({ type: 'interpolateStarted' });
+    const mergedVars = { ...(options.variables ?? {}) };
+    const toInterpolate = {
+      method: requestData.method,
+      url: requestData.url,
+      headers: requestData.headers,
+      ...(requestData.body !== undefined ? { body: requestData.body } : {}),
+      ...(request.name !== undefined ? { name: request.name } : {}),
+      raw: request.raw,
+      meta: request.meta,
+      ...(request.bodyFile !== undefined ? { bodyFile: request.bodyFile } : {}),
+      ...(request.formData !== undefined ? { formData: request.formData } : {})
+    };
+    const interpolated = await interpolator.interpolate(toInterpolate, mergedVars);
+    emitEvent({ type: 'interpolateFinished' });
+
+    // Step 3: Compile to ExecuteRequest
+    emitEvent({ type: 'compileStarted' });
     const { executeRequest } = await compileExecuteRequest(
       interpolated,
       setOptional<{ basePath: string; io?: IO; headerDefaults?: Record<string, string> }>({
@@ -167,27 +345,64 @@ export function createEngine(config: EngineConfig = {}): Engine {
         .ifDefined('headerDefaults', headerDefaults)
         .build()
     );
-    emit(onEvent, { type: 'compileFinished' });
+    emitEvent({ type: 'compileFinished' });
 
-    return { executeRequest, baseUrl: interpolated.url };
-  }
+    // Step 4: request.compiled hook (after interpolation, for signing)
+    let compiledRequest: CompiledRequest = {
+      method: executeRequest.method,
+      url: executeRequest.url,
+      headers: executeRequest.headers ?? {},
+      ...(executeRequest.body !== undefined ? { body: executeRequest.body } : {})
+    };
 
-  async function runCompiled(
-    executeRequest: ExecuteRequest,
-    urlForCookies: string,
-    options: EngineRunOptions
-  ): Promise<Response> {
-    const headers = executeRequest.headers ?? {};
+    if (pluginManager) {
+      const compiledOutput = { request: compiledRequest };
+      await pluginManager.triggerRequestCompiled(
+        { request: compiledRequest, variables: mergedVars, ctx },
+        compiledOutput
+      );
+      compiledRequest = compiledOutput.request;
+    }
+
+    // Step 5: request.after hook (read-only, logging/metrics)
+    if (pluginManager) {
+      await pluginManager.triggerRequestAfter({ request: compiledRequest, ctx });
+    }
+
+    // Step 6: Execute request
+    const urlForCookies = compiledRequest.url;
+    const headers = compiledRequest.headers;
 
     const cookieHeader = cookieStore ? await cookieStore.getCookieHeader(urlForCookies) : undefined;
     const headersWithCookies = cookieStore ? withCookieHeader(headers, cookieHeader) : headers;
 
+    // Convert Buffer to ArrayBuffer for ExecuteRequest compatibility
+    let bodyForRequest: ExecuteRequest['body'];
+    if (compiledRequest.body !== undefined) {
+      if (compiledRequest.body instanceof Buffer) {
+        // Create a new ArrayBuffer from the Buffer's data
+        const buf = compiledRequest.body;
+        const arrayBuffer = new ArrayBuffer(buf.byteLength);
+        new Uint8Array(arrayBuffer).set(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+        bodyForRequest = arrayBuffer;
+      } else {
+        // Pass through string, ArrayBuffer, FormData, or URLSearchParams
+        // Buffer is handled above, so this is safe
+        bodyForRequest = compiledRequest.body as ExecuteRequest['body'];
+      }
+    }
+
     const requestWithCookies: ExecuteRequest = {
-      ...executeRequest,
-      headers: headersWithCookies
+      method: compiledRequest.method,
+      url: compiledRequest.url,
+      headers: headersWithCookies,
+      ...(bodyForRequest !== undefined ? { body: bodyForRequest } : {})
     };
 
-    emit(onEvent, { type: 'fetchStarted', method: requestWithCookies.method, url: urlForCookies });
+    emitEvent({ type: 'fetchStarted', method: requestWithCookies.method, url: urlForCookies });
+
+    const startTime = Date.now();
+    let response: Response;
 
     try {
       const execOptions = setOptional<ExecuteOptions>({})
@@ -198,39 +413,95 @@ export function createEngine(config: EngineConfig = {}): Engine {
         .ifDefined('proxy', options.proxy)
         .build();
 
-      const response = await executeWithTransport(requestWithCookies, execOptions, transport);
+      response = await executeWithTransport(requestWithCookies, execOptions, transport);
 
-      emit(onEvent, {
+      emitEvent({
         type: 'fetchFinished',
         method: requestWithCookies.method,
         url: urlForCookies,
         status: response.status
       });
 
+      // Update cookies
       if (cookieStore) {
         await cookieStore.setFromResponse(urlForCookies, response);
       }
-
-      return response;
     } catch (e) {
-      emit(onEvent, {
+      emitEvent({
         type: 'error',
         stage: 'fetch',
         message: e instanceof Error ? e.message : String(e)
       });
       throw e;
     }
+
+    const timing: TimingInfo = {
+      total: Date.now() - startTime
+    };
+
+    // Step 7: response.after hook
+    let retry: RetrySignal | undefined;
+
+    if (pluginManager) {
+      const responseOutput: ResponseOutput = {};
+      await pluginManager.triggerResponseAfter(
+        { request: compiledRequest, response, timing, ctx },
+        responseOutput
+      );
+
+      retry = responseOutput.retry;
+
+      // Reconstruct response if modified
+      if (
+        responseOutput.status !== undefined ||
+        responseOutput.statusText !== undefined ||
+        responseOutput.headers !== undefined ||
+        responseOutput.body !== undefined
+      ) {
+        const newHeaders = new Headers(response.headers);
+        if (responseOutput.headers) {
+          for (const [key, value] of Object.entries(responseOutput.headers)) {
+            newHeaders.set(key, value);
+          }
+        }
+
+        let newBody: BodyInit | null = null;
+        if (responseOutput.body !== undefined) {
+          if (typeof responseOutput.body === 'string') {
+            newBody = responseOutput.body;
+          } else if (responseOutput.body instanceof Buffer) {
+            // Convert Buffer to Uint8Array for BodyInit compatibility
+            newBody = new Uint8Array(responseOutput.body);
+          } else if (responseOutput.body instanceof ReadableStream) {
+            newBody = responseOutput.body;
+          }
+        }
+
+        response = new Response(newBody ?? response.body, {
+          status: responseOutput.status ?? response.status,
+          statusText: responseOutput.statusText ?? response.statusText,
+          headers: newHeaders
+        });
+      }
+    }
+
+    return {
+      response,
+      ...(retry !== undefined ? { retry } : {})
+    };
   }
 
   return {
     parseString: parse,
     async runString(httpText, options = {}) {
-      const { executeRequest, baseUrl } = await compileFromString(httpText, options);
-      return await runCompiled(executeRequest, baseUrl, options);
+      const { requests, basePath } = await compileFromString(httpText, options);
+      const request = firstOrThrow(requests, 'No valid requests found in provided content.');
+      return await processRequest(request, options, basePath);
     },
     async runFile(path, options = {}) {
-      const { executeRequest, baseUrl } = await compileFromFile(path, options);
-      return await runCompiled(executeRequest, baseUrl, options);
+      const { requests, basePath } = await compileFromFile(path, options);
+      const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
+      return await processRequest(request, options, basePath);
     }
   };
 }

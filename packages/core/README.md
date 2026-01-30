@@ -538,6 +538,42 @@ const client = createClient({
 });
 ```
 
+## Plugins
+
+Extend t-req with custom resolvers, hooks, and middleware:
+
+```typescript
+import { definePlugin } from '@t-req/core';
+
+export default definePlugin({
+  name: 'my-plugin',
+  version: '1.0.0',
+  resolvers: {
+    $timestamp: () => String(Date.now()),
+  },
+  hooks: {
+    async 'response.after'(input, output) {
+      if (input.response.status === 429) {
+        output.retry = { delayMs: 1000 };
+      }
+    }
+  }
+});
+```
+
+Add to your config:
+
+```jsonc
+// treq.jsonc
+{
+  "plugins": ["file://./my-plugin.ts"]
+}
+```
+
+Write plugins in any language using the subprocess protocol — see `examples/plugins/` for Python examples.
+
+**Full documentation:** [t-req.io/docs/guides/plugins](https://t-req.io/docs/guides/plugins)
+
 ## Real-World Example: E-Commerce Checkout
 
 Run the included demo flow (uses dummyjson.com) to see a realistic multi-step scenario:

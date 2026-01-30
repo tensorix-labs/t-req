@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { MiddlewareFunction } from '@t-req/core/plugin';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -36,6 +37,7 @@ import {
   listWorkspaceFilesRoute,
   listWorkspaceRequestsRoute,
   parseRoute,
+  pluginsRoute,
   runScriptRoute,
   runTestRoute,
   updateSessionVariablesRoute
@@ -96,6 +98,13 @@ function enforceScriptScope(c: Context, opts: EnforceScriptScopeOptions): void {
   }
 }
 
+// Re-export middleware types from core for consumers
+export type {
+  MiddlewareFunction as PluginMiddleware,
+  MiddlewareRequest,
+  MiddlewareResponse
+} from '@t-req/core/plugin';
+
 export type ServerConfig = {
   workspace?: string;
   port: number;
@@ -107,6 +116,8 @@ export type ServerConfig = {
   /** Allow cookie-based authentication (default: true). Set to false for expose mode. */
   allowCookieAuth?: boolean;
   web?: WebConfig;
+  /** Plugin middleware to apply (from PluginManager.getMiddleware()) */
+  pluginMiddleware?: MiddlewareFunction[];
 };
 
 export function createApp(config: ServerConfig) {
@@ -142,6 +153,70 @@ export function createApp(config: ServerConfig) {
       credentials: true
     })
   );
+
+  // Apply plugin middleware (if any)
+  // Plugin middleware uses Express-style (req, res, next) signature
+  if (config.pluginMiddleware && config.pluginMiddleware.length > 0) {
+    for (const pluginMiddleware of config.pluginMiddleware) {
+      app.use('*', async (c, next) => {
+        // Adapt Express-style middleware to Hono
+        const req = c.req.raw;
+        const reqHeaders: Record<string, string> = {};
+        req.headers.forEach((value, key) => {
+          reqHeaders[key] = value;
+        });
+
+        // Track if middleware ended the response early
+        let ended = false;
+        let endBody: string | Buffer | undefined;
+        const resHeaders: Record<string, string> = {};
+        let statusCode = 200;
+
+        // Create Express-style request/response objects
+        const middlewareReq = {
+          method: req.method,
+          url: req.url,
+          headers: reqHeaders,
+          body: undefined as Buffer | string | undefined
+        };
+
+        const middlewareRes = {
+          statusCode,
+          headers: resHeaders,
+          setHeader: (name: string, value: string) => {
+            resHeaders[name] = value;
+          },
+          end: (body?: string | Buffer) => {
+            ended = true;
+            endBody = body;
+            statusCode = middlewareRes.statusCode;
+          }
+        };
+
+        try {
+          // Call the Express-style middleware
+          await pluginMiddleware(middlewareReq, middlewareRes, async () => {
+            await next();
+          });
+
+          // If middleware ended the response, return it
+          if (ended) {
+            return new Response(endBody, {
+              status: statusCode,
+              headers: resHeaders
+            });
+          }
+
+          // Otherwise continue (next() was already called)
+          return;
+        } catch (err) {
+          console.error('Plugin middleware error:', err);
+          // Continue to next middleware on error (graceful degradation)
+          return next();
+        }
+      });
+    }
+  }
 
   // Auth middleware (supports bearer token + cookie sessions)
   // Note: Auth is applied to API paths. Web routes handle their own auth for /auth/* paths.
@@ -432,6 +507,18 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
+  // Plugin Endpoints
+  // ============================================================================
+
+  app.openapi(pluginsRoute, async (c) => {
+    // Script tokens cannot list plugins
+    enforceScriptScope(c, { allowedEndpoint: false });
+
+    const result = await service.getPlugins();
+    return c.json(result, 200);
+  });
+
+  // ============================================================================
   // Event Streaming (SSE)
   // ============================================================================
 
@@ -545,6 +632,7 @@ export function createApp(config: ServerConfig) {
         name: 'Tests',
         description: 'Run tests with detected frameworks (bun, vitest, jest, pytest)'
       },
+      { name: 'Plugins', description: 'List and manage loaded plugins' },
       { name: 'Events', description: 'Real-time event streaming via Server-Sent Events' }
     ],
     externalDocs: {

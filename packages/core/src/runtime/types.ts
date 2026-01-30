@@ -38,6 +38,12 @@ export type CookieStore = {
   setFromResponse: (url: string, response: Response) => void | Promise<void>;
 };
 
+// ============================================================================
+// Engine Events
+// Core engine events are NEVER expanded (no plugin context).
+// This preserves @t-req/core purity for downstream library use.
+// ============================================================================
+
 export type EngineEvent =
   | { type: 'parseStarted'; source: 'string' | 'file' }
   | { type: 'parseFinished'; source: 'string' | 'file'; requestCount: number }
@@ -50,3 +56,11 @@ export type EngineEvent =
   | { type: 'error'; stage: string; message: string };
 
 export type EventSink = (event: EngineEvent) => void;
+
+// ============================================================================
+// Plugin Events
+// Plugin events are a separate channel emitted by PluginManager.
+// All plugin event types are prefixed with 'plugin' for easy discrimination.
+// Note: Full PluginEvent types are defined in plugin/types.ts and exported
+// from plugin/index.ts. Import them from there to avoid circular dependencies.
+// ============================================================================

@@ -1,5 +1,8 @@
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
+import { createPluginManager, mergePluginRefs } from '../plugin';
+import type { PluginManager } from '../plugin/manager';
+import type { PluginConfigRef } from '../plugin/types';
 import { createCommandResolver, isCommandResolverDef } from '../resolver/command';
 import type { Resolver } from '../types';
 import { isLegacyFormat, loadConfig } from './load';
@@ -288,7 +291,42 @@ export async function resolveProjectConfig(
   // Step 7: Compile resolvers
   const resolvers = compileResolvers(mergedConfig.resolvers, projectRoot);
 
-  // Step 8: Build final resolved config
+  // Step 8: Merge plugins from base and profile
+  const mergedPlugins = mergePluginConfigs(
+    loaded.config?.plugins,
+    options.profile ? loaded.config?.profiles?.[options.profile]?.plugins : undefined
+  );
+
+  // Step 9: Initialize plugin manager if plugins are configured
+  let pluginManager: PluginManager | undefined;
+  if (mergedPlugins.length > 0) {
+    pluginManager = createPluginManager({
+      projectRoot,
+      plugins: mergedPlugins,
+      security: {
+        allowPluginsOutsideProject: mergedConfig.security?.allowPluginsOutsideProject ?? false
+      },
+      ...(mergedConfig.security?.pluginPermissions !== undefined
+        ? { pluginPermissions: mergedConfig.security.pluginPermissions }
+        : {})
+    });
+
+    // Initialize plugins (loads and calls setup)
+    await pluginManager.initialize();
+
+    // Merge plugin resolvers with config resolvers (config takes precedence)
+    const pluginResolvers = pluginManager.getResolvers();
+    for (const [name, resolver] of Object.entries(pluginResolvers)) {
+      if (!resolvers[name]) {
+        resolvers[name] = resolver;
+      }
+    }
+
+    // Collect plugin warnings
+    warnings.push(...pluginManager.getWarnings());
+  }
+
+  // Step 10: Build final resolved config
   const config: ResolvedConfig = {
     projectRoot,
     variables: mergedConfig.variables ?? {},
@@ -296,11 +334,16 @@ export async function resolveProjectConfig(
     cookies: resolveCookies(mergedConfig.cookies),
     resolvers,
     security: {
-      allowExternalFiles: mergedConfig.security?.allowExternalFiles ?? false
-    }
+      allowExternalFiles: mergedConfig.security?.allowExternalFiles ?? false,
+      allowPluginsOutsideProject: mergedConfig.security?.allowPluginsOutsideProject ?? false,
+      ...(mergedConfig.security?.pluginPermissions !== undefined
+        ? { pluginPermissions: mergedConfig.security.pluginPermissions }
+        : {})
+    },
+    ...(pluginManager !== undefined ? { pluginManager } : {})
   };
 
-  // Step 9: Build metadata
+  // Step 11: Build metadata
   const meta: ConfigMeta = {
     projectRoot,
     layersApplied,
@@ -319,4 +362,17 @@ export async function resolveProjectConfig(
   }
 
   return { config, meta };
+}
+
+/**
+ * Merge plugin configs from base and profile.
+ */
+function mergePluginConfigs(
+  base?: PluginConfigRef[],
+  profile?: PluginConfigRef[]
+): PluginConfigRef[] {
+  if (!base && !profile) return [];
+  if (!base) return profile ?? [];
+  if (!profile) return base;
+  return mergePluginRefs(base, profile);
 }

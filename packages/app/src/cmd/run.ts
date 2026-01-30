@@ -1,5 +1,10 @@
 import { createEngine, parse } from '@t-req/core';
-import { buildEngineOptions, DEFAULT_TIMEOUT_MS, resolveProjectConfig } from '@t-req/core/config';
+import {
+  buildEngineOptions,
+  type ConfigOverrideLayer,
+  DEFAULT_TIMEOUT_MS,
+  resolveProjectConfig
+} from '@t-req/core/config';
 import { createCookieJar } from '@t-req/core/cookies';
 import {
   cookieJarToData,
@@ -27,6 +32,9 @@ interface RunOptions {
   timeout?: number;
   workspace?: string;
   verbose?: boolean;
+  json?: boolean;
+  noPlugins?: boolean;
+  plugin?: string[];
 }
 
 export const runCommand: CommandModule<object, RunOptions> = {
@@ -79,6 +87,22 @@ export const runCommand: CommandModule<object, RunOptions> = {
       type: 'boolean',
       describe: 'Show detailed output',
       default: false
+    },
+    json: {
+      type: 'boolean',
+      describe: 'Output response as JSON (includes plugin info)',
+      default: false
+    },
+    'no-plugins': {
+      type: 'boolean',
+      describe: 'Disable plugin loading',
+      default: false
+    },
+    plugin: {
+      type: 'array',
+      string: true,
+      describe: 'Load additional plugins (npm package or file:// path)',
+      alias: 'P'
     }
   },
   handler: async (argv) => {
@@ -239,10 +263,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
   }
   const cliVars = parseVariables(argv.var);
 
-  const overrideLayers: Array<{
-    name: string;
-    overrides: { variables: Record<string, unknown> };
-  }> = [];
+  const overrideLayers: ConfigOverrideLayer[] = [];
 
   if (argv.env && Object.keys(envVariables).length > 0) {
     overrideLayers.push({
@@ -255,6 +276,23 @@ async function runRequest(argv: RunOptions): Promise<void> {
     overrideLayers.push({
       name: 'cli',
       overrides: { variables: cliVars }
+    });
+  }
+
+  // Build plugin overrides from CLI flags
+  const pluginOverrides: { plugins?: string[] } = {};
+  if (argv.noPlugins) {
+    // Disable all plugins by setting empty array
+    pluginOverrides.plugins = [];
+  } else if (argv.plugin && argv.plugin.length > 0) {
+    // Add CLI-specified plugins
+    pluginOverrides.plugins = argv.plugin;
+  }
+
+  if (pluginOverrides.plugins !== undefined) {
+    overrideLayers.push({
+      name: 'cli-plugins',
+      overrides: pluginOverrides
     });
   }
 
@@ -275,6 +313,21 @@ async function runRequest(argv: RunOptions): Promise<void> {
     console.error(`Config: ${meta.configPath}`);
     console.error(`Profile: ${meta.profile ?? '(none)'}`);
     console.error(`Layers: ${meta.layersApplied.join(' < ')}`);
+  }
+
+  // Show plugin info in verbose mode
+  if (argv.verbose && config.pluginManager) {
+    const pluginInfo = config.pluginManager.getPluginInfo();
+    if (pluginInfo.length > 0) {
+      console.error('Plugins loaded:');
+      for (const plugin of pluginInfo) {
+        const perms =
+          plugin.permissions.length > 0 ? ` [permissions: ${plugin.permissions.join(', ')}]` : '';
+        console.error(
+          `  ✓ ${plugin.name}${plugin.version ? `@${plugin.version}` : ''} (${plugin.source})${perms}`
+        );
+      }
+    }
   }
 
   // Read and parse file
@@ -396,23 +449,72 @@ async function runRequest(argv: RunOptions): Promise<void> {
 
     // Cast to FetchResponse for Bun type compatibility
     const fetchResponse = response as unknown as FetchResponse;
-
-    // Output response
-    console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
-    console.log(formatHeaders(fetchResponse.headers));
-    console.log('');
-
-    // Output body
     const contentType = fetchResponse.headers.get('content-type') ?? '';
     const body = await fetchResponse.text();
 
-    if (body) {
-      console.log(formatResponseBody(contentType, body));
-    }
+    // JSON output mode
+    if (argv.json) {
+      // Collect headers as array
+      const headers: Array<{ name: string; value: string }> = [];
+      fetchResponse.headers.forEach((value, name) => {
+        headers.push({ name, value });
+      });
 
-    if (argv.verbose) {
-      console.error('---');
-      console.error(`Duration: ${endTime - startTime}ms`);
+      // Collect plugin info if available
+      const plugins = config.pluginManager
+        ? config.pluginManager.getPluginInfo().map((p) => ({
+            name: p.name,
+            version: p.version,
+            source: p.source,
+            permissions: p.permissions
+          }))
+        : [];
+
+      // Build JSON output
+      const jsonOutput = {
+        request: {
+          index: selectedIndex,
+          name: selectedRequest.name,
+          method: selectedRequest.method,
+          url: selectedRequest.url
+        },
+        response: {
+          status: fetchResponse.status,
+          statusText: fetchResponse.statusText,
+          headers,
+          body: contentType.includes('application/json')
+            ? (() => {
+                try {
+                  return JSON.parse(body);
+                } catch {
+                  return body;
+                }
+              })()
+            : body
+        },
+        timing: {
+          startTime,
+          endTime,
+          durationMs: endTime - startTime
+        },
+        plugins
+      };
+
+      console.log(JSON.stringify(jsonOutput, null, 2));
+    } else {
+      // Standard text output
+      console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
+      console.log(formatHeaders(fetchResponse.headers));
+      console.log('');
+
+      if (body) {
+        console.log(formatResponseBody(contentType, body));
+      }
+
+      if (argv.verbose) {
+        console.error('---');
+        console.error(`Duration: ${endTime - startTime}ms`);
+      }
     }
   } catch (err) {
     console.error('Request failed:', err instanceof Error ? err.message : String(err));

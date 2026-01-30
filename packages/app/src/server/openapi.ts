@@ -18,6 +18,7 @@ import {
   ListWorkspaceRequestsResponseSchema,
   ParseRequestSchema,
   ParseResponseSchema,
+  PluginsResponseSchema,
   RunScriptRequestSchema,
   RunScriptResponseSchema,
   RunTestRequestSchema,
@@ -615,6 +616,26 @@ export const getTestFrameworksRoute = createRoute({
     200: {
       content: { 'application/json': { schema: GetTestFrameworksResponseSchema } },
       description: 'Available frameworks with detected default'
+    }
+  }
+});
+
+// ============================================================================
+// Plugin Endpoints
+// ============================================================================
+
+// List plugins
+export const pluginsRoute = createRoute({
+  method: 'get',
+  path: '/plugins',
+  tags: ['Plugins'],
+  summary: 'List loaded plugins',
+  description:
+    'Returns information about all loaded plugins including their capabilities and permissions',
+  responses: {
+    200: {
+      content: { 'application/json': { schema: PluginsResponseSchema } },
+      description: 'List of loaded plugins with their capabilities'
     }
   }
 });
