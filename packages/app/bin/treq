@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
-import childProcess from "node:child_process"
-import fs from "node:fs"
-import path from "node:path"
-import os from "node:os"
-import { fileURLToPath } from "node:url"
+const childProcess = require("child_process")
+const fs = require("fs")
+const path = require("path")
+const os = require("os")
 
 function run(target) {
   const result = childProcess.spawnSync(target, process.argv.slice(2), {
@@ -17,7 +16,7 @@ function run(target) {
   process.exit(result.status ?? 0)
 }
 
-const scriptDir = path.dirname(fs.realpathSync(fileURLToPath(import.meta.url)))
+const scriptDir = path.dirname(fs.realpathSync(__filename))
 
 const platformMap = { darwin: "darwin", linux: "linux", win32: "windows" }
 const archMap = { x64: "x64", arm64: "arm64" }
