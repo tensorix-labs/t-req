@@ -1,5 +1,11 @@
 # @t-req/core
 
+## 0.2.1
+
+### Patch Changes
+
+- b7b4480: Add plugin system
+
 ## 0.2.0
 
 ### Minor Changes

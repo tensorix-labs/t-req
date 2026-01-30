@@ -1,5 +1,13 @@
 # @t-req/app
 
+## 0.3.4
+
+### Patch Changes
+
+- b7b4480: Add plugin system
+- Updated dependencies [b7b4480]
+  - @t-req/core@0.2.1
+
 ## 0.3.3
 
 ### Patch Changes
