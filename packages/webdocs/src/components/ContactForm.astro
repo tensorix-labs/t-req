@@ -1,0 +1,245 @@
+---
+---
+
+<div class="contact-form-wrapper">
+  <form
+    id="contact-form"
+    action="https://formspree.io/f/xjgryvjd"
+    method="POST"
+    class="contact-form"
+  >
+    <div class="form-group">
+      <label for="name" class="form-label">Full name</label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        required
+        class="form-input"
+        placeholder="Jane Smith"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="role" class="form-label">Role</label>
+      <input
+        type="text"
+        id="role"
+        name="role"
+        required
+        class="form-input"
+        placeholder="Engineering Manager"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="email" class="form-label">Company email</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        required
+        class="form-input"
+        placeholder="jane@company.com"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="message" class="form-label">Message</label>
+      <textarea
+        id="message"
+        name="message"
+        required
+        rows="4"
+        class="form-input form-textarea"
+        placeholder="Tell us about your requirements..."
+      ></textarea>
+    </div>
+
+    <button type="submit" class="form-submit">
+      <span class="submit-text">Send Message</span>
+      <span class="submit-loading" style="display: none;">Sending...</span>
+    </button>
+  </form>
+
+  <div id="form-success" class="form-message form-success" style="display: none;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <p>Thanks! We'll be in touch within 1 business day.</p>
+  </div>
+
+  <div id="form-error" class="form-message form-error" style="display: none;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <p>Something went wrong. Please email us directly at <a href="mailto:hello@tensorixlabs.com">hello@tensorixlabs.com</a></p>
+  </div>
+</div>
+
+<style>
+  .contact-form-wrapper {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #0f172a;
+  }
+
+  .form-input {
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.9375rem;
+    color: #0f172a;
+    background: white;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .form-input::placeholder {
+    color: #94a3b8;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+
+  .form-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: #0f172a;
+    color: white;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    margin-top: 0.5rem;
+  }
+
+  .form-submit:hover {
+    background: #1e293b;
+  }
+
+  .form-submit:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .form-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .form-message p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .form-message svg {
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  .form-success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+  }
+
+  .form-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+
+  .form-error a {
+    color: #991b1b;
+    font-weight: 500;
+    text-decoration: underline;
+  }
+
+  .form-error a:hover {
+    color: #7f1d1d;
+  }
+</style>
+
+<script>
+  const form = document.getElementById('contact-form') as HTMLFormElement;
+  const successEl = document.getElementById('form-success');
+  const errorEl = document.getElementById('form-error');
+  const submitBtn = form?.querySelector('.form-submit') as HTMLButtonElement;
+  const submitText = form?.querySelector('.submit-text') as HTMLSpanElement;
+  const submitLoading = form?.querySelector('.submit-loading') as HTMLSpanElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Reset states
+    if (successEl) successEl.style.display = 'none';
+    if (errorEl) errorEl.style.display = 'none';
+
+    // Show loading
+    if (submitBtn) submitBtn.disabled = true;
+    if (submitText) submitText.style.display = 'none';
+    if (submitLoading) submitLoading.style.display = 'inline';
+
+    try {
+      const formData = new FormData(form);
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        form.style.display = 'none';
+        if (successEl) successEl.style.display = 'flex';
+      } else {
+        throw new Error('Form submission failed');
+      }
+    } catch (error) {
+      if (errorEl) errorEl.style.display = 'flex';
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+      if (submitText) submitText.style.display = 'inline';
+      if (submitLoading) submitLoading.style.display = 'none';
+    }
+  });
+</script>
