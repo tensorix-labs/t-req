@@ -144,7 +144,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     pluginMiddleware
   };
 
-  const { app, service, eventManager, workspaceRoot: wsRoot, dispose } = createApp(config);
+  const { app, service, eventManager, dispose } = createApp(config);
 
   console.log('t-req server starting...');
   console.log(`  Workspace: ${workspaceRoot}`);
