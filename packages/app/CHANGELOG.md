@@ -1,5 +1,13 @@
 # @t-req/app
 
+## 0.3.3
+
+### Patch Changes
+
+- 8f6b004: Fix TUI freeze when opening command dialog
+- 7fbaa04: Add test file generation to `treq init` - New flags: `--no-tests` to skip, `--test-runner` to specify runner (bun/vitest/jest)
+- 5ddebf9: Add profile selection in TUI and Web.
+
 ## 0.3.2
 
 ### Patch Changes
