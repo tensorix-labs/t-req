@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { MiddlewareFunction } from '@t-req/core/plugin';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -97,10 +98,12 @@ function enforceScriptScope(c: Context, opts: EnforceScriptScopeOptions): void {
   }
 }
 
-export type PluginMiddleware = (
-  req: Request,
-  next: () => Promise<Response>
-) => Promise<Response> | Response;
+// Re-export middleware types from core for consumers
+export type {
+  MiddlewareFunction as PluginMiddleware,
+  MiddlewareRequest,
+  MiddlewareResponse
+} from '@t-req/core/plugin';
 
 export type ServerConfig = {
   workspace?: string;
@@ -114,7 +117,7 @@ export type ServerConfig = {
   allowCookieAuth?: boolean;
   web?: WebConfig;
   /** Plugin middleware to apply (from PluginManager.getMiddleware()) */
-  pluginMiddleware?: PluginMiddleware[];
+  pluginMiddleware?: MiddlewareFunction[];
 };
 
 export function createApp(config: ServerConfig) {
@@ -152,21 +155,64 @@ export function createApp(config: ServerConfig) {
   );
 
   // Apply plugin middleware (if any)
+  // Plugin middleware uses Express-style (req, res, next) signature
   if (config.pluginMiddleware && config.pluginMiddleware.length > 0) {
-    for (const middleware of config.pluginMiddleware) {
+    for (const pluginMiddleware of config.pluginMiddleware) {
       app.use('*', async (c, next) => {
-        try {
-          const response = await middleware(c.req.raw, async () => {
-            await next();
-            return c.res;
-          });
-          // If middleware returns a different response, use it
-          if (response !== c.res) {
-            return response;
+        // Adapt Express-style middleware to Hono
+        const req = c.req.raw;
+        const reqHeaders: Record<string, string> = {};
+        req.headers.forEach((value, key) => {
+          reqHeaders[key] = value;
+        });
+
+        // Track if middleware ended the response early
+        let ended = false;
+        let endBody: string | Buffer | undefined;
+        const resHeaders: Record<string, string> = {};
+        let statusCode = 200;
+
+        // Create Express-style request/response objects
+        const middlewareReq = {
+          method: req.method,
+          url: req.url,
+          headers: reqHeaders,
+          body: undefined as Buffer | string | undefined
+        };
+
+        const middlewareRes = {
+          statusCode,
+          headers: resHeaders,
+          setHeader: (name: string, value: string) => {
+            resHeaders[name] = value;
+          },
+          end: (body?: string | Buffer) => {
+            ended = true;
+            endBody = body;
+            statusCode = middlewareRes.statusCode;
           }
+        };
+
+        try {
+          // Call the Express-style middleware
+          await pluginMiddleware(middlewareReq, middlewareRes, async () => {
+            await next();
+          });
+
+          // If middleware ended the response, return it
+          if (ended) {
+            return new Response(endBody, {
+              status: statusCode,
+              headers: resHeaders
+            });
+          }
+
+          // Otherwise continue (next() was already called)
+          return;
         } catch (err) {
           console.error('Plugin middleware error:', err);
           // Continue to next middleware on error (graceful degradation)
+          return next();
         }
       });
     }

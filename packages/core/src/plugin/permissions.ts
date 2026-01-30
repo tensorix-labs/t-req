@@ -63,22 +63,92 @@ interface FileSystemApi {
   writeFile: (path: string, content: string) => Promise<void>;
 }
 
-/**
- * Create a file system API that respects project boundaries.
- */
+function isPathWithinRoot(
+  resolved: string,
+  projectRoot: string,
+  pathModule: typeof import('node:path')
+): boolean {
+  const relative = pathModule.relative(projectRoot, resolved);
+  // If the relative path starts with '..' or is an absolute path, it's outside
+  return !relative.startsWith('..') && !pathModule.isAbsolute(relative);
+}
+
 function createFileSystemApi(projectRoot: string, allowOutsideProject: boolean): FileSystemApi {
   // Dynamic require to avoid bundling issues
   const fsPromises = require('node:fs/promises') as typeof import('node:fs/promises');
   const pathModule = require('node:path') as typeof import('node:path');
 
-  const validatePath = (filePath: string): string => {
+  /**
+   * Validate a path for read operations.
+   * Resolves symlinks to prevent traversal attacks.
+   */
+  const validateReadPath = async (filePath: string): Promise<string> => {
     const resolved = pathModule.resolve(projectRoot, filePath);
 
-    if (!allowOutsideProject && !resolved.startsWith(projectRoot)) {
+    // First check: basic path resolution
+    if (!allowOutsideProject && !isPathWithinRoot(resolved, projectRoot, pathModule)) {
       throw new Error(
         `Path "${filePath}" is outside project root. ` +
           `Plugins need "filesystem" permission to access files outside project.`
       );
+    }
+
+    // Second check: resolve symlinks and verify real path is within bounds
+    if (!allowOutsideProject) {
+      try {
+        const realPath = await fsPromises.realpath(resolved);
+        if (!isPathWithinRoot(realPath, projectRoot, pathModule)) {
+          throw new Error(
+            `Path "${filePath}" resolves to "${realPath}" which is outside project root. ` +
+              `Symlinks pointing outside the project are not allowed.`
+          );
+        }
+        return realPath;
+      } catch (err) {
+        // If realpath fails (file doesn't exist), use the resolved path
+        // The subsequent read will fail with a more appropriate error
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          return resolved;
+        }
+        throw err;
+      }
+    }
+
+    return resolved;
+  };
+
+  /**
+   * Validate a path for write operations.
+   * Checks parent directory's realpath to prevent symlink traversal.
+   */
+  const validateWritePath = async (filePath: string): Promise<string> => {
+    const resolved = pathModule.resolve(projectRoot, filePath);
+
+    // First check: basic path resolution
+    if (!allowOutsideProject && !isPathWithinRoot(resolved, projectRoot, pathModule)) {
+      throw new Error(
+        `Path "${filePath}" is outside project root. ` +
+          `Plugins need "filesystem" permission to access files outside project.`
+      );
+    }
+
+    // Second check: verify parent directory's real path is within bounds
+    if (!allowOutsideProject) {
+      const parentDir = pathModule.dirname(resolved);
+      try {
+        const realParentPath = await fsPromises.realpath(parentDir);
+        if (!isPathWithinRoot(realParentPath, projectRoot, pathModule)) {
+          throw new Error(
+            `Path "${filePath}" parent directory resolves to "${realParentPath}" which is outside project root. ` +
+              `Symlinks pointing outside the project are not allowed.`
+          );
+        }
+      } catch (err) {
+        // If parent doesn't exist, that's fine - write will create it or fail appropriately
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw err;
+        }
+      }
     }
 
     return resolved;
@@ -86,12 +156,12 @@ function createFileSystemApi(projectRoot: string, allowOutsideProject: boolean):
 
   return {
     async readFile(filePath: string): Promise<string> {
-      const resolved = validatePath(filePath);
+      const resolved = await validateReadPath(filePath);
       return await fsPromises.readFile(resolved, 'utf-8');
     },
 
     async writeFile(filePath: string, content: string): Promise<void> {
-      const resolved = validatePath(filePath);
+      const resolved = await validateWritePath(filePath);
       await fsPromises.writeFile(resolved, content, 'utf-8');
     }
   };

@@ -99,9 +99,13 @@ export function isNpmPlugin(ref: PluginConfigRef): boolean {
 // Path Resolution
 // ============================================================================
 
-/**
- * Resolve a file:// plugin path to an absolute path.
- */
+function isPathWithinRoot(resolved: string, projectRoot: string): boolean {
+  const pathModule = require('node:path') as typeof import('node:path');
+  const relative = pathModule.relative(projectRoot, resolved);
+  // If the relative path starts with '..' or is an absolute path, it's outside
+  return !relative.startsWith('..') && !pathModule.isAbsolute(relative);
+}
+
 export function resolveFilePath(
   fileUrl: string,
   projectRoot: string,
@@ -111,70 +115,71 @@ export function resolveFilePath(
     throw new Error(`Invalid file URL: ${fileUrl}`);
   }
 
+  const pathModule = require('node:path') as typeof import('node:path');
   const path = fileUrl.slice(FILE_PROTOCOL.length);
+  let resolved: string;
 
   // Absolute path (starts with /)
   if (path.startsWith('/')) {
-    if (!allowOutsideProject) {
-      // Check if path is within project root
-      const normalizedProjectRoot = projectRoot.endsWith('/') ? projectRoot : `${projectRoot}/`;
-      if (!path.startsWith(normalizedProjectRoot)) {
-        throw new Error(
-          `Plugin path "${fileUrl}" is outside project root. ` +
-            `Set security.allowPluginsOutsideProject: true to allow.`
-        );
-      }
-    }
-    return path;
+    resolved = pathModule.normalize(path);
+  } else if (path.startsWith('./') || path.startsWith('../')) {
+    // Relative path - join with project root
+    resolved = pathModule.resolve(projectRoot, path);
+  } else {
+    throw new Error(
+      `Invalid file plugin path: ${fileUrl}. ` +
+        `Use file://./relative/path.ts or file:///absolute/path.ts`
+    );
   }
 
-  // Relative path (starts with ./ or ../)
-  if (path.startsWith('./') || path.startsWith('../')) {
-    // Join with project root
-    const resolved = joinPath(projectRoot, path);
-
-    if (!allowOutsideProject) {
-      // Simple check: resolved path should start with project root
-      if (!resolved.startsWith(projectRoot.replace(/\/$/, ''))) {
-        throw new Error(
-          `Plugin path "${fileUrl}" resolves outside project root. ` +
-            `Set security.allowPluginsOutsideProject: true to allow.`
-        );
-      }
-    }
-
-    return resolved;
+  // Check if path is within project root
+  if (!allowOutsideProject && !isPathWithinRoot(resolved, projectRoot)) {
+    throw new Error(
+      `Plugin path "${fileUrl}" resolves outside project root. ` +
+        `Set security.allowPluginsOutsideProject: true to allow.`
+    );
   }
 
-  throw new Error(
-    `Invalid file plugin path: ${fileUrl}. ` +
-      `Use file://./relative/path.ts or file:///absolute/path.ts`
-  );
+  return resolved;
 }
 
 /**
- * Simple path join without external dependencies.
+ * Resolve and validate a file path, following symlinks.
+ * This is called after the initial path resolution to verify the real path.
  */
-function joinPath(base: string, relative: string): string {
-  // Normalize base path (remove trailing slash)
-  const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+export async function resolveAndValidateFilePath(
+  filePath: string,
+  projectRoot: string,
+  allowOutsideProject: boolean
+): Promise<string> {
+  const fsPromises = require('node:fs/promises') as typeof import('node:fs/promises');
 
-  // Handle relative path components
-  const parts = normalizedBase.split('/');
-  const relativeParts = relative.split('/');
-
-  for (const part of relativeParts) {
-    if (part === '.' || part === '') {
-      continue;
-    }
-    if (part === '..') {
-      parts.pop();
-    } else {
-      parts.push(part);
-    }
+  if (allowOutsideProject) {
+    return filePath;
   }
 
-  return parts.join('/');
+  try {
+    // Resolve symlinks to get the real path
+    const realPath = await fsPromises.realpath(filePath);
+
+    // Verify the real path is still within project root
+    if (!isPathWithinRoot(realPath, projectRoot)) {
+      throw new Error(
+        `Plugin path "${filePath}" resolves to "${realPath}" which is outside project root. ` +
+          `Symlinks pointing outside the project are not allowed. ` +
+          `Set security.allowPluginsOutsideProject: true to allow.`
+      );
+    }
+
+    return realPath;
+  } catch (err) {
+    // If the file doesn't exist, we can't resolve symlinks
+    // The import will fail with a more appropriate error
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return filePath;
+    }
+    throw err;
+  }
 }
 
 // ============================================================================
@@ -355,7 +360,14 @@ async function loadPluginRef(
   // Handle file:// protocol
   if (packageName.startsWith(FILE_PROTOCOL)) {
     const filePath = resolveFilePath(packageName, projectRoot, allowOutsideProject);
-    return await loadFilePlugin(filePath, pluginOptions, pluginPermissions, warnings);
+    return await loadFilePlugin(
+      filePath,
+      pluginOptions,
+      pluginPermissions,
+      warnings,
+      projectRoot,
+      allowOutsideProject
+    );
   }
 
   // Handle npm package
@@ -369,11 +381,23 @@ async function loadFilePlugin(
   filePath: string,
   options: Record<string, unknown> | undefined,
   pluginPermissions: PluginPermissionsConfig | undefined,
-  warnings: string[]
+  warnings: string[],
+  projectRoot?: string,
+  allowOutsideProject?: boolean
 ): Promise<LoadedPlugin | null> {
   try {
+    // Validate symlinks before import (if project root is provided)
+    let validatedPath = filePath;
+    if (projectRoot !== undefined) {
+      validatedPath = await resolveAndValidateFilePath(
+        filePath,
+        projectRoot,
+        allowOutsideProject ?? false
+      );
+    }
+
     // Dynamic import
-    const module = await import(filePath);
+    const module = await import(validatedPath);
     const pluginOrFactory = module.default ?? module;
 
     let plugin: TreqPlugin;

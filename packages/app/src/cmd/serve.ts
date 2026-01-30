@@ -1,8 +1,9 @@
 import { resolveProjectConfig } from '@t-req/core/config';
 import { flushPendingCookieSaves } from '@t-req/core/cookies/persistence';
+import type { MiddlewareFunction } from '@t-req/core/plugin';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
-import { createApp, type PluginMiddleware, type ServerConfig } from '../server/app';
+import { createApp, type ServerConfig } from '../server/app';
 import {
   CreateSessionRequestSchema,
   ExecuteRequestSchema,
@@ -114,7 +115,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   const workspaceRoot = resolveWorkspaceRoot(argv.workspace);
 
   // Load plugin middleware (non-blocking - don't fail if no config)
-  let pluginMiddleware: PluginMiddleware[] | undefined;
+  let pluginMiddleware: MiddlewareFunction[] | undefined;
   try {
     const { config: projectConfig } = await resolveProjectConfig({
       startDir: workspaceRoot,
@@ -124,7 +125,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     if (projectConfig.pluginManager) {
       const middleware = projectConfig.pluginManager.getMiddleware();
       if (middleware.length > 0) {
-        pluginMiddleware = middleware as PluginMiddleware[];
+        pluginMiddleware = middleware;
         console.log(`Loaded ${middleware.length} plugin middleware(s)`);
       }
     }

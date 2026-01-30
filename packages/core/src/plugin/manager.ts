@@ -33,6 +33,35 @@ import type {
 } from './types';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+const DEFAULT_HOOK_TIMEOUT_MS = 30000; // 30 seconds
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -429,8 +458,15 @@ export class PluginManager {
       });
 
       try {
-        // Execute hook
-        await (hook as (input: TInput, output: TOutput) => Promise<void> | void)(input, output);
+        // Execute hook with timeout
+        const hookPromise = Promise.resolve(
+          (hook as (input: TInput, output: TOutput) => Promise<void> | void)(input, output)
+        );
+        await withTimeout(
+          hookPromise,
+          DEFAULT_HOOK_TIMEOUT_MS,
+          `Hook "${hookName}" in "${loaded.plugin.name}" timed out after ${DEFAULT_HOOK_TIMEOUT_MS}ms`
+        );
 
         const outputAfter = JSON.stringify(output);
         const hookModified = outputBefore !== outputAfter;
@@ -491,7 +527,15 @@ export class PluginManager {
       });
 
       try {
-        await (hook as (input: TInput) => Promise<void> | void)(input);
+        // Execute hook with timeout
+        const hookPromise = Promise.resolve(
+          (hook as (input: TInput) => Promise<void> | void)(input)
+        );
+        await withTimeout(
+          hookPromise,
+          DEFAULT_HOOK_TIMEOUT_MS,
+          `Hook "${hookName}" in "${loaded.plugin.name}" timed out after ${DEFAULT_HOOK_TIMEOUT_MS}ms`
+        );
 
         const duration = Date.now() - startTime;
         this.emitPluginEvent({

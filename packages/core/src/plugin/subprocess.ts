@@ -98,10 +98,7 @@ export class SubprocessPlugin {
     this.process = spawn(cmd, args, {
       cwd: this.projectRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        ...this.config.env
-      }
+      env: this.config.env ?? {}
     });
 
     // Handle stdout (NDJSON responses)
