@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Define helpers
-export { definePlugin, schema, tool } from './define';
+export { definePlugin, schema, tool, z } from './define';
 // Plugin Loader
 export {
   getPluginId,

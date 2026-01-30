@@ -18,6 +18,7 @@ HTTP request parsing, execution, and testing. Define requests in `.http` files, 
 - **Full dev workflow** -- CLI scaffolding, TUI for interactive exploration, web dashboard for visual debugging, all wired to the same server.
 - **Multi-language server** -- `treq serve` exposes a REST API so Python, Go, Ruby, or any language can execute `.http` files.
 - **Zero-config observability** -- Run scripts from the TUI and every HTTP request automatically appears in the dashboard. No code changes required.
+- **Extensible with plugins** -- Add custom resolvers, hooks, and middleware. Write plugins in TypeScript or any language via subprocess protocol.
 - **One command** -- `treq open` starts the server, TUI, and optionally the web dashboard.
 
 ## Ecosystem
@@ -116,7 +117,9 @@ Visit [t-req.io](https://t-req.io) for full documentation, guides, and API refer
 
 ```
 t-req/
-├── examples/            # Usage examples
+├── examples/
+│   ├── plugins/         # Plugin examples
+│   └── ...
 ├── packages/
 │   ├── core/            # @t-req/core - HTTP parsing & execution
 │   ├── app/             # @t-req/app - CLI, TUI, and server

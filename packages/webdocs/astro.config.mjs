@@ -24,6 +24,7 @@ export default defineConfig({
 					label: 'Guides',
 					items: [
 						{ label: 'BYO Test Runner', slug: 'docs/guides/byo-test-runner' },
+						{ label: 'Plugins', slug: 'docs/guides/plugins' },
 						{ label: 'Observer Mode', slug: 'docs/guides/observer-mode' },
 					],
 				},

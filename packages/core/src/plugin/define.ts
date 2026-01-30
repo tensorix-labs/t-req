@@ -1,4 +1,5 @@
-import type { ToolDefinition, ToolSchema, TreqPlugin } from './types';
+import { type ZodRawShape, z } from 'zod';
+import type { ToolContext, ToolDefinition, TreqPlugin } from './types';
 
 // ============================================================================
 // definePlugin Helper
@@ -166,372 +167,44 @@ export function definePlugin(plugin: TreqPlugin): TreqPlugin {
 }
 
 // ============================================================================
-// Tool Schema Builder
+// Zod Re-export for Schema Building
 // ============================================================================
 
 /**
- * Schema builder for tool arguments.
- * Provides a Zod-like API for defining argument schemas.
+ * Re-export Zod's z object for schema building.
+ *
+ * @example
+ * ```typescript
+ * const hashTool = tool({
+ *   description: 'Hash a value',
+ *   args: {
+ *     value: z.string().describe('Value to hash'),
+ *     encoding: z.enum(['hex', 'base64']).default('hex'),
+ *   },
+ *   execute: async (args) => {
+ *     // args.value is typed as string
+ *     // args.encoding is typed as 'hex' | 'base64'
+ *     return hashValue(args.value, args.encoding);
+ *   }
+ * });
+ * ```
  */
-export const schema = {
-  /**
-   * String schema.
-   */
-  string(): StringSchema {
-    return new StringSchema();
-  },
-
-  /**
-   * Number schema.
-   */
-  number(): NumberSchema {
-    return new NumberSchema();
-  },
-
-  /**
-   * Boolean schema.
-   */
-  boolean(): BooleanSchema {
-    return new BooleanSchema();
-  },
-
-  /**
-   * Enum schema.
-   */
-  enum<T extends string>(values: readonly T[]): EnumSchema<T> {
-    return new EnumSchema(values);
-  },
-
-  /**
-   * Array schema.
-   */
-  array<T>(itemSchema: ToolSchema<T>): ArraySchema<T> {
-    return new ArraySchema(itemSchema);
-  },
-
-  /**
-   * Object schema.
-   */
-  object<T extends Record<string, ToolSchema>>(shape: T): ObjectSchema<T> {
-    return new ObjectSchema(shape);
-  }
-};
-
-// Base schema class
-abstract class BaseSchema<T> implements ToolSchema<T> {
-  protected _description?: string;
-  protected _default?: T;
-  protected _optional = false;
-
-  describe(description: string): this {
-    this._description = description;
-    return this;
-  }
-
-  default(value: T): this {
-    this._default = value;
-    this._optional = true;
-    return this;
-  }
-
-  optional(): OptionalSchema<T> {
-    return new OptionalSchema(this);
-  }
-
-  abstract parse(value: unknown): T;
-
-  safeParse(value: unknown): { success: true; data: T } | { success: false; error: Error } {
-    try {
-      const data = this.parse(value);
-      return { success: true, data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e : new Error(String(e)) };
-    }
-  }
-
-  protected handleDefault(value: unknown): unknown {
-    if (value === undefined && this._default !== undefined) {
-      return this._default;
-    }
-    return value;
-  }
-}
-
-// Optional wrapper
-class OptionalSchema<T> implements ToolSchema<T | undefined> {
-  constructor(private inner: ToolSchema<T>) {}
-
-  parse(value: unknown): T | undefined {
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-    return this.inner.parse(value);
-  }
-
-  safeParse(
-    value: unknown
-  ): { success: true; data: T | undefined } | { success: false; error: Error } {
-    try {
-      const data = this.parse(value);
-      return { success: true, data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e : new Error(String(e)) };
-    }
-  }
-}
-
-// String schema
-class StringSchema extends BaseSchema<string> {
-  private _minLength?: number;
-  private _maxLength?: number;
-  private _pattern?: RegExp;
-
-  min(length: number): this {
-    this._minLength = length;
-    return this;
-  }
-
-  max(length: number): this {
-    this._maxLength = length;
-    return this;
-  }
-
-  regex(pattern: RegExp): this {
-    this._pattern = pattern;
-    return this;
-  }
-
-  parse(value: unknown): string {
-    const v = this.handleDefault(value);
-
-    if (typeof v !== 'string') {
-      throw new Error(`Expected string, got ${typeof v}`);
-    }
-
-    if (this._minLength !== undefined && v.length < this._minLength) {
-      throw new Error(`String must be at least ${this._minLength} characters`);
-    }
-
-    if (this._maxLength !== undefined && v.length > this._maxLength) {
-      throw new Error(`String must be at most ${this._maxLength} characters`);
-    }
-
-    if (this._pattern && !this._pattern.test(v)) {
-      throw new Error(`String does not match pattern ${this._pattern}`);
-    }
-
-    return v;
-  }
-
-  or<U>(other: ToolSchema<U>): UnionSchema<string, U> {
-    return new UnionSchema(this, other);
-  }
-}
-
-// Number schema
-class NumberSchema extends BaseSchema<number> {
-  private _min?: number;
-  private _max?: number;
-  private _integer = false;
-
-  min(value: number): this {
-    this._min = value;
-    return this;
-  }
-
-  max(value: number): this {
-    this._max = value;
-    return this;
-  }
-
-  int(): this {
-    this._integer = true;
-    return this;
-  }
-
-  parse(value: unknown): number {
-    const v = this.handleDefault(value);
-
-    if (typeof v === 'string') {
-      const num = Number(v);
-      if (Number.isNaN(num)) {
-        throw new Error(`Cannot parse "${v}" as number`);
-      }
-      return this.validate(num);
-    }
-
-    if (typeof v !== 'number' || Number.isNaN(v)) {
-      throw new Error(`Expected number, got ${typeof v}`);
-    }
-
-    return this.validate(v);
-  }
-
-  private validate(num: number): number {
-    if (this._integer && !Number.isInteger(num)) {
-      throw new Error(`Expected integer, got ${num}`);
-    }
-
-    if (this._min !== undefined && num < this._min) {
-      throw new Error(`Number must be at least ${this._min}`);
-    }
-
-    if (this._max !== undefined && num > this._max) {
-      throw new Error(`Number must be at most ${this._max}`);
-    }
-
-    return num;
-  }
-
-  or<U>(other: ToolSchema<U>): UnionSchema<number, U> {
-    return new UnionSchema(this, other);
-  }
-}
-
-// Boolean schema
-class BooleanSchema extends BaseSchema<boolean> {
-  parse(value: unknown): boolean {
-    const v = this.handleDefault(value);
-
-    if (typeof v === 'boolean') {
-      return v;
-    }
-
-    if (v === 'true') return true;
-    if (v === 'false') return false;
-
-    throw new Error(`Expected boolean, got ${typeof v}`);
-  }
-}
-
-// Enum schema
-class EnumSchema<T extends string> extends BaseSchema<T> {
-  constructor(private values: readonly T[]) {
-    super();
-  }
-
-  parse(value: unknown): T {
-    const v = this.handleDefault(value);
-
-    if (typeof v !== 'string') {
-      throw new Error(`Expected string, got ${typeof v}`);
-    }
-
-    if (!this.values.includes(v as T)) {
-      throw new Error(`Expected one of: ${this.values.join(', ')}. Got: ${v}`);
-    }
-
-    return v as T;
-  }
-}
-
-// Array schema
-class ArraySchema<T> extends BaseSchema<T[]> {
-  constructor(private itemSchema: ToolSchema<T>) {
-    super();
-  }
-
-  parse(value: unknown): T[] {
-    const v = this.handleDefault(value);
-
-    if (!Array.isArray(v)) {
-      throw new Error(`Expected array, got ${typeof v}`);
-    }
-
-    return v.map((item, index) => {
-      try {
-        return this.itemSchema.parse(item);
-      } catch (e) {
-        throw new Error(
-          `Array item at index ${index}: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
-    });
-  }
-}
-
-// Object schema
-class ObjectSchema<T extends Record<string, ToolSchema>> extends BaseSchema<{
-  [K in keyof T]: T[K] extends ToolSchema<infer U> ? U : never;
-}> {
-  private _passthrough = false;
-
-  constructor(private shape: T) {
-    super();
-  }
-
-  passthrough(): this {
-    this._passthrough = true;
-    return this;
-  }
-
-  parse(value: unknown): { [K in keyof T]: T[K] extends ToolSchema<infer U> ? U : never } {
-    const v = this.handleDefault(value);
-
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) {
-      throw new Error(`Expected object, got ${typeof v}`);
-    }
-
-    const obj = v as Record<string, unknown>;
-    const result: Record<string, unknown> = this._passthrough ? { ...obj } : {};
-
-    for (const [key, fieldSchema] of Object.entries(this.shape)) {
-      try {
-        result[key] = fieldSchema.parse(obj[key]);
-      } catch (e) {
-        throw new Error(`Field "${key}": ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-
-    return result as { [K in keyof T]: T[K] extends ToolSchema<infer U> ? U : never };
-  }
-}
-
-// Union schema
-class UnionSchema<T, U> implements ToolSchema<T | U> {
-  constructor(
-    private left: ToolSchema<T>,
-    private right: ToolSchema<U>
-  ) {}
-
-  parse(value: unknown): T | U {
-    const leftResult = this.left.safeParse(value);
-    if (leftResult.success) {
-      return leftResult.data;
-    }
-
-    const rightResult = this.right.safeParse(value);
-    if (rightResult.success) {
-      return rightResult.data;
-    }
-
-    throw new Error(`Value doesn't match any of the union types`);
-  }
-
-  safeParse(value: unknown): { success: true; data: T | U } | { success: false; error: Error } {
-    try {
-      const data = this.parse(value);
-      return { success: true, data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e : new Error(String(e)) };
-    }
-  }
-}
+export { z, z as schema };
 
 // ============================================================================
 // Tool Helper
 // ============================================================================
 
 /**
- * Helper to define a tool with type-safe schema.
+ * Helper to define a tool with Zod schema validation.
  *
  * @example
  * ```typescript
  * const hashTool = tool({
  *   description: 'Hash a value with SHA-256',
  *   args: {
- *     value: schema.string().describe('Value to hash'),
- *     encoding: schema.enum(['hex', 'base64']).default('hex'),
+ *     value: z.string().describe('Value to hash'),
+ *     encoding: z.enum(['hex', 'base64']).default('hex'),
  *   },
  *   async execute(args) {
  *     // args.value is typed as string
@@ -541,33 +214,19 @@ class UnionSchema<T, U> implements ToolSchema<T | U> {
  * });
  * ```
  */
-export function tool<TArgs extends Record<string, ToolSchema>>(definition: {
+export function tool<T extends ZodRawShape>(definition: {
   description: string;
-  args: TArgs;
-  execute: (
-    args: { [K in keyof TArgs]: TArgs[K] extends ToolSchema<infer U> ? U : never },
-    ctx: import('./types').ToolContext
-  ) => Promise<string> | string;
-}): ToolDefinition<{ [K in keyof TArgs]: TArgs[K] extends ToolSchema<infer U> ? U : never }> {
+  args: T;
+  execute: (args: z.infer<z.ZodObject<T>>, ctx: ToolContext) => Promise<string> | string;
+}): ToolDefinition<z.infer<z.ZodObject<T>>> {
+  const argsSchema = z.object(definition.args);
+
   return {
     description: definition.description,
-    args: definition.args as unknown as Record<string, ToolSchema>,
+    args: argsSchema,
     execute: async (rawArgs, ctx) => {
-      // Parse all arguments through their schemas
-      const parsedArgs: Record<string, unknown> = {};
-
-      for (const [key, argSchema] of Object.entries(definition.args)) {
-        const rawValue = (rawArgs as Record<string, unknown>)[key];
-        parsedArgs[key] = argSchema.parse(rawValue);
-      }
-
-      return await definition.execute(
-        parsedArgs as { [K in keyof TArgs]: TArgs[K] extends ToolSchema<infer U> ? U : never },
-        ctx
-      );
+      const parsed = argsSchema.parse(rawArgs);
+      return await definition.execute(parsed, ctx);
     }
   };
 }
-
-// Attach schema to tool for convenience
-tool.schema = schema;

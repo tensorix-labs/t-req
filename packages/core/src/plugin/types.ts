@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import type { EngineEvent } from '../runtime/types';
 import type { ParsedRequest } from '../types';
 
@@ -505,12 +506,10 @@ export type MiddlewareFunction = (
 // ============================================================================
 
 /**
- * Schema type for tool arguments (Zod-like).
+ * Schema type for tool arguments.
+ * Compatible with Zod schemas.
  */
-export interface ToolSchema<T = unknown> {
-  parse: (value: unknown) => T;
-  safeParse: (value: unknown) => { success: true; data: T } | { success: false; error: Error };
-}
+export type ToolSchema<T = unknown> = z.ZodType<T>;
 
 /**
  * Tool context for execute function.
@@ -529,7 +528,7 @@ export interface ToolDefinition<TArgs = Record<string, unknown>> {
   /** Tool description */
   description: string;
   /** Argument schemas */
-  args: Record<string, ToolSchema>;
+  args: z.ZodType<TArgs>;
   /** Execute function */
   execute: (args: TArgs, ctx: ToolContext) => Promise<string> | string;
 }

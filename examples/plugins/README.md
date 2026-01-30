@@ -1,5 +1,7 @@
 # T-Req Plugin Examples
 
+> **Full documentation:** See the [Plugin Development Guide](https://t-req.io/docs/guides/plugins) for comprehensive documentation.
+
 This directory contains example plugins demonstrating the T-Req plugin system.
 
 ## Native TypeScript Plugins
