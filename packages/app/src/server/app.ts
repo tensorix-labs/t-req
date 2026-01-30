@@ -436,11 +436,11 @@ export function createApp(config: ServerConfig) {
   // Plugin Endpoints
   // ============================================================================
 
-  app.openapi(pluginsRoute, (c) => {
+  app.openapi(pluginsRoute, async (c) => {
     // Script tokens cannot list plugins
     enforceScriptScope(c, { allowedEndpoint: false });
 
-    const result = service.getPlugins();
+    const result = await service.getPlugins();
     return c.json(result, 200);
   });
 

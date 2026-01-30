@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from 'solid-js';
-import type { ExecutionDetail } from '../sdk';
+import type { ExecutionDetail, PluginHookInfo } from '../sdk';
 import { theme, rgba, getMethodColor } from '../theme';
 
 export interface ExecutionDetailProps {
@@ -130,6 +130,27 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                     <text fg={rgba(theme.error)}>{execution.error!.stage}</text>
                   </box>
                   <text fg={rgba(theme.error)}>{execution.error!.message}</text>
+                </box>
+              </Show>
+
+              {/* Plugin Hooks */}
+              <Show when={execution.pluginHooks && execution.pluginHooks.length > 0}>
+                <box id="plugins" flexDirection="column" marginBottom={1}>
+                  <text fg={rgba(theme.primary)} attributes={1}>
+                    Plugins
+                  </text>
+                  <For each={execution.pluginHooks}>
+                    {(hookInfo: PluginHookInfo) => (
+                      <box flexDirection="row">
+                        <text fg={rgba(theme.info)}>{hookInfo.pluginName}</text>
+                        <text fg={rgba(theme.textMuted)}> {hookInfo.hook} </text>
+                        <text fg={rgba(theme.textMuted)}>+{hookInfo.durationMs}ms</text>
+                        <Show when={hookInfo.modified}>
+                          <text fg={rgba(theme.success)}> (mod)</text>
+                        </Show>
+                      </box>
+                    )}
+                  </For>
                 </box>
               </Show>
 

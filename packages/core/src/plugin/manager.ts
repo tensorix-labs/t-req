@@ -112,6 +112,19 @@ export class PluginManager {
   }
 
   // ==========================================================================
+  // Event Configuration
+  // ==========================================================================
+
+  /**
+   * Set the event sink for plugin events.
+   * This allows setting the event handler after the plugin manager is created,
+   * which is useful when the event handler depends on runtime context.
+   */
+  setEventSink(sink: CombinedEventSink): void {
+    this.onEvent = sink;
+  }
+
+  // ==========================================================================
   // Initialization
   // ==========================================================================
 

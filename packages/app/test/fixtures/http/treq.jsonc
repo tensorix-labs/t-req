@@ -5,6 +5,10 @@
         "userId": "1",
         "token": "test-token"
     },
+    // Security settings
+    "security": {
+        "allowPluginsOutsideProject": true
+    },
     // Environment-specific profiles that override global variables
     "profiles": {
         "local": {
@@ -18,5 +22,9 @@
                 "token": "{env:STAGING_TOKEN}"
             }
         }
-    }
+    },
+    // Plugins to load
+    "plugins": [
+        "file://../../../../../examples/plugins/treq-plugin-test.ts"
+    ]
 }

@@ -423,6 +423,13 @@ export const ExecutionErrorSchema = z.object({
   message: z.string()
 });
 
+export const PluginHookInfoSchema = z.object({
+  pluginName: z.string(),
+  hook: z.string(),
+  durationMs: z.number(),
+  modified: z.boolean()
+});
+
 export const ExecutionDetailSchema = z.object({
   reqExecId: z.string(),
   flowId: z.string(),
@@ -455,6 +462,9 @@ export const ExecutionDetailSchema = z.object({
       bodyBytes: z.number()
     })
     .optional(),
+
+  // Plugin hooks that ran for this execution
+  pluginHooks: z.array(PluginHookInfoSchema).optional(),
 
   // Status
   status: ExecutionStatusSchema,
@@ -574,10 +584,11 @@ export const PluginInfoSchema = z.object({
   source: z.enum(['npm', 'file', 'inline', 'subprocess']),
   permissions: z.array(z.string()),
   capabilities: z.object({
-    hooks: z.array(z.string()),
-    resolvers: z.array(z.string()),
-    commands: z.array(z.string()),
-    hasMiddleware: z.boolean()
+    hasHooks: z.boolean(),
+    hasResolvers: z.boolean(),
+    hasCommands: z.boolean(),
+    hasMiddleware: z.boolean(),
+    hasTools: z.boolean()
   })
 });
 
@@ -619,6 +630,7 @@ export type ExecutionSource = z.infer<typeof ExecutionSourceSchema>;
 export type ExecutionTiming = z.infer<typeof ExecutionTimingSchema>;
 export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>;
 export type ExecutionError = z.infer<typeof ExecutionErrorSchema>;
+export type PluginHookInfo = z.infer<typeof PluginHookInfoSchema>;
 export type ExecutionDetail = z.infer<typeof ExecutionDetailSchema>;
 
 // Workspace types

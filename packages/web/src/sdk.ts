@@ -68,6 +68,13 @@ export interface ExecutionSource {
   requestName?: string;
 }
 
+export interface PluginHookInfo {
+  pluginName: string;
+  hook: string;
+  durationMs: number;
+  modified: boolean;
+}
+
 export interface ExecutionDetail {
   reqExecId: string;
   flowId: string;
@@ -94,6 +101,7 @@ export interface ExecutionDetail {
     truncated: boolean;
     bodyBytes: number;
   };
+  pluginHooks?: PluginHookInfo[];
   status: 'pending' | 'running' | 'success' | 'failed';
   error?: {
     stage: string;

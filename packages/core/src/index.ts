@@ -82,6 +82,8 @@ export {
 } from './plugin';
 // Runtime adapters
 export { createAutoTransport, createFetchTransport } from './runtime';
+// Runtime types (needed for plugin event handlers)
+export type { EngineEvent, EventSink } from './runtime/types';
 // Server metadata utilities
 export { getServerMetadata, type ServerMetadata } from './server-metadata';
 

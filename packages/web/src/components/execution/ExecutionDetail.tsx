@@ -1,15 +1,35 @@
-import { createSignal, For, Show } from 'solid-js';
+import { createSignal, createResource, For, Show } from 'solid-js';
 import type { ExecutionSummary } from '../../stores/observer';
 import { ResponseViewer } from '../response';
+import { useSDK } from '../../context/workspace';
+import type { PluginHookInfo } from '../../sdk';
 
-type TabType = 'response' | 'headers';
+type TabType = 'response' | 'headers' | 'plugins';
 
 interface ExecutionDetailProps {
   execution: ExecutionSummary;
 }
 
 export function ExecutionDetail(props: ExecutionDetailProps) {
+  const sdk = useSDK();
   const [activeTab, setActiveTab] = createSignal<TabType>('response');
+
+  // Fetch full execution details (includes pluginHooks) when plugins tab is active
+  const [executionDetail] = createResource(
+    () => (activeTab() === 'plugins' ? props.execution : null),
+    async (exec) => {
+      if (!exec || !sdk()) return null;
+      try {
+        return await sdk()!.getExecution(exec.flowId, exec.reqExecId);
+      } catch {
+        return null;
+      }
+    }
+  );
+
+  const pluginHooks = (): PluginHookInfo[] => {
+    return executionDetail()?.pluginHooks ?? [];
+  };
 
   const timing = () => {
     const ms = props.execution.timing.durationMs;
@@ -80,6 +100,13 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
               {props.execution.response!.headers.length}
             </span>
           </button>
+          <button
+            type="button"
+            class={tabClasses('plugins')}
+            onClick={() => setActiveTab('plugins')}
+          >
+            Plugins
+          </button>
         </div>
 
         <div class="flex-1 overflow-y-auto bg-white dark:bg-treq-dark-bg-card">
@@ -120,6 +147,43 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
                   )}
                 </For>
               </div>
+            </div>
+          </Show>
+
+          <Show when={activeTab() === 'plugins'}>
+            <div class="p-4">
+              <Show when={executionDetail.loading}>
+                <div class="text-center text-treq-text-muted dark:text-treq-dark-text-muted">
+                  Loading plugin info...
+                </div>
+              </Show>
+              <Show when={!executionDetail.loading && pluginHooks().length === 0}>
+                <div class="text-center text-treq-text-muted dark:text-treq-dark-text-muted">
+                  No plugins executed
+                </div>
+              </Show>
+              <Show when={!executionDetail.loading && pluginHooks().length > 0}>
+                <div class="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-treq">
+                  <For each={pluginHooks()}>
+                    {(hookInfo) => (
+                      <div class="flex items-center gap-3 font-mono text-[13px]">
+                        <span class="text-treq-accent font-medium">
+                          {hookInfo.pluginName}
+                        </span>
+                        <span class="text-treq-text-muted dark:text-treq-dark-text-muted">
+                          {hookInfo.hook}
+                        </span>
+                        <span class="text-treq-text-muted dark:text-treq-dark-text-muted">
+                          +{hookInfo.durationMs}ms
+                        </span>
+                        <Show when={hookInfo.modified}>
+                          <span class="text-http-get font-medium">(mod)</span>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </div>
           </Show>
         </div>

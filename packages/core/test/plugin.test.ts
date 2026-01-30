@@ -943,8 +943,8 @@ describe('Plugin System - Hook Context', () => {
       variables: { apiKey: 'secret123', env: 'production' }
     });
 
-    expect(receivedVariables?.apiKey).toBe('secret123');
-    expect(receivedVariables?.env).toBe('production');
+    expect(receivedVariables?.['apiKey']).toBe('secret123');
+    expect(receivedVariables?.['env']).toBe('production');
   });
 
   test('hook context contains config information', async () => {
@@ -973,5 +973,285 @@ describe('Plugin System - Hook Context', () => {
     await engine.runString('GET https://api.example.com/test\n');
 
     expect(receivedProjectRoot).toBe('/test');
+  });
+});
+
+// ============================================================================
+// End-to-End Integration Tests
+// ============================================================================
+
+describe('Plugin System - Integration', () => {
+  test('plugin adds header that server receives and echoes back', async () => {
+    // Create a simple echo server using Bun.serve
+    const server = Bun.serve({
+      port: 0, // Let OS assign a free port
+      fetch(request) {
+        // Echo back all headers as JSON
+        const headers: Record<string, string> = {};
+        request.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        return new Response(JSON.stringify({ headers }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
+
+    try {
+      const uniqueValue = `test-value-${Date.now()}`;
+
+      const plugin = definePlugin({
+        name: 'test-header-plugin',
+        hooks: {
+          'request.before': async (_input, output) => {
+            output.request = {
+              ...output.request,
+              headers: {
+                ...output.request.headers,
+                'X-Plugin-Header': uniqueValue
+              }
+            };
+          }
+        }
+      });
+
+      const pluginManager = await createPluginManager([plugin]);
+
+      const engine = createEngine({
+        transport: createFetchTransport(fetch),
+        pluginManager
+      });
+
+      // Make real request to the test server
+      const response = await engine.runString(`GET http://localhost:${server.port}/echo\n`);
+
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+
+      // Verify the server received our plugin-added header
+      expect(body.headers['x-plugin-header']).toBe(uniqueValue);
+    } finally {
+      server.stop();
+    }
+  });
+
+  test('multiple plugins compose headers end-to-end', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const headers: Record<string, string> = {};
+        request.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        return new Response(JSON.stringify({ headers }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
+
+    try {
+      const plugin1 = definePlugin({
+        name: 'auth-plugin',
+        hooks: {
+          'request.before': async (_input, output) => {
+            output.request = {
+              ...output.request,
+              headers: {
+                ...output.request.headers,
+                Authorization: 'Bearer test-token'
+              }
+            };
+          }
+        }
+      });
+
+      const plugin2 = definePlugin({
+        name: 'tracing-plugin',
+        hooks: {
+          'request.before': async (_input, output) => {
+            output.request = {
+              ...output.request,
+              headers: {
+                ...output.request.headers,
+                'X-Trace-ID': 'trace-123'
+              }
+            };
+          }
+        }
+      });
+
+      const pluginManager = await createPluginManager([plugin1, plugin2]);
+
+      const engine = createEngine({
+        transport: createFetchTransport(fetch),
+        pluginManager
+      });
+
+      const response = await engine.runString(`GET http://localhost:${server.port}/test\n`);
+
+      const body = await response.json();
+
+      // Verify both plugin headers arrived
+      expect(body.headers['authorization']).toBe('Bearer test-token');
+      expect(body.headers['x-trace-id']).toBe('trace-123');
+    } finally {
+      server.stop();
+    }
+  });
+
+  test('plugin resolver provides dynamic value used in request', async () => {
+    const dynamicToken = `dynamic-${Date.now()}`;
+
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const authHeader = request.headers.get('authorization');
+        return new Response(JSON.stringify({ received: authHeader }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
+
+    try {
+      const plugin = definePlugin({
+        name: 'token-plugin',
+        resolvers: {
+          $dynamicToken: async () => dynamicToken
+        }
+      });
+
+      const pluginManager = await createPluginManager([plugin]);
+      const resolvers = pluginManager.getResolvers();
+
+      const engine = createEngine({
+        transport: createFetchTransport(fetch),
+        pluginManager,
+        resolvers
+      });
+
+      const response = await engine.runString(
+        `GET http://localhost:${server.port}/api
+Authorization: Bearer {{$dynamicToken()}}
+`
+      );
+
+      const body = await response.json();
+
+      expect(body.received).toBe(`Bearer ${dynamicToken}`);
+    } finally {
+      server.stop();
+    }
+  });
+
+  test('request.compiled hook can sign request after interpolation', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const headers: Record<string, string> = {};
+        request.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        return new Response(
+          JSON.stringify({
+            headers,
+            url: request.url
+          }),
+          {
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    });
+
+    try {
+      const plugin = definePlugin({
+        name: 'signing-plugin',
+        hooks: {
+          // Sign the fully interpolated request
+          'request.compiled': async (input, output) => {
+            // Simple signature based on URL length (demo purpose)
+            const signature = `sig-${input.request.url.length}`;
+            output.request = {
+              ...output.request,
+              headers: {
+                ...output.request.headers,
+                'X-Signature': signature
+              }
+            };
+          }
+        }
+      });
+
+      const pluginManager = await createPluginManager([plugin]);
+
+      const engine = createEngine({
+        transport: createFetchTransport(fetch),
+        pluginManager
+      });
+
+      const response = await engine.runString(
+        `GET http://localhost:${server.port}/api/resource?id={{id}}
+`,
+        { variables: { id: '12345' } }
+      );
+
+      const body = await response.json();
+
+      // The signature should be based on the fully interpolated URL
+      expect(body.headers['x-signature']).toMatch(/^sig-\d+$/);
+      // Verify the URL was correctly interpolated
+      expect(body.url).toContain('id=12345');
+    } finally {
+      server.stop();
+    }
+  });
+
+  test('retry plugin retries on server error', async () => {
+    let requestCount = 0;
+
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        requestCount++;
+        if (requestCount < 3) {
+          return new Response('Server Error', { status: 503 });
+        }
+        return new Response(JSON.stringify({ attempt: requestCount }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
+
+    try {
+      const plugin = definePlugin({
+        name: 'retry-plugin',
+        hooks: {
+          'response.after': async (input, output) => {
+            if (input.response.status >= 500 && input.ctx.retries < 5) {
+              output.retry = { delayMs: 10, reason: 'Server error' };
+            }
+          }
+        }
+      });
+
+      const pluginManager = await createPluginManager([plugin]);
+
+      const engine = createEngine({
+        transport: createFetchTransport(fetch),
+        pluginManager,
+        maxRetries: 5
+      });
+
+      const response = await engine.runString(`GET http://localhost:${server.port}/flaky\n`);
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.attempt).toBe(3);
+      expect(requestCount).toBe(3);
+    } finally {
+      server.stop();
+    }
   });
 });
