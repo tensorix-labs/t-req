@@ -5,7 +5,6 @@
  * |--------------|---------------------------|-------------------------|------------------------|
  * | production   | t-req.io             | app.t-req.io            | Manual dispatch        |
  * | dev          | dev.t-req.io         | app-dev.t-req.io        | Auto on push to main   |
- * | pr-{N}       | pr-{N}.t-req.io      | app-pr-{N}.t-req.io     | Auto on PR open/sync   |
  */
 
 const DOMAIN = 't-req.io';
@@ -26,11 +25,6 @@ export function getWebdocsDomain(): string | undefined {
     return `dev.${DOMAIN}`;
   }
 
-  // PR preview environments: pr-123 -> docs-pr-123.t-req.io
-  if (stage.startsWith('pr-')) {
-    return `${stage}.${DOMAIN}`;
-  }
-
   // Personal/local stages don't get a custom domain (use SST's default URL)
   return undefined;
 }
@@ -49,11 +43,6 @@ export function getWebappDomain(): string | undefined {
 
   if (stage === 'dev') {
     return `app-dev.${DOMAIN}`;
-  }
-
-  // PR preview environments: pr-123 -> app-pr-123.t-req.io
-  if (stage.startsWith('pr-')) {
-    return `app-${stage}.${DOMAIN}`;
   }
 
   // Personal/local stages don't get a custom domain (use SST's default URL)
