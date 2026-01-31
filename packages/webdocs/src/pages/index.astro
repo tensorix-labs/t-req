@@ -251,9 +251,21 @@ console.<span class="fn">log</span>(<span class="kw">await</span> response.<span
         <p class="section-subtitle">Get up and running in seconds.</p>
 
         <div class="max-w-2xl mx-auto">
+          <!-- Curl Install -->
+          <div class="quickstart-card quickstart-featured">
+            <h3 class="quickstart-title">Install with curl</h3>
+            <pre
+              class="quickstart-code"><code>curl -fsSL https://t-req.io/install.sh | bash</code></pre>
+            <p class="quickstart-note">
+              Then create a new project and start exploring:
+            </p>
+            <pre
+              class="quickstart-code"><code>treq init my-api && cd my-api && treq open</code></pre>
+          </div>
+
           <!-- CLI Install -->
-          <div class="quickstart-card">
-            <h3 class="quickstart-title">Use the CLI</h3>
+          <div class="quickstart-card mt-6">
+            <h3 class="quickstart-title">Or install via npm</h3>
             <div class="install-tabs-wrapper">
               <div class="flex flex-wrap gap-2 mb-4">
                 <button class="install-tab active" data-tab="npm">npm</button>
@@ -745,6 +757,18 @@ treq open</code></pre>
     .install-tab.active {
       color: #0f172a;
       background-color: #e2e8f0;
+    }
+
+    /* Featured quickstart card */
+    .quickstart-featured {
+      border-color: #f97316;
+      background: linear-gradient(to bottom right, #fff7ed, #ffffff);
+    }
+
+    .quickstart-note {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin: 1rem 0 0.75rem;
     }
   </style>
 

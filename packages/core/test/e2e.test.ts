@@ -108,8 +108,8 @@ describe('E2E: execute (internal)', () => {
     expect(response.ok).toBe(true);
 
     const json = (await response.json()) as { args: Record<string, string> };
-    expect(json.args.foo).toBe('bar');
-    expect(json.args.baz).toBe('qux');
+    expect(json.args['foo']).toBe('bar');
+    expect(json.args['baz']).toBe('qux');
   });
 
   test('basic authentication', async () => {
@@ -193,10 +193,12 @@ Accept: application/json
     const requests = parse(content);
     expect(requests).toHaveLength(1);
 
+    const request = requests[0];
+    if (!request) throw new Error('Expected request');
     const response = await execute({
-      method: requests[0]?.method,
-      url: requests[0]?.url,
-      headers: requests[0]?.headers
+      method: request.method,
+      url: request.url,
+      headers: request.headers
     });
 
     expect(response.ok).toBe(true);
@@ -211,11 +213,13 @@ Content-Type: application/json
 `;
 
     const requests = parse(content);
+    const request = requests[0];
+    if (!request) throw new Error('Expected request');
     const response = await execute({
-      method: requests[0]?.method,
-      url: requests[0]?.url,
-      headers: requests[0]?.headers,
-      body: requests[0]?.body
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      ...(request.body !== undefined && { body: request.body })
     });
 
     expect(response.ok).toBe(true);
@@ -275,7 +279,9 @@ describe('E2E: createClient', () => {
     expect(response.ok).toBe(true);
 
     const json = (await response.json()) as { args: Record<string, string> };
-    expect(parseInt(json.args.t, 10)).toBeGreaterThan(0);
+    const timestamp = json.args['t'];
+    expect(timestamp).toBeDefined();
+    expect(parseInt(timestamp ?? '', 10)).toBeGreaterThan(0);
   });
 
   test('client tracks and reuses cookies', async () => {
@@ -297,7 +303,7 @@ describe('E2E: createClient', () => {
     const response = await client.run(`${FIXTURES}/get-cookies.http`);
 
     const json = (await response.json()) as { cookies: Record<string, string> };
-    expect(json.cookies.session).toBe('abc123');
+    expect(json.cookies['session']).toBe('abc123');
   });
 
   test('client setVariable updates state', async () => {
@@ -311,8 +317,8 @@ describe('E2E: createClient', () => {
     const response = await client.run(`${FIXTURES}/get-with-query.http`);
 
     const json = (await response.json()) as { args: Record<string, string> };
-    expect(json.args.a).toBe('value2');
-    expect(json.args.b).toBe('value3');
+    expect(json.args['a']).toBe('value2');
+    expect(json.args['b']).toBe('value3');
   });
 });
 

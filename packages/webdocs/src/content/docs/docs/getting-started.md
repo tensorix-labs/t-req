@@ -8,12 +8,13 @@ t-req parses, interpolates, and executes `.http` files in JavaScript. It works a
 ## Install
 
 ```bash
-npm install -g @t-req/app
+curl -fsSL https://t-req.io/install.sh | bash
 ```
 
-Or with other package managers:
+Or with a package manager:
 
 ```bash
+npm install -g @t-req/app
 bun add -g @t-req/app
 pnpm add -g @t-req/app
 ```
