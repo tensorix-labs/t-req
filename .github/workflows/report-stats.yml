@@ -1,0 +1,40 @@
+name: Report Download Stats
+
+on:
+  schedule:
+    - cron: '0 9 * * *' 
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (log stats without posting to PostHog)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  report-stats:
+    name: Report Download Stats to PostHog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Report stats
+        run: |
+          if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+            bun run script/report-download-stats.ts --dry-run
+          else
+            bun run script/report-download-stats.ts
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
