@@ -130,14 +130,14 @@ jobs:
           cat > /tmp/release_body.md << 'BODY_EOF'
           ## Installation
 
-          ### npm (recommended)
-          ```bash
-          npm install -g @t-req/app
-          ```
-
-          ### curl
+          ### curl (recommended)
           ```bash
           curl -fsSL https://t-req.io/install | bash
+          ```
+
+          ### npm
+          ```bash
+          npm install -g @t-req/app
           ```
 
           ### Manual download

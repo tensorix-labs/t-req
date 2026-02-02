@@ -8,48 +8,63 @@
 [![CI](https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml/badge.svg)](https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/sKY4M3eS)
 
-HTTP request parsing, execution, and testing. Define requests in `.http` files, test them in isolation.
+HTTP request parsing, execution, and testing. Define requests in `.http` files, explore them in the TUI or web dashboard, see every request your scripts make.
 
-**Visit the docs at [t-req.io](https://t-req.io)**
+**[Read the docs](https://t-req.io)** | **[Join Discord](https://discord.gg/sKY4M3eS)**
 
-## Why t-req
+## Install
 
-- **`.http` files as source of truth** -- Standard format supported by VS Code REST Client and JetBrains HTTP Client. Version-controllable, diffable, shareable.
-- **Library-first** -- `@t-req/core` is an embeddable TypeScript library. Use it in scripts, tests, CI, or your own tools.
-- **Full dev workflow** -- CLI scaffolding, TUI for interactive exploration, web dashboard for visual debugging, all wired to the same server.
-- **Multi-language server** -- `treq serve` exposes a REST API so Python, Go, Ruby, or any language can execute `.http` files.
-- **Zero-config observability** -- Run scripts from the TUI and every HTTP request automatically appears in the dashboard. No code changes required.
-- **Extensible with plugins** -- Add custom resolvers, hooks, and middleware. Write plugins in TypeScript or any language via subprocess protocol.
-- **One command** -- `treq open` starts the server, TUI, and optionally the web dashboard.
-
-## Ecosystem
-
+```bash
+curl -fsSL https://t-req.io/install | bash
 ```
-                          treq open
-                             |
-                    +--------+--------+
-                    |                 |
-               treq serve         treq tui
-            (HTTP API server)   (terminal UI)
-                    |                 |
-                    +--------+--------+
-                             |
-                        @t-req/core
-                    (parse, interpolate,
-                     execute .http files)
-                             |
-                     .http files (source of truth)
 
-  +----------------------------------------------------------+
-  |  @t-req/web          Browser dashboard (--web flag)      |
-  |  @t-req/ui           Shared theme & Tailwind config      |
-  |  @t-req/webdocs      Documentation site                  |
-  +----------------------------------------------------------+
-```
+<p align="center">
+  <img src="./docs/assets/web.png" alt="t-req web dashboard">
+</p>
+
+## What You Can Do
+
+- **`treq open`** - One command starts the server + TUI
+- **`treq open --web`** - Add a browser-based dashboard
+- **`treq init`** - Scaffold complete projects instantly
+- **Observer Mode** - See HTTP requests from scripts in real-time, no code changes
+- **Language-agnostic** - Python, Go, Ruby via `treq serve`
+- **Standard `.http` files** - VS Code REST Client / JetBrains compatible
 
 ## Quick Start
 
-### As a library
+### Primary workflow
+
+```bash
+# Install
+curl -fsSL https://t-req.io/install | bash
+
+# Create a project
+treq init my-api && cd my-api
+
+# Open TUI
+treq open
+
+# Or with web dashboard
+treq open --web
+```
+
+### Multi-language server
+
+For Python, Go, Ruby, or any language:
+
+```bash
+treq serve --port 4096
+
+# POST from any language
+curl -X POST http://localhost:4096/execute \
+  -H "Content-Type: application/json" \
+  -d '{"content": "GET https://httpbin.org/get"}'
+```
+
+### TypeScript library
+
+For tests, scripts, or building your own tools:
 
 ```bash
 npm install @t-req/core
@@ -68,68 +83,13 @@ const response = await client.run('./auth/login.http');
 const { token } = await response.json();
 ```
 
-### As a CLI tool
-
-```bash
-# Install via curl
-curl -fsSL https://t-req.io/install | bash
-
-# Or via npm
-npm install -g @t-req/app
-```
-
-```bash
-# Scaffold a project
-treq init my-api
-
-# Open the TUI + server (the primary workflow)
-cd my-api && treq open
-
-# Or open with the web dashboard too
-treq open --web
-```
-
-### As a multi-language server
-
-```bash
-treq serve --port 4096
-
-# From any language -- just POST to the server
-curl -X POST http://localhost:4096/execute \
-  -H "Content-Type: application/json" \
-  -d '{"content": "GET https://httpbin.org/get"}'
-```
-
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| [@t-req/core](./packages/core) | Core HTTP request parsing and execution library |
-| [@t-req/app](./packages/app) | CLI for scaffolding, executing, and serving t-req projects |
-| [@t-req/web](./packages/web) | Browser dashboard for the t-req server |
-| [@t-req/ui](./packages/ui) | Shared UI components and Tailwind CSS configuration |
-| [@t-req/webdocs](./packages/webdocs) | Documentation site |
-
-## Documentation
-
-Visit [t-req.io](https://t-req.io) for full documentation, guides, and API reference.
-
-## Monorepo Structure
-
-```
-t-req/
-├── examples/
-│   ├── plugins/         # Plugin examples
-│   └── ...
-├── packages/
-│   ├── core/            # @t-req/core - HTTP parsing & execution
-│   ├── app/             # @t-req/app - CLI, TUI, and server
-│   ├── web/             # @t-req/web - Browser dashboard
-│   ├── webdocs/         # @t-req/webdocs - Documentation site
-│   └── ui/              # @t-req/ui - UI components & theming
-├── .changeset/          # Changesets for versioning
-└── ...
-```
+| [@t-req/core](./packages/core) | HTTP parsing and execution library |
+| [@t-req/app](./packages/app) | CLI, TUI, and server |
+| [@t-req/web](./packages/web) | Browser dashboard |
 
 ## Contributing
 
