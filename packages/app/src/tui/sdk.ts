@@ -85,6 +85,7 @@ export interface ExecutionDetail {
     startTime: number;
     endTime?: number;
     durationMs?: number;
+    ttfb?: number;
   };
   response?: {
     status: number;

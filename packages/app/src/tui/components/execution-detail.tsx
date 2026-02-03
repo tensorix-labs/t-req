@@ -113,9 +113,22 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                 <Show when={execution.reqLabel}>
                   <text fg={rgba(theme.textMuted)}>{execution.reqLabel}</text>
                 </Show>
-                {/* Line 3: Duration */}
-                <Show when={execution.timing.durationMs !== undefined}>
-                  <text fg={rgba(theme.textMuted)}>{formatDuration(execution.timing.durationMs)}</text>
+                <Show when={execution.timing.ttfb !== undefined || execution.timing.durationMs !== undefined}>
+                  <box flexDirection="column">
+                    <text fg={rgba(theme.primary)} attributes={1}>Timing</text>
+                    <Show when={execution.timing.ttfb !== undefined}>
+                      <box flexDirection="row">
+                        <text fg={rgba(theme.textMuted)}>  TTFB:  </text>
+                        <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb)}</text>
+                      </box>
+                    </Show>
+                    <Show when={execution.timing.durationMs !== undefined}>
+                      <box flexDirection="row">
+                        <text fg={rgba(theme.textMuted)}>  Total: </text>
+                        <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs)}</text>
+                      </box>
+                    </Show>
+                  </box>
                 </Show>
               </box>
 
