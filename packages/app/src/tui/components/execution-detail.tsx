@@ -9,7 +9,7 @@ type DetailTab = 'body' | 'headers' | 'plugins';
 
 const TABS = [
   { id: 'body', label: 'body', shortcut: '1' },
-  { id: 'headers', label: 'hdrs', shortcut: '2' },
+  { id: 'headers', label: 'headers', shortcut: '2' },
   { id: 'plugins', label: 'plugins', shortcut: '3' },
 ] as const;
 
@@ -73,6 +73,29 @@ function formatBody(body: string, contentType?: string): string {
   return body;
 }
 
+function useExecutionData(execution: () => ExecutionDetail | undefined) {
+  const response = createMemo(() => execution()?.response);
+  const headers = createMemo(() => response()?.headers ?? []);
+
+  const cookies = createMemo(() =>
+    headers().filter(h => h.name.toLowerCase() === 'set-cookie')
+  );
+
+  const nonCookieHeaders = createMemo(() =>
+    headers().filter(h => h.name.toLowerCase() !== 'set-cookie')
+  );
+
+  const body = createMemo(() => {
+    const res = response();
+    if (!res) return '';
+    const decoded = decodeBody(res.body, res.encoding);
+    const contentType = headers().find(h => h.name.toLowerCase() === 'content-type')?.value;
+    return formatBody(decoded, contentType);
+  });
+
+  return { response, cookies, nonCookieHeaders, body };
+}
+
 function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => void }) {
   return (
     <box flexDirection="row" paddingLeft={2} marginBottom={1} flexShrink={0}>
@@ -99,7 +122,7 @@ function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => 
 function BodyTab(props: { body: string }) {
   return (
     <box id="body" flexDirection="column">
-      <Show when={props.body} fallback={
+      <Show when={props.body !== undefined} fallback={
         <text fg={rgba(theme.textMuted)}>No body content</text>
       }>
         <text fg={rgba(theme.text)}>{props.body}</text>
@@ -122,7 +145,7 @@ function HeadersTab(props: {
           <For each={props.cookies}>
             {(cookie) => (
               <box flexDirection="row">
-                <text fg={rgba(theme.text)}>{cookie.value}</text>
+                <text fg={rgba(theme.text)}>{cookie.name}: {cookie.value}</text>
               </box>
             )}
           </For>
@@ -178,6 +201,7 @@ function PluginsTab(props: { pluginHooks: PluginHookInfo[] | undefined }) {
 export function ExecutionDetailView(props: ExecutionDetailProps) {
   const dialog = useDialog();
   const [activeTab, setActiveTab] = createSignal<DetailTab>('body');
+  const { response, cookies, nonCookieHeaders, body } = useExecutionData(() => props.execution);
 
   // Reset tab when execution changes
   createEffect(on(
@@ -198,27 +222,19 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
     if (dialog.stack.length > 0 || !props.execution) return;
     const key = normalizeKey(evt);
 
-    if (key.name === '1') { setActiveTab('body'); evt.preventDefault(); }
-    else if (key.name === '2') { setActiveTab('headers'); evt.preventDefault(); }
-    else if (key.name === '3') { setActiveTab('plugins'); evt.preventDefault(); }
-    else if (key.name === 'h') { cycleTab(-1); evt.preventDefault(); }
-    else if (key.name === 'l') { cycleTab(1); evt.preventDefault(); }
-  });
+    const actions: Record<string, () => void> = {
+      '1': () => setActiveTab('body'),
+      '2': () => setActiveTab('headers'),
+      '3': () => setActiveTab('plugins'),
+      'h': () => cycleTab(-1),
+      'l': () => cycleTab(1),
+    };
 
-  const response = createMemo(() => props.execution?.response);
-  const headers = createMemo(() => response()?.headers ?? []);
-  const cookies = createMemo(() =>
-    headers().filter(h => h.name.toLowerCase() === 'set-cookie')
-  );
-  const nonCookieHeaders = createMemo(() =>
-    headers().filter(h => h.name.toLowerCase() !== 'set-cookie')
-  );
-  const contentType = createMemo(() =>
-    headers().find(h => h.name.toLowerCase() === 'content-type')?.value
-  );
-  const body = createMemo(() => {
-    const decoded = decodeBody(response()?.body, response()?.encoding);
-    return formatBody(decoded, contentType());
+    const action = actions[key.name];
+    if (action) {
+      action();
+      evt.preventDefault();
+    }
   });
 
   return (
