@@ -52,7 +52,7 @@ export type EngineEvent =
   | { type: 'compileStarted' }
   | { type: 'compileFinished' }
   | { type: 'fetchStarted'; method: string; url: string }
-  | { type: 'fetchFinished'; method: string; url: string; status: number }
+  | { type: 'fetchFinished'; method: string; url: string; status: number; ttfb?: number }
   | { type: 'error'; stage: string; message: string };
 
 export type EventSink = (event: EngineEvent) => void;

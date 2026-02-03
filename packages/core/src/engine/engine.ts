@@ -413,13 +413,16 @@ export function createEngine(config: EngineConfig = {}): Engine {
         .ifDefined('proxy', options.proxy)
         .build();
 
+      const fetchStart = performance.now();
       response = await executeWithTransport(requestWithCookies, execOptions, transport);
+      const ttfb = performance.now() - fetchStart;
 
       emitEvent({
         type: 'fetchFinished',
         method: requestWithCookies.method,
         url: urlForCookies,
-        status: response.status
+        status: response.status,
+        ttfb
       });
 
       // Update cookies

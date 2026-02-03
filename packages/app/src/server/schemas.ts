@@ -413,7 +413,8 @@ export const ExecutionSourceSchema = z.object({
 export const ExecutionTimingSchema = z.object({
   startTime: z.number(),
   endTime: z.number().optional(),
-  durationMs: z.number().optional()
+  durationMs: z.number().optional(),
+  ttfb: z.number().optional()
 });
 
 export const ExecutionStatusSchema = z.enum(['pending', 'running', 'success', 'failed']);

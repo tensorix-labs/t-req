@@ -158,6 +158,7 @@ export type StoredExecution = {
     startTime: number;
     endTime?: number;
     durationMs?: number;
+    ttfb?: number;
   };
   response?: {
     status: number;
@@ -849,6 +850,16 @@ export function createService(config: ServiceConfig) {
             if (exec) {
               exec.urlResolved = event.url;
               exec.status = 'running';
+            }
+          }
+        }
+
+        // Capture TTFB from fetchFinished
+        if (event.type === 'fetchFinished' && typeof event.ttfb === 'number') {
+          if (flow && reqExecId) {
+            const exec = flow.executions.get(reqExecId);
+            if (exec) {
+              exec.timing.ttfb = event.ttfb;
             }
           }
         }
