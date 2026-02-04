@@ -553,6 +553,7 @@ export function createService(config: ServiceConfig) {
         variables: sanitizedVariables,
         defaults: projectConfig.defaults,
         cookies: projectConfig.cookies,
+        security: projectConfig.security,
         resolverNames: Object.keys(projectConfig.resolvers)
       },
       warnings: meta.warnings

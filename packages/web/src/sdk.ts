@@ -132,9 +132,62 @@ export interface ExecuteRequestParams {
   profile?: string;
 }
 
+export interface ResolvedDefaults {
+  timeoutMs: number;
+  followRedirects: boolean;
+  validateSSL: boolean;
+  proxy?: string;
+  headers: Record<string, string>;
+}
+
+export interface ResolvedCookies {
+  enabled: boolean;
+  jarPath?: string;
+  mode: 'disabled' | 'memory' | 'persistent';
+}
+
+export interface SecuritySettings {
+  allowExternalFiles: boolean;
+  allowPluginsOutsideProject: boolean;
+  pluginPermissions?: Record<string, string[]>;
+}
+
 export interface ConfigResponse {
-  availableProfiles: string[];
+  configPath?: string;
+  projectRoot: string;
+  format?: 'jsonc' | 'json' | 'ts' | 'js' | 'mjs';
   profile?: string;
+  availableProfiles: string[];
+  layersApplied: string[];
+  resolvedConfig: {
+    variables: Record<string, unknown>;
+    defaults: ResolvedDefaults;
+    cookies: ResolvedCookies;
+    security: SecuritySettings;
+    resolverNames: string[];
+  };
+  warnings: string[];
+}
+
+export interface PluginCapabilities {
+  hasHooks: boolean;
+  hasResolvers: boolean;
+  hasCommands: boolean;
+  hasMiddleware: boolean;
+  hasTools: boolean;
+}
+
+export interface PluginInfo {
+  name: string;
+  version?: string;
+  source: 'npm' | 'file' | 'inline' | 'subprocess';
+  permissions: string[];
+  capabilities: PluginCapabilities;
+}
+
+export interface PluginsResponse {
+  plugins: PluginInfo[];
+  count: number;
 }
 
 export interface ExecuteResponse {
@@ -206,6 +259,9 @@ export interface SDK {
 
   // Config
   getConfig(profile?: string): Promise<ConfigResponse>;
+
+  // Plugins
+  getPlugins(): Promise<PluginsResponse>;
 
   // Flow management
   createFlow(label?: string): Promise<CreateFlowResponse>;
@@ -416,6 +472,10 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
     async getConfig(profile?: string): Promise<ConfigResponse> {
       const query = profile ? `?profile=${encodeURIComponent(profile)}` : '';
       return request<ConfigResponse>(`/config${query}`);
+    },
+
+    async getPlugins(): Promise<PluginsResponse> {
+      return request<PluginsResponse>('/plugins');
     },
 
     async createFlow(label?: string): Promise<CreateFlowResponse> {

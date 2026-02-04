@@ -45,6 +45,19 @@ body {
   animation: pulse 1s infinite;
 }
 
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.2s ease-out;
+}
+
 /* JSON Syntax Highlighting - Modern colors matching webdocs */
 .json-string {
   color: #059669; /* green-600 */
@@ -86,4 +99,27 @@ body {
   .json-key {
     color: #a78bfa; /* purple-400 */
   }
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Modal animation */
+@keyframes fade-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.15s ease-out;
 }

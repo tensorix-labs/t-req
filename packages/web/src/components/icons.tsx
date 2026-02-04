@@ -76,6 +76,15 @@ export function HistoryIcon() {
   );
 }
 
+export function SettingsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path d="M7.62516 4.46094L5.05225 3.86719L3.86475 5.05469L4.4585 7.6276L2.0835 9.21094V10.7943L4.4585 12.3776L3.86475 14.9505L5.05225 16.138L7.62516 15.5443L9.2085 17.9193H10.7918L12.3752 15.5443L14.9481 16.138L16.1356 14.9505L15.5418 12.3776L17.9168 10.7943V9.21094L15.5418 7.6276L16.1356 5.05469L14.9481 3.86719L12.3752 4.46094L10.7918 2.08594H9.2085L7.62516 4.46094Z" stroke="currentColor"/>
+      <path d="M12.5002 10.0026C12.5002 11.3833 11.3809 12.5026 10.0002 12.5026C8.61945 12.5026 7.50016 11.3833 7.50016 10.0026C7.50016 8.62189 8.61945 7.5026 10.0002 7.5026C11.3809 7.5026 12.5002 8.62189 12.5002 10.0026Z" stroke="currentColor"/>
+    </svg>
+  );
+}
+
 export function SpinnerIcon(props: { size?: 'sm' | 'md' }) {
   const size = () => props.size === 'sm' ? 12 : 16;
   return (
@@ -100,6 +109,58 @@ export function SpinnerIcon(props: { size?: 'sm' | 'md' }) {
         stroke-width="2"
         stroke-linecap="round"
       />
+    </svg>
+  );
+}
+
+export function VariablesIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 4H13M3 8H10M3 12H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  );
+}
+
+export function DefaultsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M5 8H11M8 5V11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+  );
+}
+
+export function CookieIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/>
+      <circle cx="6" cy="6" r="1" fill="currentColor"/>
+      <circle cx="10" cy="7" r="1" fill="currentColor"/>
+      <circle cx="7" cy="10" r="1" fill="currentColor"/>
+    </svg>
+  );
+}
+
+export function ShieldIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 2L3 4V7.5C3 10.5 5 13 8 14C11 13 13 10.5 13 7.5V4L8 2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    </svg>
+  );
+}
+
+export function PluginIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M6 2V4H4V6H2V10H4V12H6V14H10V12H12V10H14V6H12V4H10V2H6Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    </svg>
+  );
+}
+
+export function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
     </svg>
   );
 }
