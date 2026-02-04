@@ -16,7 +16,15 @@ export function getKeyboardFocusableElements(container: HTMLElement): HTMLElemen
 
   return elements.filter((el) => {
     const style = window.getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+
+    const isDisplayed = style.display !== 'none';
+    if (!isDisplayed) return false;
+
+    const isVisible = style.visibility !== 'hidden';
+    if (!isVisible) return false;
+
+    const hasOpacity = parseFloat(style.opacity) > 0;
+    return hasOpacity;
   });
 }
 
