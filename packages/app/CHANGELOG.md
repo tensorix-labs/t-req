@@ -1,5 +1,14 @@
 # @t-req/app
 
+## 0.3.6
+
+### Patch Changes
+
+- 7bf7422: Add TTFB timing measurement to execution details
+- c2f85d9: Improve execution detail view. Add tab based details in output
+- Updated dependencies [7bf7422]
+  - @t-req/core@0.2.2
+
 ## 0.3.4
 
 ### Patch Changes
