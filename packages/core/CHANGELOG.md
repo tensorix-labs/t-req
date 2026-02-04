@@ -1,5 +1,11 @@
 # @t-req/core
 
+## 0.2.2
+
+### Patch Changes
+
+- 7bf7422: Add TTFB timing measurement to execution details
+
 ## 0.2.1
 
 ### Patch Changes
