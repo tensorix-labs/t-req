@@ -341,6 +341,12 @@ export const ResolvedCookiesSchema = z.object({
   mode: z.enum(['disabled', 'memory', 'persistent'])
 });
 
+export const SecuritySettingsSchema = z.object({
+  allowExternalFiles: z.boolean(),
+  allowPluginsOutsideProject: z.boolean(),
+  pluginPermissions: z.record(z.string(), z.array(z.string()).optional()).optional()
+});
+
 export const ConfigSummaryResponseSchema = z.object({
   configPath: z.string().optional(),
   projectRoot: z.string(),
@@ -352,6 +358,7 @@ export const ConfigSummaryResponseSchema = z.object({
     variables: z.record(z.string(), z.unknown()),
     defaults: ResolvedDefaultsSchema,
     cookies: ResolvedCookiesSchema,
+    security: SecuritySettingsSchema,
     resolverNames: z.array(z.string())
   }),
   warnings: z.array(z.string())
@@ -621,6 +628,7 @@ export type UpdateVariablesResponse = z.infer<typeof UpdateVariablesResponseSche
 export type EventType = z.infer<typeof EventTypeSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type ConfigSummaryResponse = z.infer<typeof ConfigSummaryResponseSchema>;
+export type SecuritySettings = z.infer<typeof SecuritySettingsSchema>;
 
 // Flow & Execution types
 export type CreateFlowRequest = z.infer<typeof CreateFlowRequestSchema>;

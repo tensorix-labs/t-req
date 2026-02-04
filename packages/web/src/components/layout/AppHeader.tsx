@@ -1,8 +1,12 @@
+import { createSignal, Show } from 'solid-js';
 import { useWorkspace } from '../../context';
 import { ProfileSelector } from '../ProfileSelector';
+import { SettingsIcon } from '../icons';
+import { EnvironmentManager } from '../environment';
 
 export function AppHeader() {
   const store = useWorkspace();
+  const [showEnvironment, setShowEnvironment] = createSignal(false);
 
   const statusDotClasses = () => {
     const base = 'w-2 h-2 rounded-full';
@@ -28,10 +32,27 @@ export function AppHeader() {
         </div>
         <ProfileSelector />
       </div>
-      <div class="flex items-center gap-2 text-sm text-treq-text-muted dark:text-treq-dark-text-muted">
-        <span class={statusDotClasses()} />
-        <span>{store.connectionStatus()}</span>
+      <div class="flex items-center gap-4 text-sm text-treq-text-muted dark:text-treq-dark-text-muted">
+        <Show when={store.connectionStatus() === 'connected'}>
+          <button
+            type="button"
+            class="p-2 rounded-treq text-treq-text-muted dark:text-treq-dark-text-muted hover:bg-treq-border-light dark:hover:bg-treq-dark-border-light hover:text-treq-text-strong dark:hover:text-treq-dark-text-strong transition-colors"
+            onClick={() => setShowEnvironment(true)}
+            aria-label="Environment settings"
+            title="Environment settings"
+          >
+            <SettingsIcon />
+          </button>
+        </Show>
+        <div class="flex items-center gap-2">
+          <span class={statusDotClasses()} />
+          <span>{store.connectionStatus()}</span>
+        </div>
       </div>
+
+      <Show when={showEnvironment()}>
+        <EnvironmentManager onClose={() => setShowEnvironment(false)} />
+      </Show>
     </header>
   );
 }
