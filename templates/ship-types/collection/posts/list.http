@@ -1,0 +1,2 @@
+GET {{baseUrl}}/posts
+Accept: application/json

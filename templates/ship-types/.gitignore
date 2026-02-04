@@ -1,0 +1,14 @@
+node_modules/
+bun.lock
+dist/
+.env
+.env.local
+*.log
+
+# t-req local state
+.treq/cookies.json
+
+# Generated files
+openapi.yaml
+openapi.json
+docs.html

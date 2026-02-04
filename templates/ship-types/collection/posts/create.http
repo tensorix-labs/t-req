@@ -1,0 +1,8 @@
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "{{title}}",
+  "body": "{{body}}",
+  "userId": {{userId}}
+}

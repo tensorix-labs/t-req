@@ -1,0 +1,2 @@
+GET {{baseUrl}}/users
+Accept: application/json

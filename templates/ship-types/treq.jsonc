@@ -1,0 +1,28 @@
+{
+  "variables": {
+    // JSONPlaceholder for basic CRUD
+    "baseUrl": "https://jsonplaceholder.typicode.com",
+    // DummyJSON for auth endpoints
+    "authBaseUrl": "https://dummyjson.com",
+    // Default IDs for quick testing
+    "userId": 1,
+    "postId": 1,
+    // Test credentials for DummyJSON auth
+    "username": "emilys",
+    "password": "emilyspass"
+  },
+  "defaults": {
+    "timeoutMs": 30000
+  },
+  "profiles": {
+    "dev": {
+      "variables": {
+        "baseUrl": "http://localhost:3000",
+        "authBaseUrl": "http://localhost:3000"
+      },
+      "defaults": {
+        "validateSSL": false
+      }
+    }
+  }
+}

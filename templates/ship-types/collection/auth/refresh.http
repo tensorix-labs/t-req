@@ -1,0 +1,7 @@
+POST {{authBaseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}",
+  "expiresInMins": 30
+}

@@ -1,0 +1,24 @@
+{
+  "name": "my-treq-project",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run.ts",
+    "test": "bun test",
+    "workflow": "bun workflows/create-post-flow.ts",
+    "typecheck": "tsc --noEmit",
+    "openapi": "bun openapi/index.ts",
+    "openapi:preview": "bunx swagger-ui-watcher openapi.yaml"
+  },
+  "dependencies": {
+    "@t-req/core": "latest",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.0.0",
+    "@types/bun": "latest",
+    "typescript": "^5.0.0",
+    "yaml": "^2.4.0"
+  }
+}
