@@ -624,6 +624,47 @@ export const GetTestFrameworksResponseSchema = z.object({
 });
 
 // ============================================================================
+// SSE Execute Schemas
+// ============================================================================
+
+export const ExecuteSSERequestSchema = z
+  .object({
+    // Source (exactly one required)
+    content: z.string().max(MAX_CONTENT_SIZE).optional(),
+    path: z.string().max(MAX_PATH_LENGTH).optional(),
+
+    // Request selection (for multi-request files)
+    requestName: z.string().max(256).optional(),
+    requestIndex: z.number().int().min(0).optional(),
+
+    // Context
+    sessionId: z.string().max(100).optional(),
+    profile: z.string().max(100).optional(),
+    variables: z.record(z.string(), z.unknown()).optional(),
+
+    // Flow tracking (for Observer Mode)
+    flowId: z.string().max(100).optional(),
+    reqLabel: z.string().max(256).optional(),
+
+    // SSE-specific options
+    timeout: z.number().int().min(1000).max(3600000).optional(),
+    lastEventId: z.string().optional()
+  })
+  .refine((data) => (data.content !== undefined) !== (data.path !== undefined), {
+    message: 'Exactly one of "content" or "path" must be provided'
+  })
+  .refine((data) => !(data.requestName !== undefined && data.requestIndex !== undefined), {
+    message: 'Cannot specify both "requestName" and "requestIndex"'
+  });
+
+export const SSEMessageSchema = z.object({
+  id: z.string().optional(),
+  event: z.string().optional(),
+  data: z.string(),
+  retry: z.number().optional()
+});
+
+// ============================================================================
 // Plugin Schemas
 // ============================================================================
 
@@ -710,3 +751,7 @@ export type GetTestFrameworksResponse = z.infer<typeof GetTestFrameworksResponse
 // Plugin types
 export type PluginInfo = z.infer<typeof PluginInfoSchema>;
 export type PluginsResponse = z.infer<typeof PluginsResponseSchema>;
+
+// SSE Execute types
+export type ExecuteSSERequest = z.infer<typeof ExecuteSSERequestSchema>;
+export type SSEMessage = z.infer<typeof SSEMessageSchema>;

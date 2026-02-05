@@ -30,6 +30,7 @@ import {
   deleteSessionRoute,
   eventRoute,
   executeRoute,
+  executeSSERoute,
   finishFlowRoute,
   getExecutionRoute,
   getFileContentRoute,
@@ -48,6 +49,7 @@ import {
 } from './openapi';
 import type { ErrorResponse } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
+import { formatSSEMessage } from './sse-format';
 import { createWebRoutes, isApiPath, type WebConfig } from './web';
 
 const SERVER_VERSION = packageJson.version;
@@ -340,6 +342,60 @@ export function createApp(config: ServerConfig) {
 
     const result = await service.execute(request);
     return c.json(result, 200);
+  });
+
+  // ============================================================================
+  // Execute SSE Endpoint
+  // ============================================================================
+
+  app.openapi(executeSSERoute, async (c) => {
+    const request = c.req.valid('json');
+
+    // Script tokens can execute SSE, but must use their assigned flow/session
+    const payload = c.get('scriptTokenPayload') as ScriptTokenPayload | undefined;
+    if (payload) {
+      enforceScriptScope(c, {
+        allowedEndpoint: true,
+        requiredFlowId: request.flowId,
+        requiredSessionId: request.sessionId
+      });
+    }
+
+    const encoder = new TextEncoder();
+
+    return new Response(
+      new ReadableStream({
+        async start(controller) {
+          try {
+            const stream = await service.executeSSE(request);
+
+            // Stream SSE messages
+            for await (const msg of stream) {
+              const formatted = formatSSEMessage(msg);
+              controller.enqueue(encoder.encode(formatted));
+            }
+
+            controller.close();
+          } catch (error) {
+            // Send error as SSE event so client can distinguish from connection errors
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorEvent = formatSSEMessage({
+              event: 'error',
+              data: JSON.stringify({ error: errorMsg })
+            });
+            controller.enqueue(encoder.encode(errorEvent));
+            controller.close();
+          }
+        }
+      }),
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        }
+      }
+    );
   });
 
   // ============================================================================

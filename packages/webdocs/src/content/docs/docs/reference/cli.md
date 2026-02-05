@@ -83,6 +83,7 @@ treq serve
 | GET | `/config` | Resolved project configuration |
 | POST | `/parse` | Parse `.http` file content |
 | POST | `/execute` | Execute an HTTP request |
+| POST | `/execute/sse` | Execute an SSE streaming request |
 | POST | `/session` | Create a session |
 | GET | `/session/:id` | Get session state |
 | PUT | `/session/:id/variables` | Update session variables |

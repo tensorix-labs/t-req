@@ -208,6 +208,7 @@ treq serve --stdio
 | `GET` | `/config` | Resolved config summary (supports `?profile=` and `?path=`) |
 | `POST` | `/parse` | Parse `.http` file content |
 | `POST` | `/execute` | Execute HTTP request |
+| `POST` | `/execute/sse` | Execute SSE streaming request |
 | `POST` | `/session` | Create new session |
 | `GET` | `/session/:id` | Get session state |
 | `PUT` | `/session/:id/variables` | Update session variables |
@@ -241,6 +242,14 @@ print(response.json())
 ```go
 resp, _ := http.Post("http://localhost:4097/execute", "application/json",
     strings.NewReader(`{"content": "GET https://api.example.com/users"}`))
+```
+
+#### Example: SSE Streaming (curl)
+
+```bash
+curl -N -X POST http://localhost:4097/execute/sse \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# @sse\nGET https://sse.dev/test\n"}'
 ```
 
 See `examples/app/` for complete client examples in Python, Go, and TypeScript.

@@ -1,0 +1,4 @@
+# @name sse-test
+# @sse
+GET https://sse.dev/test
+Accept: text/event-stream

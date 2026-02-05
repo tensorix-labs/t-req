@@ -73,12 +73,25 @@ Features:
 | `GET` | `/health` | Server health and version info |
 | `POST` | `/parse` | Parse .http file content |
 | `POST` | `/execute` | Execute HTTP request |
+| `POST` | `/execute/sse` | Execute SSE streaming request |
 | `POST` | `/session` | Create new session |
 | `GET` | `/session/:id` | Get session state |
 | `PUT` | `/session/:id/variables` | Update session variables |
 | `DELETE` | `/session/:id` | Delete session |
 | `GET` | `/event` | SSE event stream |
 | `GET` | `/doc` | OpenAPI documentation |
+
+## SSE Streaming Example
+
+Execute an SSE streaming request via the `/execute/sse` endpoint:
+
+```bash
+curl -N -X POST http://localhost:4097/execute/sse \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# @sse\nGET https://sse.dev/test\n"}'
+```
+
+The response is a standard SSE stream — each event is delivered as it arrives from the upstream server.
 
 ## Execute Request Example
 

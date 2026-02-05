@@ -80,6 +80,17 @@ export {
   schema,
   tool
 } from './plugin';
+export type { Protocol, ProtocolExecuteOptions, ProtocolHandler } from './protocols';
+// Protocol registry and handlers
+export {
+  getDefaultHandler,
+  getHandler,
+  getRegisteredProtocols,
+  hasHandler,
+  httpHandler,
+  registerProtocol,
+  sseHandler
+} from './protocols';
 // Runtime adapters
 export { createAutoTransport, createFetchTransport } from './runtime';
 // Runtime types (needed for plugin event handlers)
@@ -98,6 +109,12 @@ export type {
   InterpolateOptions,
   Interpolator,
   ParsedRequest,
+  Protocol as ProtocolType,
+  ProtocolOptions,
   Resolver,
-  RunOptions
+  RunOptions,
+  SSEMessage,
+  SSEOptions,
+  SSEResponse,
+  StreamResponse
 } from './types';

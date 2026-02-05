@@ -29,6 +29,7 @@ curl -fsSL https://t-req.io/install | bash
 - **`treq init`** - Scaffold complete projects instantly
 - **Observer Mode** - See HTTP requests from scripts in real-time, no code changes
 - **Language-agnostic** - Python, Go, Ruby via `treq serve`
+- **SSE streaming** - Stream Server-Sent Events from `.http` files
 - **Standard `.http` files** - VS Code REST Client / JetBrains compatible
 
 ## Quick Start

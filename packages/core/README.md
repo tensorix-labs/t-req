@@ -25,6 +25,7 @@ See the [documentation](https://t-req.io) for the full overview.
 - **Native fetch Response** - Returns standard `Response` objects, no wrapper
 - **Cookie management** - Automatic cookie jar with RFC 6265 compliance
 - **Timeout & cancellation** - Built-in timeout and AbortSignal support
+- **SSE streaming** - Server-Sent Events with `@sse` directive and async iteration
 - **TypeScript first** - Full type definitions included
 
 ## Philosophy
@@ -389,6 +390,34 @@ const engine = createEngine({
 await engine.runString('GET https://example.com\n');
 ```
 
+### SSE Streaming
+
+Stream Server-Sent Events using the `@sse` directive or `Accept: text/event-stream` header:
+
+```typescript
+import { createEngine } from '@t-req/core';
+import { createFetchTransport } from '@t-req/core/runtime';
+
+const engine = createEngine({
+  transport: createFetchTransport(fetch),
+});
+
+const stream = await engine.streamString(`
+# @sse
+GET https://api.example.com/events
+Authorization: Bearer my-token
+`);
+
+for await (const message of stream) {
+  console.log(message.event, message.data);
+}
+
+// Clean up when done
+stream.close();
+```
+
+The stream returns `SSEMessage` objects with `id`, `event`, `data`, and `retry` fields.
+
 ## Config (JSON/JSONC-first)
 
 The CLI/server config system is **JSON/JSONC-first**:
@@ -678,6 +707,12 @@ import type {
 
   // Form data building
   BuildFormDataOptions,
+
+  // SSE / Streaming
+  SSEMessage,
+  SSEResponse,
+  StreamResponse,
+  Protocol,
 } from '@t-req/core';
 ```
 

@@ -2,6 +2,70 @@ import type { CookieJar } from 'tough-cookie';
 import type { EventSink, IO, Transport } from './runtime/types';
 
 // ============================================================================
+// Protocol Types
+// ============================================================================
+
+/**
+ * Supported protocols for HTTP-like requests.
+ * - 'http': Standard HTTP request/response
+ * - 'sse': Server-Sent Events streaming
+ */
+export type Protocol = 'http' | 'sse';
+
+/**
+ * Options specific to SSE protocol.
+ */
+export interface SSEOptions {
+  type: 'sse';
+  /** Connection timeout in milliseconds */
+  timeout?: number;
+  /** Resume from event ID (sets Last-Event-ID header) */
+  lastEventId?: string;
+}
+
+/**
+ * Protocol-specific options. Union grows with protocols.
+ */
+export type ProtocolOptions = SSEOptions;
+
+/**
+ * A single SSE message as parsed from the event stream.
+ */
+export interface SSEMessage {
+  /** Event ID for resumption */
+  id?: string;
+  /** Event type (defaults to 'message') */
+  event?: string;
+  /** Event data payload */
+  data: string;
+  /** Retry interval suggestion in milliseconds */
+  retry?: number;
+}
+
+/**
+ * Response wrapper for SSE streams.
+ * Provides async iteration over messages with cleanup support.
+ */
+export interface SSEResponse {
+  /** Discriminant for type narrowing */
+  type: 'sse';
+  /** Async iterate over SSE messages */
+  [Symbol.asyncIterator](): AsyncGenerator<SSEMessage, void, unknown>;
+  /** Close the connection and stop iteration */
+  close: () => void;
+  /** Last received event ID (for resumption) */
+  lastEventId?: string;
+  /** The underlying HTTP response */
+  response: Response;
+}
+
+/**
+ * Union type for streaming protocol responses.
+ * Future protocols (WebSocket, GraphQL subscriptions) will be added here.
+ */
+export type StreamResponse = SSEResponse;
+
+// ============================================================================
 // Parsed Request
 // ============================================================================
 
@@ -90,6 +154,10 @@ export interface ParsedRequest {
   raw: string;
   /** Meta directives from comments like `# @directive value` */
   meta: Record<string, string>;
+  /** Protocol type (defaults to 'http' if not specified) */
+  protocol?: Protocol;
+  /** Protocol-specific options */
+  protocolOptions?: ProtocolOptions;
 }
 
 // ============================================================================
@@ -202,6 +270,16 @@ export interface ExecuteOptions {
    * @example 'http://proxy.example.com:8080'
    */
   proxy?: string;
+
+  /**
+   * Force specific protocol (overrides auto-detection).
+   */
+  protocol?: Protocol;
+
+  /**
+   * Last-Event-ID for SSE resumption.
+   */
+  lastEventId?: string;
 }
 
 // ============================================================================

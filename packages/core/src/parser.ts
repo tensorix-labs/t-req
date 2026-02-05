@@ -1,5 +1,12 @@
 import type { IO } from './runtime/types';
-import type { FileReference, FormField, ParsedRequest } from './types';
+import type {
+  FileReference,
+  FormField,
+  ParsedRequest,
+  Protocol,
+  ProtocolOptions,
+  SSEOptions
+} from './types';
 import { setOptional } from './utils/optional';
 
 // Pattern to match form field lines: name = value or name=value
@@ -90,6 +97,44 @@ function parseFormBody(body: string): FormField[] {
   }
 
   return fields;
+}
+
+/**
+ * Detect protocol from meta directives and headers.
+ * Priority: explicit directive > Accept header > default HTTP
+ */
+function detectProtocol(
+  headers: Record<string, string>,
+  meta: Record<string, string>
+): { protocol: Protocol; protocolOptions?: ProtocolOptions } {
+  // Priority 1: Explicit @sse directive
+  if (meta['sse'] !== undefined) {
+    const options: SSEOptions = { type: 'sse' };
+
+    // Parse optional timeout from meta
+    if (meta['timeout']) {
+      const timeout = parseInt(meta['timeout'], 10);
+      if (!Number.isNaN(timeout)) {
+        options.timeout = timeout;
+      }
+    }
+
+    // Parse optional lastEventId from meta
+    if (meta['lastEventId']) {
+      options.lastEventId = meta['lastEventId'];
+    }
+
+    return { protocol: 'sse', protocolOptions: options };
+  }
+
+  // Priority 2: Auto-detect from Accept header
+  const accept = headers['Accept'] || headers['accept'];
+  if (accept?.includes('text/event-stream')) {
+    return { protocol: 'sse', protocolOptions: { type: 'sse' } };
+  }
+
+  // Default: HTTP
+  return { protocol: 'http' };
 }
 
 /**
@@ -273,6 +318,9 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
     body = undefined; // Clear body since we're using formData
   }
 
+  // Detect protocol from meta directives and headers
+  const { protocol, protocolOptions } = detectProtocol(headers, meta);
+
   return setOptional<ParsedRequest>({
     method,
     url,
@@ -284,6 +332,8 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
     .ifDefined('body', body)
     .ifDefined('bodyFile', bodyFile)
     .ifDefined('formData', formData)
+    .ifDefined('protocol', protocol !== 'http' ? protocol : undefined)
+    .ifDefined('protocolOptions', protocolOptions?.type !== undefined ? protocolOptions : undefined)
     .build();
 }
 
