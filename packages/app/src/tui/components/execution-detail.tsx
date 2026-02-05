@@ -4,6 +4,8 @@ import type { ExecutionDetail, PluginHookInfo } from '../sdk';
 import { useDialog } from '../context';
 import { theme, rgba, getMethodColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
+import { detectFiletype } from '../syntax';
+import { HighlightedContent } from './highlighted-content';
 
 type DetailTab = 'body' | 'headers' | 'plugins';
 
@@ -85,15 +87,25 @@ function useExecutionData(execution: () => ExecutionDetail | undefined) {
     headers().filter(h => h.name.toLowerCase() !== 'set-cookie')
   );
 
+  const contentType = createMemo(() =>
+    headers().find(h => h.name.toLowerCase() === 'content-type')?.value
+  );
+
   const body = createMemo(() => {
     const res = response();
     if (!res) return '';
     const decoded = decodeBody(res.body, res.encoding);
-    const contentType = headers().find(h => h.name.toLowerCase() === 'content-type')?.value;
-    return formatBody(decoded, contentType);
+    return formatBody(decoded, contentType());
   });
 
-  return { response, cookies, nonCookieHeaders, body };
+  const filetype = createMemo(() => {
+    const res = response();
+    if (!res) return undefined;
+    const decoded = decodeBody(res.body, res.encoding);
+    return detectFiletype(contentType(), decoded);
+  });
+
+  return { response, cookies, nonCookieHeaders, body, filetype };
 }
 
 function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => void }) {
@@ -119,13 +131,13 @@ function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => 
 }
 
 
-function BodyTab(props: { body: string }) {
+function BodyTab(props: { body: string; filetype?: string }) {
   return (
     <box id="body" flexDirection="column">
-      <Show when={props.body !== undefined} fallback={
+      <Show when={props.body} fallback={
         <text fg={rgba(theme.textMuted)}>No body content</text>
       }>
-        <text fg={rgba(theme.text)}>{props.body}</text>
+        <HighlightedContent content={props.body} filetype={props.filetype} />
       </Show>
     </box>
   );
@@ -201,7 +213,7 @@ function PluginsTab(props: { pluginHooks: PluginHookInfo[] | undefined }) {
 export function ExecutionDetailView(props: ExecutionDetailProps) {
   const dialog = useDialog();
   const [activeTab, setActiveTab] = createSignal<DetailTab>('body');
-  const { response, cookies, nonCookieHeaders, body } = useExecutionData(() => props.execution);
+  const { response, cookies, nonCookieHeaders, body, filetype } = useExecutionData(() => props.execution);
 
   // Reset tab when execution changes
   createEffect(on(
@@ -329,7 +341,7 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
             <scrollbox flexGrow={1} paddingLeft={2} paddingRight={1}>
               <Switch>
                 <Match when={activeTab() === 'body'}>
-                  <BodyTab body={body()} />
+                  <BodyTab body={body()} filetype={filetype()} />
                 </Match>
                 <Match when={activeTab() === 'headers'}>
                   <HeadersTab cookies={cookies()} headers={nonCookieHeaders()} />

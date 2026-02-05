@@ -7,14 +7,13 @@
 
 import { onMount } from 'solid-js';
 import { useSDK, useStore } from '../context';
+import type { WorkspaceRequest } from '../sdk';
 
 export interface WorkspaceReturn {
   /** Navigate to a file in the tree, expanding parents if needed */
   navigateToFile: (filePath: string) => void;
   /** Load requests for a file path, returns cached if available */
-  loadRequests: (
-    filePath: string
-  ) => Promise<{ index: number; method: string; url: string; name?: string }[] | undefined>;
+  loadRequests: (filePath: string) => Promise<WorkspaceRequest[] | undefined>;
   /** Get the workspace root path */
   workspaceRoot: () => string;
 }

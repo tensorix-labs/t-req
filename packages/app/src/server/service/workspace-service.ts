@@ -140,7 +140,8 @@ export function createWorkspaceService(context: ServiceContext): WorkspaceServic
       index,
       name: req.name,
       method: req.method,
-      url: req.url
+      url: req.url,
+      ...(req.protocol ? { protocol: req.protocol } : {})
     }));
 
     return { path, requests };

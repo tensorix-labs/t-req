@@ -9,6 +9,8 @@
 
 import { type Accessor, createMemo } from 'solid-js';
 import { createStore, produce, reconcile, type SetStoreFunction } from 'solid-js/store';
+import type { StreamConnectionStatus, StreamProtocol, StreamState } from './stream';
+import { MAX_STREAM_MESSAGES } from './stream';
 
 export type SSEStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
@@ -53,6 +55,7 @@ export interface ObserverState {
   executionsById: Record<string, ExecutionSummary>;
   executionOrder: string[];
   selectedReqExecId: string | undefined;
+  streamState: StreamState | undefined;
 }
 
 export interface ObserverStore {
@@ -71,6 +74,14 @@ export interface ObserverStore {
   // Derived (still memos)
   selectedExecution: Accessor<ExecutionSummary | undefined>;
   executionsList: Accessor<ExecutionSummary[]>;
+
+  // Stream methods
+  startStream: (protocol: StreamProtocol, method: string, url: string) => void;
+  markStreamConnected: () => void;
+  addStreamMessage: (data: string, meta?: Record<string, string | number | undefined>) => void;
+  endStream: (status: StreamConnectionStatus, errorMsg?: string) => void;
+  setStreamCloseRef: (close: () => void) => void;
+  disconnectStream: () => void;
 
   // Navigation & reset
   selectNextExecution: () => void;
@@ -95,12 +106,17 @@ function createInitialState(): ObserverState {
     exitCode: undefined,
     executionsById: {},
     executionOrder: [],
-    selectedReqExecId: undefined
+    selectedReqExecId: undefined,
+    streamState: undefined
   };
 }
 
 export function createObserverStore(): ObserverStore {
   const [state, setState] = createStore<ObserverState>(createInitialState());
+
+  // Closure-scoped — can't live in Solid store (functions get proxied).
+  // Scoped per createObserverStore() call, not module-level.
+  let streamCloseRef: (() => void) | undefined;
 
   // Helper to append output while limiting lines
   const appendStdout = (data: string) => {
@@ -219,8 +235,85 @@ export function createObserverStore(): ObserverStore {
     }
   };
 
+  // Stream mutations
+  const startStream = (protocol: StreamProtocol, method: string, url: string) => {
+    setState('streamState', {
+      protocol,
+      connectionStatus: 'connecting',
+      messages: [],
+      messageCount: 0,
+      startedAt: Date.now(),
+      endedAt: undefined,
+      requestMethod: method,
+      requestUrl: url
+    });
+  };
+
+  const markStreamConnected = () => {
+    setState('streamState', 'connectionStatus', 'connected');
+  };
+
+  const addStreamMessage = (
+    data: string,
+    meta: Record<string, string | number | undefined> = {}
+  ) => {
+    let isJson = false;
+    try {
+      JSON.parse(data);
+      isJson = true;
+    } catch {
+      // not JSON
+    }
+
+    setState(
+      produce((s) => {
+        if (!s.streamState) return;
+        // Increment first, then use pre-increment value as global index.
+        // messageCount tracks total received (survives truncation), messages[] is the buffer.
+        const index = s.streamState.messageCount++;
+        s.streamState.messages.push({ index, receivedAt: Date.now(), data, isJson, meta });
+
+        // Cap at MAX_STREAM_MESSAGES — drop oldest
+        if (s.streamState.messages.length > MAX_STREAM_MESSAGES) {
+          s.streamState.messages.splice(0, s.streamState.messages.length - MAX_STREAM_MESSAGES);
+        }
+      })
+    );
+  };
+
+  const endStream = (status: StreamConnectionStatus, errorMsg?: string) => {
+    setState(
+      produce((s) => {
+        if (!s.streamState) return;
+        s.streamState.connectionStatus = status;
+        s.streamState.endedAt = Date.now();
+        if (errorMsg) {
+          s.streamState.errorMessage = errorMsg;
+        }
+      })
+    );
+    streamCloseRef = undefined;
+  };
+
+  const setStreamCloseRef = (close: () => void) => {
+    streamCloseRef = close;
+  };
+
+  const disconnectStream = () => {
+    streamCloseRef?.();
+    if (
+      state.streamState &&
+      state.streamState.connectionStatus !== 'disconnected' &&
+      state.streamState.connectionStatus !== 'error'
+    ) {
+      endStream('disconnected');
+    }
+  };
+
   // Reset all state
   const reset = () => {
+    streamCloseRef?.();
+    streamCloseRef = undefined;
     setState(reconcile(createInitialState()));
   };
 
@@ -240,6 +333,14 @@ export function createObserverStore(): ObserverStore {
     // Derived
     selectedExecution,
     executionsList,
+
+    // Stream
+    startStream,
+    markStreamConnected,
+    addStreamMessage,
+    endStream,
+    setStreamCloseRef,
+    disconnectStream,
 
     // Navigation
     selectNextExecution,
