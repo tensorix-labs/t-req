@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   ContentOrPathRequiredError,
+  FileNotFoundError,
   NoRequestsFoundError,
   PathOutsideWorkspaceError,
   RequestIndexOutOfRangeError,
   RequestNotFoundError,
-  SessionNotFoundError
+  SessionNotFoundError,
+  ValidationError
 } from '../../src/server/errors';
 import { createService, type Service } from '../../src/server/service';
 import { installFetchMock, mockResponse } from '../utils/fetch-mock';
@@ -497,5 +499,192 @@ describe('service session CRUD', () => {
         sessionId: 'nonexistent'
       })
     ).rejects.toThrow(SessionNotFoundError);
+  });
+});
+
+describe('service file CRUD', () => {
+  let tmp: TempDir;
+  let service: Service;
+
+  beforeEach(async () => {
+    tmp = await tmpdir();
+    service = createService({
+      workspaceRoot: tmp.path,
+      maxBodyBytes: 1024 * 1024,
+      maxSessions: 10
+    });
+  });
+
+  afterEach(async () => {
+    service.dispose();
+    await tmp[Symbol.asyncDispose]();
+  });
+
+  describe('getFileContent', () => {
+    test('should return file content and metadata', async () => {
+      await tmp.writeFile('test.http', 'GET https://example.com');
+
+      const result = await service.getFileContent('test.http');
+
+      expect(result.path).toBe('test.http');
+      expect(result.content).toBe('GET https://example.com');
+      expect(result.lastModified).toBeGreaterThan(0);
+    });
+
+    test('should throw FileNotFoundError for non-existent file', async () => {
+      await expect(service.getFileContent('nonexistent.http')).rejects.toBeInstanceOf(
+        FileNotFoundError
+      );
+    });
+
+    test('should throw PathOutsideWorkspaceError for traversal attempt', async () => {
+      await expect(service.getFileContent('../outside.http')).rejects.toBeInstanceOf(
+        PathOutsideWorkspaceError
+      );
+    });
+  });
+
+  describe('createFile', () => {
+    test('should create a new empty .http file', async () => {
+      const result = await service.createFile({ path: 'new.http' });
+
+      expect(result.path).toBe('new.http');
+      expect(result.content).toBe('');
+      expect(result.lastModified).toBeGreaterThan(0);
+
+      // Verify file exists
+      const content = await service.getFileContent('new.http');
+      expect(content.content).toBe('');
+    });
+
+    test('should create file with initial content', async () => {
+      const result = await service.createFile({
+        path: 'with-content.http',
+        content: 'GET https://api.example.com'
+      });
+
+      expect(result.content).toBe('GET https://api.example.com');
+    });
+
+    test('should reject unsupported file types', async () => {
+      await expect(service.createFile({ path: 'test.txt' })).rejects.toBeInstanceOf(
+        ValidationError
+      );
+    });
+
+    test('should allow script files', async () => {
+      const result = await service.createFile({
+        path: 'script.ts',
+        content: 'console.log("test")'
+      });
+      expect(result.path).toBe('script.ts');
+      expect(result.content).toBe('console.log("test")');
+    });
+
+    test('should reject if file already exists', async () => {
+      await service.createFile({ path: 'exists.http' });
+
+      await expect(service.createFile({ path: 'exists.http' })).rejects.toBeInstanceOf(
+        ValidationError
+      );
+    });
+
+    test('should create nested directories', async () => {
+      // First create the parent directory structure using tmp
+      await tmp.writeFile('api/v1/.gitkeep', '');
+
+      const result = await service.createFile({ path: 'api/v1/users.http' });
+
+      expect(result.path).toBe('api/v1/users.http');
+
+      // Verify file exists
+      const content = await service.getFileContent('api/v1/users.http');
+      expect(content.content).toBe('');
+    });
+  });
+
+  describe('updateFile', () => {
+    test('should update existing file content', async () => {
+      await service.createFile({ path: 'update.http', content: 'GET /old' });
+
+      await service.updateFile({ path: 'update.http', content: 'GET /new' });
+
+      const result = await service.getFileContent('update.http');
+      expect(result.content).toBe('GET /new');
+    });
+
+    test('should throw FileNotFoundError for non-existent file', async () => {
+      await expect(
+        service.updateFile({
+          path: 'nonexistent.http',
+          content: 'GET /'
+        })
+      ).rejects.toBeInstanceOf(FileNotFoundError);
+    });
+
+    test('should reject unsupported file types', async () => {
+      await tmp.writeFile('test.txt', 'content');
+
+      await expect(
+        service.updateFile({
+          path: 'test.txt',
+          content: 'GET /'
+        })
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    test('should allow updating script files', async () => {
+      await service.createFile({ path: 'script.ts', content: 'old' });
+
+      await service.updateFile({ path: 'script.ts', content: 'new' });
+
+      const result = await service.getFileContent('script.ts');
+      expect(result.content).toBe('new');
+    });
+
+    test('should reject paths with traversal', async () => {
+      await expect(
+        service.updateFile({
+          path: '../etc/passwd',
+          content: 'GET /'
+        })
+      ).rejects.toBeInstanceOf(PathOutsideWorkspaceError);
+    });
+  });
+
+  describe('deleteFile', () => {
+    test('should delete existing file', async () => {
+      await service.createFile({ path: 'delete.http' });
+
+      await service.deleteFile('delete.http');
+
+      await expect(service.getFileContent('delete.http')).rejects.toBeInstanceOf(FileNotFoundError);
+    });
+
+    test('should throw FileNotFoundError for non-existent file', async () => {
+      await expect(service.deleteFile('nonexistent.http')).rejects.toBeInstanceOf(
+        FileNotFoundError
+      );
+    });
+
+    test('should reject unsupported file types', async () => {
+      await tmp.writeFile('test.txt', 'content');
+
+      await expect(service.deleteFile('test.txt')).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    test('should allow deleting script files', async () => {
+      await service.createFile({ path: 'script.ts', content: 'content' });
+
+      await service.deleteFile('script.ts');
+
+      await expect(service.getFileContent('script.ts')).rejects.toBeInstanceOf(FileNotFoundError);
+    });
+
+    test('should reject paths with traversal', async () => {
+      await expect(service.deleteFile('../etc/passwd')).rejects.toBeInstanceOf(
+        PathOutsideWorkspaceError
+      );
+    });
   });
 });

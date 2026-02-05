@@ -1,8 +1,9 @@
-import { createSignal, Show } from 'solid-js';
+import { createSignal, lazy, Show, Suspense } from 'solid-js';
 import { useWorkspace } from '../../context';
 import { ProfileSelector } from '../ProfileSelector';
 import { SettingsIcon } from '../icons';
-import { EnvironmentManager } from '../environment';
+
+const LazyEnvironmentManager = lazy(() => import('../environment/EnvironmentManager'));
 
 export function AppHeader() {
   const store = useWorkspace();
@@ -51,7 +52,9 @@ export function AppHeader() {
       </div>
 
       <Show when={showEnvironment()}>
-        <EnvironmentManager onClose={() => setShowEnvironment(false)} />
+        <Suspense>
+          <LazyEnvironmentManager onClose={() => setShowEnvironment(false)} />
+        </Suspense>
       </Show>
     </header>
   );

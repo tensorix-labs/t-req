@@ -1,8 +1,9 @@
 import { For } from 'solid-js';
 import { useWorkspace } from '../../context';
 import { FileTreeItem } from './FileTreeItem';
+import { isOpenableFile } from '../../utils/fileType';
 
-export function FileTree() {
+export function FileTree(props: { onFileOpen?: (path: string) => void }) {
   const store = useWorkspace();
 
   const handleSelect = (path: string) => {
@@ -11,6 +12,11 @@ export function FileTree() {
       store.toggleDir(path);
     } else {
       store.setSelectedPath(path);
+      // Open file in editor if it's a supported file type
+      if (isOpenableFile(path)) {
+        store.openFile(path);
+        props.onFileOpen?.(path);
+      }
     }
   };
 

@@ -23,13 +23,16 @@ import {
   cancelTestRoute,
   capabilitiesRoute,
   configRoute,
+  createFileRoute,
   createFlowRoute,
   createSessionRoute,
+  deleteFileRoute,
   deleteSessionRoute,
   eventRoute,
   executeRoute,
   finishFlowRoute,
   getExecutionRoute,
+  getFileContentRoute,
   getRunnersRoute,
   getSessionRoute,
   getTestFrameworksRoute,
@@ -40,6 +43,7 @@ import {
   pluginsRoute,
   runScriptRoute,
   runTestRoute,
+  updateFileRoute,
   updateSessionVariablesRoute
 } from './openapi';
 import type { ErrorResponse } from './schemas';
@@ -433,6 +437,35 @@ export function createApp(config: ServerConfig) {
     const { path } = c.req.valid('query');
     const result = await service.listWorkspaceRequests(path);
     return c.json(result, 200);
+  });
+
+  // File CRUD endpoints (no script token access for security)
+  app.openapi(getFileContentRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+    const { path } = c.req.valid('query');
+    const result = await service.getFileContent(path);
+    return c.json(result, 200);
+  });
+
+  app.openapi(updateFileRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+    const request = c.req.valid('json');
+    await service.updateFile(request);
+    return c.json({}, 200);
+  });
+
+  app.openapi(createFileRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+    const request = c.req.valid('json');
+    const result = await service.createFile(request);
+    return c.json(result, 201);
+  });
+
+  app.openapi(deleteFileRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+    const { path } = c.req.valid('query');
+    await service.deleteFile(path);
+    return c.body(null, 204);
   });
 
   // ============================================================================

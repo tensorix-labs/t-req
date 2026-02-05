@@ -9,11 +9,11 @@ import App from './App.tsx'
 
 const root = document.getElementById('root')
 
-const workspaceStore = createWorkspaceStore()
-const observerStore = createObserverStore()
+render(() => {
+  const workspaceStore = createWorkspaceStore()
+  const observerStore = createObserverStore()
 
-render(
-  () => (
+  return (
     <WorkspaceProvider store={workspaceStore}>
       <ObserverProvider store={observerStore}>
         <ScriptRunnerProvider>
@@ -23,6 +23,5 @@ render(
         </ScriptRunnerProvider>
       </ObserverProvider>
     </WorkspaceProvider>
-  ),
-  root!
-)
+  )
+}, root!)
