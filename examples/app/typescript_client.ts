@@ -13,7 +13,7 @@
  *   npx tsx typescript_client.ts
  */
 
-const BASE_URL = 'http://127.0.0.1:4096';
+const BASE_URL = 'http://127.0.0.1:4097';
 
 // Types for API responses
 

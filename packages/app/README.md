@@ -171,7 +171,7 @@ treq run collection/auth/login.http --verbose
 Start an HTTP server that exposes the t-req API, enabling any programming language to execute `.http` files:
 
 ```bash
-# Start server on default port (4096)
+# Start server on default port (4097)
 treq serve
 
 # Custom port
@@ -191,7 +191,7 @@ treq serve --stdio
 
 | Option | Description |
 |--------|-------------|
-| `--port, -p` | Port to listen on (default: 4096) |
+| `--port, -p` | Port to listen on (default: 4097) |
 | `--host, -H` | Host to bind to (default: 127.0.0.1) |
 | `--token` | Bearer token for authentication |
 | `--cors` | Allowed CORS origins (comma-separated) |
@@ -229,7 +229,7 @@ treq serve --stdio
 import requests
 
 # Execute a request
-response = requests.post("http://localhost:4096/execute", json={
+response = requests.post("http://localhost:4097/execute", json={
     "content": "GET https://api.example.com/users",
     "variables": {"token": "abc123"}
 })
@@ -239,7 +239,7 @@ print(response.json())
 #### Example: Go Client
 
 ```go
-resp, _ := http.Post("http://localhost:4096/execute", "application/json",
+resp, _ := http.Post("http://localhost:4097/execute", "application/json",
     strings.NewReader(`{"content": "GET https://api.example.com/users"}`))
 ```
 
@@ -261,7 +261,7 @@ treq tui --server http://localhost:8080 --token my-token
 
 | Option | Description |
 |--------|-------------|
-| `--server, -s` | Server URL to connect to (default: http://localhost:4096) |
+| `--server, -s` | Server URL to connect to (default: http://localhost:4097) |
 | `--token, -t` | Bearer token for authentication |
 
 ### `treq upgrade` - Upgrade treq

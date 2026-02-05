@@ -38,7 +38,7 @@ export const serveCommand: CommandModule<object, ServeOptions> = {
       type: 'number',
       describe: 'Port to listen on',
       alias: 'p',
-      default: 4096
+      default: 4097
     },
     host: {
       type: 'string',

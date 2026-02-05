@@ -19,7 +19,7 @@ import json
 import requests
 from typing import Optional, Dict, Any
 
-BASE_URL = "http://127.0.0.1:4096"
+BASE_URL = "http://127.0.0.1:4097"
 
 
 def health_check() -> Dict[str, Any]:

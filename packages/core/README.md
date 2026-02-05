@@ -134,7 +134,7 @@ const client = createClient({
 
   // Connect to TUI/server for observability (optional)
   // Auto-detected from TREQ_SERVER env var when run from TUI
-  server: 'http://localhost:4096',
+  server: 'http://localhost:4097',
 
   // Optional auth token for server mode
   serverToken: process.env.TREQ_TOKEN,
@@ -211,7 +211,7 @@ work without any code changes.
 
 ```typescript
 const client = createClient({
-  server: 'http://localhost:4096',  // or set TREQ_SERVER env var
+  server: 'http://localhost:4097',  // or set TREQ_SERVER env var
   variables: { ... }
 });
 ```
