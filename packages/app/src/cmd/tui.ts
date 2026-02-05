@@ -12,7 +12,7 @@ export const tuiCommand: CommandModule<object, TuiOptions> = {
     server: {
       type: 'string',
       alias: 's',
-      default: 'http://localhost:4096',
+      default: 'http://localhost:4097',
       describe: 'Server URL to connect to'
     },
     token: {

@@ -54,10 +54,10 @@ treq open --web
 For Python, Go, Ruby, or any language:
 
 ```bash
-treq serve --port 4096
+treq serve
 
 # POST from any language
-curl -X POST http://localhost:4096/execute \
+curl -X POST http://localhost:4097/execute \
   -H "Content-Type: application/json" \
   -d '{"content": "GET https://httpbin.org/get"}'
 ```
