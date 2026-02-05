@@ -582,10 +582,10 @@ export function createSDK(serverUrl: string, token?: string): SDK {
             } else if (line.startsWith('data:')) {
               const data = line.slice(5);
               currentMessage.data =
-                currentMessage.data !== undefined ? currentMessage.data + '\n' + data : data;
+                currentMessage.data !== undefined ? `${currentMessage.data}\n${data}` : data;
             } else if (line.startsWith('retry:')) {
               const retryValue = parseInt(line.slice(6).trim(), 10);
-              if (!isNaN(retryValue)) {
+              if (!Number.isNaN(retryValue)) {
                 currentMessage.retry = retryValue;
               }
             } else if (line === '' || line === '\r') {

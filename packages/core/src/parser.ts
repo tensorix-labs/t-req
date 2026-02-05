@@ -114,7 +114,7 @@ function detectProtocol(
     // Parse optional timeout from meta
     if (meta['timeout']) {
       const timeout = parseInt(meta['timeout'], 10);
-      if (!isNaN(timeout)) {
+      if (!Number.isNaN(timeout)) {
         options.timeout = timeout;
       }
     }

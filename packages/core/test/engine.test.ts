@@ -375,13 +375,13 @@ GET https://example.com/stream
   });
 
   test('close() properly terminates the stream', async () => {
-    let fetchAborted = false;
-    const controller = new AbortController();
+    let _fetchAborted = false;
+    const _controller = new AbortController();
 
     const restore = installFetchMock(async (_url, init) => {
       if (init?.signal) {
         init.signal.addEventListener('abort', () => {
-          fetchAborted = true;
+          _fetchAborted = true;
         });
       }
 

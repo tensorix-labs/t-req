@@ -4,8 +4,7 @@ import {
   getDefaultHandler,
   getHandler,
   getRegisteredProtocols,
-  hasHandler,
-  registerProtocol
+  hasHandler
 } from '../src/protocols/registry';
 import { createSSEResponse, parseSSEStream, sseHandler } from '../src/protocols/sse';
 import type { ParsedRequest } from '../src/types';
