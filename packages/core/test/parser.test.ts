@@ -144,7 +144,7 @@ describe('parse auth headers', () => {
 GET https://api.example.com
 Authorization: Basic dXNlcjpwYXNz
 `);
-    expect(requests[0]?.headers.Authorization).toBe('Basic dXNlcjpwYXNz');
+    expect(requests[0]?.headers['Authorization']).toBe('Basic dXNlcjpwYXNz');
   });
 
   test('handles Authorization header with Bearer token', () => {
@@ -152,7 +152,7 @@ Authorization: Basic dXNlcjpwYXNz
 GET https://api.example.com
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs
 `);
-    expect(requests[0]?.headers.Authorization).toBe('Bearer eyJhbGciOiJIUzI1NiIs');
+    expect(requests[0]?.headers['Authorization']).toBe('Bearer eyJhbGciOiJIUzI1NiIs');
   });
 
   test('handles Authorization header with variable', () => {
@@ -160,7 +160,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs
 GET https://api.example.com
 Authorization: Bearer {{token}}
 `);
-    expect(requests[0]?.headers.Authorization).toBe('Bearer {{token}}');
+    expect(requests[0]?.headers['Authorization']).toBe('Bearer {{token}}');
   });
 
   test('handles API key in custom header', () => {
@@ -198,7 +198,7 @@ GET https://api.example.com/users
       'GET https://api.example.com/users\r\nAuthorization: Bearer token\r\n\r\n{"test": true}'
     );
     expect(requests).toHaveLength(1);
-    expect(requests[0]?.headers.Authorization).toBe('Bearer token');
+    expect(requests[0]?.headers['Authorization']).toBe('Bearer token');
     expect(requests[0]?.body).toBe('{"test": true}');
   });
 
@@ -254,7 +254,7 @@ X-Time: 10:30:00
 GET https://api.example.com
 Referer: https://other.com/path?foo=bar
 `);
-    expect(requests[0]?.headers.Referer).toBe('https://other.com/path?foo=bar');
+    expect(requests[0]?.headers['Referer']).toBe('https://other.com/path?foo=bar');
   });
 
   test('preserves header case', () => {
@@ -401,7 +401,7 @@ GET https://api.example.com
 # @noLog
 GET https://api.example.com
 `);
-    expect(requests[0]?.meta.noLog).toBe('');
+    expect(requests[0]?.meta['noLog']).toBe('');
   });
 
   test('handles directive with extra whitespace', () => {
@@ -442,7 +442,7 @@ GET https://{{host}}/{{path}}
 Authorization: {{authType}} {{token}}
 `);
     expect(requests[0]?.url).toBe('https://{{host}}/{{path}}');
-    expect(requests[0]?.headers.Authorization).toBe('{{authType}} {{token}}');
+    expect(requests[0]?.headers['Authorization']).toBe('{{authType}} {{token}}');
   });
 
   test('handles variables in body', () => {
@@ -523,6 +523,136 @@ Content-Type: text/html; charset=utf-8
 GET https://api.example.com
 Accept: application/json, text/plain;q=0.9, */*;q=0.1
 `);
-    expect(requests[0]?.headers.Accept).toBe('application/json, text/plain;q=0.9, */*;q=0.1');
+    expect(requests[0]?.headers['Accept']).toBe('application/json, text/plain;q=0.9, */*;q=0.1');
+  });
+});
+
+describe('parse SSE protocol detection', () => {
+  test('detects SSE from @sse directive', () => {
+    const requests = parse(`
+# @sse
+GET https://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    expect(requests[0]?.protocolOptions?.type).toBe('sse');
+  });
+
+  test('detects SSE from @sse with // comment style', () => {
+    const requests = parse(`
+// @sse
+GET https://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+  });
+
+  test('detects SSE from Accept: text/event-stream header', () => {
+    const requests = parse(`
+GET https://api.example.com/stream
+Accept: text/event-stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    expect(requests[0]?.protocolOptions?.type).toBe('sse');
+  });
+
+  test('detects SSE from lowercase accept header', () => {
+    const requests = parse(`
+GET https://api.example.com/stream
+accept: text/event-stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+  });
+
+  test('parses @timeout for SSE requests', () => {
+    const requests = parse(`
+# @sse
+# @timeout 60000
+GET https://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    expect(requests[0]?.protocolOptions?.type).toBe('sse');
+    if (requests[0]?.protocolOptions?.type === 'sse') {
+      expect(requests[0].protocolOptions.timeout).toBe(60000);
+    }
+  });
+
+  test('parses @lastEventId for SSE requests', () => {
+    const requests = parse(`
+# @sse
+# @lastEventId event-123
+GET https://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    if (requests[0]?.protocolOptions?.type === 'sse') {
+      expect(requests[0].protocolOptions.lastEventId).toBe('event-123');
+    }
+  });
+
+  test('does not set protocol for regular HTTP request', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+Accept: application/json
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBeUndefined();
+    expect(requests[0]?.protocolOptions).toBeUndefined();
+  });
+
+  test('@sse directive takes precedence over Accept header', () => {
+    const requests = parse(`
+# @sse
+# @timeout 5000
+GET https://api.example.com/stream
+Accept: text/event-stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    if (requests[0]?.protocolOptions?.type === 'sse') {
+      expect(requests[0].protocolOptions.timeout).toBe(5000);
+    }
+  });
+
+  test('handles SSE request with name directive', () => {
+    const requests = parse(`
+### Stock prices stream
+# @name stockPrices
+# @sse
+GET https://api.example.com/prices/stream
+Authorization: Bearer token123
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.name).toBe('stockPrices');
+    expect(requests[0]?.protocol).toBe('sse');
+  });
+
+  test('handles multiple requests with different protocols', () => {
+    const requests = parse(`
+### Regular request
+GET https://api.example.com/users
+
+###
+
+### SSE request
+# @sse
+GET https://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.protocol).toBeUndefined();
+    expect(requests[1]?.protocol).toBe('sse');
   });
 });

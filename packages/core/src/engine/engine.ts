@@ -12,10 +12,24 @@ import type {
   RetrySignal,
   TimingInfo
 } from '../plugin/types';
+import { getHandler } from '../protocols/registry';
+import type { Protocol, ProtocolExecuteOptions } from '../protocols/types';
 import { createAutoTransport } from '../runtime/auto-transport';
 import type { CookieStore, EngineEvent, EventSink, IO, Transport } from '../runtime/types';
-import type { ExecuteOptions, ExecuteRequest, FormField, ParsedRequest, Resolver } from '../types';
+import type {
+  ExecuteOptions,
+  ExecuteRequest,
+  FormField,
+  ParsedRequest,
+  Protocol as ProtocolType,
+  Resolver,
+  StreamResponse
+} from '../types';
 import { setOptional } from '../utils/optional';
+
+// Import protocol handlers for side-effect registration
+import '../protocols/http';
+import '../protocols/sse';
 
 export type EngineConfig = {
   transport?: Transport;
@@ -36,12 +50,20 @@ export type EngineRunOptions = {
   validateSSL?: boolean;
   proxy?: string;
   basePath?: string;
+  /** Force specific protocol (overrides auto-detection) */
+  protocol?: ProtocolType;
+  /** Last-Event-ID for SSE resumption */
+  lastEventId?: string;
 };
 
 export type Engine = {
   parseString: (httpText: string) => ReturnType<typeof parse>;
   runString: (httpText: string, options?: EngineRunOptions) => Promise<Response>;
   runFile: (path: string, options?: EngineRunOptions) => Promise<Response>;
+  /** Execute a streaming request (SSE, WebSocket, etc.) from string content */
+  streamString: (httpText: string, options?: EngineRunOptions) => Promise<StreamResponse>;
+  /** Execute a streaming request (SSE, WebSocket, etc.) from a file */
+  streamFile: (path: string, options?: EngineRunOptions) => Promise<StreamResponse>;
 };
 
 function emit(onEvent: EventSink | undefined, event: EngineEvent): void {
@@ -494,6 +516,172 @@ export function createEngine(config: EngineConfig = {}): Engine {
     };
   }
 
+  /**
+   * Compile a request and execute it via the appropriate protocol handler for streaming.
+   * Used by streamString and streamFile methods.
+   */
+  async function processStreamRequest(
+    request: ParsedRequest,
+    options: EngineRunOptions,
+    basePath: string
+  ): Promise<StreamResponse> {
+    // Determine protocol (explicit override > parsed > error)
+    const protocol: Protocol = (options.protocol ?? request.protocol ?? 'http') as Protocol;
+
+    // Validate this is a streaming protocol
+    if (protocol === 'http') {
+      throw new Error(
+        `Request protocol is 'http' but expected a streaming protocol (sse, ws). ` +
+          `Use runString() for HTTP requests or add @sse directive.`
+      );
+    }
+
+    const handler = getHandler(protocol);
+    if (!handler) {
+      throw new Error(`No handler registered for protocol: ${protocol}`);
+    }
+
+    const variables = options.variables ?? {};
+
+    // Create hook context
+    const ctx = pluginManager?.createHookContext({
+      retries: 0,
+      maxRetries,
+      variables
+    }) ?? {
+      retries: 0,
+      maxRetries,
+      session: { id: 'default', variables: {} },
+      variables,
+      config: {
+        projectRoot: '.',
+        variables: {},
+        security: { allowExternalFiles: false, allowPluginsOutsideProject: false }
+      },
+      projectRoot: '.'
+    };
+
+    // Step 1: request.before hook (before interpolation)
+    let requestData: {
+      method: string;
+      url: string;
+      headers: Record<string, string>;
+      body?: string;
+    } = {
+      method: request.method,
+      url: request.url,
+      headers: { ...request.headers },
+      ...(request.body !== undefined ? { body: request.body } : {})
+    };
+
+    if (pluginManager) {
+      const beforeOutput = { request: requestData, skip: false };
+      const result = await pluginManager.triggerRequestBefore(
+        { request: requestData, variables, ctx },
+        beforeOutput
+      );
+
+      if (result.skip) {
+        throw new Error('Request skipped by plugin - cannot stream a skipped request');
+      }
+
+      requestData = beforeOutput.request;
+    }
+
+    // Step 2: Interpolation
+    emitEvent({ type: 'interpolateStarted' });
+    const mergedVars = { ...variables };
+    const toInterpolate = {
+      method: requestData.method,
+      url: requestData.url,
+      headers: requestData.headers,
+      ...(requestData.body !== undefined ? { body: requestData.body } : {}),
+      ...(request.name !== undefined ? { name: request.name } : {}),
+      raw: request.raw,
+      meta: request.meta,
+      ...(request.bodyFile !== undefined ? { bodyFile: request.bodyFile } : {}),
+      ...(request.formData !== undefined ? { formData: request.formData } : {})
+    };
+    const interpolated = await interpolator.interpolate(toInterpolate, mergedVars);
+    emitEvent({ type: 'interpolateFinished' });
+
+    // Step 3: Compile to ExecuteRequest
+    emitEvent({ type: 'compileStarted' });
+    const { executeRequest: compiledExecReq } = await compileExecuteRequest(
+      interpolated,
+      setOptional<{ basePath: string; io?: IO; headerDefaults?: Record<string, string> }>({
+        basePath
+      })
+        .ifDefined('io', io)
+        .ifDefined('headerDefaults', headerDefaults)
+        .build()
+    );
+    emitEvent({ type: 'compileFinished' });
+
+    // Step 4: request.compiled hook (after interpolation, for signing)
+    let compiledRequest: CompiledRequest = {
+      method: compiledExecReq.method,
+      url: compiledExecReq.url,
+      headers: compiledExecReq.headers ?? {},
+      ...(compiledExecReq.body !== undefined ? { body: compiledExecReq.body } : {})
+    };
+
+    if (pluginManager) {
+      const compiledOutput = { request: compiledRequest };
+      await pluginManager.triggerRequestCompiled(
+        { request: compiledRequest, variables: mergedVars, ctx },
+        compiledOutput
+      );
+      compiledRequest = compiledOutput.request;
+    }
+
+    // Step 5: request.after hook (read-only, logging/metrics)
+    if (pluginManager) {
+      await pluginManager.triggerRequestAfter({ request: compiledRequest, ctx });
+    }
+
+    // Step 6: Add cookies
+    const urlForCookies = compiledRequest.url;
+    const headers = compiledRequest.headers;
+
+    const cookieHeader = cookieStore ? await cookieStore.getCookieHeader(urlForCookies) : undefined;
+    const headersWithCookies = cookieStore ? withCookieHeader(headers, cookieHeader) : headers;
+
+    // Build final request
+    const requestWithCookies: ExecuteRequest = {
+      method: compiledRequest.method,
+      url: compiledRequest.url,
+      headers: headersWithCookies
+    };
+
+    emitEvent({ type: 'fetchStarted', method: requestWithCookies.method, url: urlForCookies });
+
+    // Build protocol-specific options
+    const execOptions: ProtocolExecuteOptions = setOptional<ProtocolExecuteOptions>({})
+      .ifDefined('timeout', options.timeoutMs)
+      .ifDefined('signal', options.signal)
+      .ifDefined('followRedirects', options.followRedirects)
+      .ifDefined('validateSSL', options.validateSSL)
+      .ifDefined('proxy', options.proxy)
+      .ifDefined('lastEventId', options.lastEventId ?? request.protocolOptions?.lastEventId)
+      .build();
+
+    try {
+      const result = await handler.execute(requestWithCookies, execOptions, transport);
+
+      // For streaming, we return immediately - no cookie update or response hooks
+      // since the stream is ongoing
+      return result as StreamResponse;
+    } catch (e) {
+      emitEvent({
+        type: 'error',
+        stage: 'fetch',
+        message: e instanceof Error ? e.message : String(e)
+      });
+      throw e;
+    }
+  }
+
   return {
     parseString: parse,
     async runString(httpText, options = {}) {
@@ -505,6 +693,16 @@ export function createEngine(config: EngineConfig = {}): Engine {
       const { requests, basePath } = await compileFromFile(path, options);
       const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
       return await processRequest(request, options, basePath);
+    },
+    async streamString(httpText, options = {}) {
+      const { requests, basePath } = await compileFromString(httpText, options);
+      const request = firstOrThrow(requests, 'No valid requests found in provided content.');
+      return await processStreamRequest(request, options, basePath);
+    },
+    async streamFile(path, options = {}) {
+      const { requests, basePath } = await compileFromFile(path, options);
+      const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
+      return await processStreamRequest(request, options, basePath);
     }
   };
 }

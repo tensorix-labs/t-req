@@ -116,6 +116,20 @@ export interface EventEnvelope {
   payload: Record<string, unknown>;
 }
 
+// SSE Message type (for streaming requests)
+export interface SSEMessage {
+  id?: string;
+  event?: string;
+  data: string;
+  retry?: number;
+}
+
+// SSE Stream result
+export interface SSEStreamResult {
+  messages: AsyncIterable<SSEMessage>;
+  close: () => void;
+}
+
 export interface ExecuteRequestParams {
   path?: string;
   content?: string;
@@ -229,6 +243,14 @@ export interface SDK {
     onError: (error: Error) => void,
     onClose: () => void
   ): () => void; // Returns unsubscribe function
+
+  // SSE streaming request execution
+  streamRequest(
+    flowId: string,
+    path: string,
+    requestIndex: number,
+    options?: { variables?: Record<string, unknown>; timeout?: number; lastEventId?: string }
+  ): Promise<SSEStreamResult>;
 }
 
 export class SDKError extends Error {
@@ -495,6 +517,106 @@ export function createSDK(serverUrl: string, token?: string): SDK {
       return () => {
         aborted = true;
         controller.abort();
+      };
+    },
+
+    async streamRequest(
+      flowId: string,
+      path: string,
+      requestIndex: number,
+      options: { variables?: Record<string, unknown>; timeout?: number; lastEventId?: string } = {}
+    ): Promise<SSEStreamResult> {
+      const url = new URL('/execute/sse', baseUrl);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          path,
+          requestIndex,
+          flowId,
+          ...options
+        })
+      });
+
+      if (!response.ok) {
+        throw new SDKError(
+          `SSE request failed: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+
+      if (!response.body) {
+        throw new SDKError('SSE response has no body');
+      }
+
+      const reader = response.body.getReader();
+      let closed = false;
+
+      // Parse SSE stream
+      async function* parseSSEStream(): AsyncGenerator<SSEMessage> {
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentMessage: Partial<SSEMessage> = {};
+
+        while (!closed) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (line.startsWith('id:')) {
+              currentMessage.id = line.slice(3).trim();
+            } else if (line.startsWith('event:')) {
+              currentMessage.event = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              const data = line.slice(5);
+              currentMessage.data =
+                currentMessage.data !== undefined ? currentMessage.data + '\n' + data : data;
+            } else if (line.startsWith('retry:')) {
+              const retryValue = parseInt(line.slice(6).trim(), 10);
+              if (!isNaN(retryValue)) {
+                currentMessage.retry = retryValue;
+              }
+            } else if (line === '' || line === '\r') {
+              // Handle error events
+              if (currentMessage.event === 'error' && currentMessage.data !== undefined) {
+                try {
+                  const errorData = JSON.parse(currentMessage.data) as { error: string };
+                  throw new SDKError(errorData.error);
+                } catch (e) {
+                  if (e instanceof SDKError) throw e;
+                  // Continue if parse fails
+                }
+              }
+              // Emit non-error messages
+              if (currentMessage.data !== undefined && currentMessage.event !== 'error') {
+                yield currentMessage as SSEMessage;
+              }
+              currentMessage = {};
+            }
+          }
+        }
+      }
+
+      return {
+        messages: parseSSEStream(),
+        close: () => {
+          closed = true;
+          reader.cancel().catch(() => {
+            // Ignore cancel errors
+          });
+        }
       };
     }
   };

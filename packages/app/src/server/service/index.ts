@@ -85,6 +85,7 @@ export function createService(config: ServiceConfig) {
     getConfig: configService.getConfig,
     parse: parseService.parseRequest,
     execute: executionEngine.execute,
+    executeSSE: executionEngine.executeSSE,
     // Session management
     createSession: sessionManager.create,
     getSession: sessionManager.get,

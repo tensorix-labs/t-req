@@ -10,6 +10,7 @@ import {
   ErrorResponseSchema,
   ExecuteRequestSchema,
   ExecuteResponseSchema,
+  ExecuteSSERequestSchema,
   ExecutionDetailSchema,
   FinishFlowResponseSchema,
   GetFileContentResponseSchema,
@@ -110,6 +111,34 @@ export const executeRoute = createRoute({
     400: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'Invalid request'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Request not found'
+    }
+  }
+});
+
+// Execute SSE stream
+export const executeSSERoute = createRoute({
+  method: 'post',
+  path: '/execute/sse',
+  tags: ['Requests'],
+  summary: 'Execute SSE streaming request',
+  description:
+    'Execute an SSE (Server-Sent Events) request and stream events. Request must have @sse directive or Accept: text/event-stream header.',
+  request: {
+    body: {
+      content: { 'application/json': { schema: ExecuteSSERequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      description: 'SSE event stream'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request or not an SSE request'
     },
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },

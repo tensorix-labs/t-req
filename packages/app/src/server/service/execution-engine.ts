@@ -1,4 +1,4 @@
-import { createEngine, parse } from '@t-req/core';
+import { createEngine, parse, type SSEMessage } from '@t-req/core';
 import { buildEngineOptions, resolveProjectConfig } from '@t-req/core/config';
 import { createCookieJar } from '@t-req/core/cookies';
 import { createCookieJarManager, scheduleCookieJarSave } from '@t-req/core/cookies/persistence';
@@ -15,7 +15,13 @@ import {
   RequestNotFoundError,
   SessionNotFoundError
 } from '../errors';
-import type { ExecuteRequest, ExecuteResponse, ExecutionSource, ExecutionStatus } from '../schemas';
+import type {
+  ExecuteRequest,
+  ExecuteResponse,
+  ExecuteSSERequest,
+  ExecutionSource,
+  ExecutionStatus
+} from '../schemas';
 import type { ConfigService } from './config-service';
 import type { FlowManager } from './flow-manager';
 import { type SessionManager, withSessionLock } from './session-manager';
@@ -31,6 +37,7 @@ import {
 
 export interface ExecutionEngine {
   execute(request: ExecuteRequest): Promise<ExecuteResponse>;
+  executeSSE(request: ExecuteSSERequest): AsyncIterable<SSEMessage>;
 }
 
 export function createExecutionEngine(
@@ -679,7 +686,110 @@ export function createExecutionEngine(
     };
   }
 
+  async function* executeSSE(request: ExecuteSSERequest): AsyncGenerator<SSEMessage> {
+    let content: string;
+    let basePath: string;
+
+    // Load content
+    if (request.path !== undefined) {
+      if (!isPathSafe(context.workspaceRoot, request.path)) {
+        throw new PathOutsideWorkspaceError(request.path);
+      }
+      const absolutePath = resolve(context.workspaceRoot, request.path);
+      content = await Bun.file(absolutePath).text();
+      basePath = dirname(absolutePath);
+    } else if (request.content !== undefined) {
+      content = request.content;
+      basePath = context.workspaceRoot;
+    } else {
+      throw new ContentOrPathRequiredError();
+    }
+
+    // Parse and select request
+    let parsedRequests: ReturnType<typeof parse>;
+    try {
+      parsedRequests = parse(content);
+    } catch (err) {
+      throw new ParseError(err instanceof Error ? err.message : String(err));
+    }
+
+    if (parsedRequests.length === 0) {
+      throw new NoRequestsFoundError();
+    }
+
+    let selectedRequest = parsedRequests[0];
+
+    if (request.requestName !== undefined) {
+      const found = parsedRequests.findIndex((r) => r.name === request.requestName);
+      if (found === -1) {
+        throw new RequestNotFoundError(`name '${request.requestName}'`);
+      }
+      selectedRequest = parsedRequests[found];
+    } else if (request.requestIndex !== undefined) {
+      if (request.requestIndex < 0 || request.requestIndex >= parsedRequests.length) {
+        throw new RequestIndexOutOfRangeError(request.requestIndex, parsedRequests.length - 1);
+      }
+      selectedRequest = parsedRequests[request.requestIndex];
+    }
+
+    if (!selectedRequest) {
+      throw new NoRequestsFoundError();
+    }
+
+    // Verify this is an SSE request
+    if (selectedRequest.protocol !== 'sse') {
+      const accept = selectedRequest.headers['Accept'] || selectedRequest.headers['accept'];
+      if (!accept?.includes('text/event-stream')) {
+        throw new ExecuteError(
+          'Request is not an SSE request. Add @sse directive or Accept: text/event-stream header.'
+        );
+      }
+    }
+
+    // Resolve project config
+    const startDir = request.path
+      ? dirname(resolve(context.workspaceRoot, request.path))
+      : context.workspaceRoot;
+
+    const resolvedConfig = await resolveProjectConfig({
+      startDir,
+      stopDir: context.workspaceRoot,
+      profile: request.profile,
+      overrideLayers: request.variables
+        ? [{ name: 'request', overrides: { variables: request.variables } }]
+        : []
+    });
+
+    const { config: projectConfig } = resolvedConfig;
+
+    // Build engine options
+    const { engineOptions } = buildEngineOptions({
+      config: projectConfig
+    });
+
+    const engine = createEngine(engineOptions);
+
+    try {
+      const stream = await engine.streamString(selectedRequest.raw, {
+        variables: projectConfig.variables,
+        basePath,
+        timeoutMs: request.timeout,
+        lastEventId: request.lastEventId
+      });
+
+      // Yield messages from the stream
+      for await (const message of stream) {
+        yield message;
+      }
+    } catch (err) {
+      throw new ExecuteError(
+        `SSE execution failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
   return {
-    execute
+    execute,
+    executeSSE
   };
 }

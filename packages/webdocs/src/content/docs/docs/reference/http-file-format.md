@@ -202,8 +202,46 @@ Content-Type: application/json
 | `@name` | Request name (alternative to `### Name` syntax) |
 | `@description` | Human-readable description |
 | `@timeout` | Request timeout in milliseconds |
+| `@sse` | Mark request as Server-Sent Events stream |
+| `@lastEventId` | Resume from a specific event ID |
 
 Meta directives must appear before the request line.
+
+## Server-Sent Events (SSE)
+
+Mark a request as an SSE stream with the `@sse` directive:
+
+```http
+# @sse
+GET https://api.example.com/events/stream
+Authorization: Bearer {{token}}
+```
+
+SSE is also auto-detected from the `Accept` header:
+
+```http
+GET https://api.example.com/events/stream
+Accept: text/event-stream
+```
+
+### SSE directives
+
+| Directive | Description |
+|-----------|-------------|
+| `@sse` | Mark request as SSE (enables streaming response) |
+| `@timeout` | Connection timeout in ms (default: 30000) |
+| `@lastEventId` | Resume from event ID (sets `Last-Event-ID` header) |
+
+### Example with all options
+
+```http
+# @name stockPrices
+# @sse
+# @timeout 60000
+# @lastEventId event-42
+GET https://api.example.com/prices/stream
+Authorization: Bearer {{token}}
+```
 
 ## Form data
 
@@ -341,5 +379,11 @@ avatar = @./fixtures/avatar.png | profile.png
 
 ### Delete user
 DELETE {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### Stream events
+# @sse
+# @timeout 60000
+GET {{baseUrl}}/events/stream
 Authorization: Bearer {{token}}
 ```
