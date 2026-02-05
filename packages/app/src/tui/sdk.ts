@@ -472,7 +472,7 @@ export function createSDK(serverUrl: string, token?: string): SDK {
             buffer += decoder.decode(value, { stream: true });
 
             // Process complete SSE messages
-            const lines = buffer.split('\n');
+            const lines = buffer.split(/\r?\n/);
             buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
 
             let eventType = '';
@@ -571,7 +571,7 @@ export function createSDK(serverUrl: string, token?: string): SDK {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
+          const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() ?? '';
 
           for (const line of lines) {
@@ -588,7 +588,7 @@ export function createSDK(serverUrl: string, token?: string): SDK {
               if (!Number.isNaN(retryValue)) {
                 currentMessage.retry = retryValue;
               }
-            } else if (line === '' || line === '\r') {
+            } else if (line === '') {
               // Handle error events
               if (currentMessage.event === 'error' && currentMessage.data !== undefined) {
                 try {

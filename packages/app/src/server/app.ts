@@ -379,7 +379,10 @@ export function createApp(config: ServerConfig) {
           } catch (error) {
             // Send error as SSE event so client can distinguish from connection errors
             const errorMsg = error instanceof Error ? error.message : String(error);
-            const errorEvent = `event: error\ndata: ${JSON.stringify({ error: errorMsg })}\n\n`;
+            const errorEvent = formatSSEMessage({
+              event: 'error',
+              data: JSON.stringify({ error: errorMsg })
+            });
             controller.enqueue(encoder.encode(errorEvent));
             controller.close();
           }

@@ -28,7 +28,7 @@ async function* parseSSEStream(
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
+    const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? '';
 
     for (const line of lines) {
@@ -46,7 +46,7 @@ async function* parseSSEStream(
         if (!Number.isNaN(retryValue)) {
           currentMessage.retry = retryValue;
         }
-      } else if (line === '' || line === '\r') {
+      } else if (line === '') {
         // Empty line = end of message
         if (currentMessage.data !== undefined) {
           yield currentMessage as SSEMessage;
