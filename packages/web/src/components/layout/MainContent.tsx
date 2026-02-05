@@ -1,6 +1,18 @@
-import { Show } from 'solid-js';
+import { Show, Suspense } from 'solid-js';
 import { useWorkspace } from '../../context/workspace';
-import { EditorWithExecution, EditorTabs } from '../editor';
+import { EditorTabs } from '../editor';
+import { LazyEditorWithExecution } from '../editor/lazy';
+
+function EditorLoadingFallback() {
+  return (
+    <div class="flex-1 flex items-center justify-center bg-treq-bg dark:bg-treq-dark-bg">
+      <div class="flex flex-col items-center space-y-3 text-treq-text-muted dark:text-treq-dark-text-muted">
+        <div class="w-8 h-8 border-2 border-treq-accent border-t-transparent rounded-full animate-spin" />
+        <p class="text-sm">Loading editor...</p>
+      </div>
+    </div>
+  );
+}
 
 export function MainContent() {
   const store = useWorkspace();
@@ -32,7 +44,9 @@ export function MainContent() {
         >
           {/* Editor with execution panel */}
           <div class="flex-1 overflow-hidden">
-            <EditorWithExecution path={activeFile()!} />
+            <Suspense fallback={<EditorLoadingFallback />}>
+              <LazyEditorWithExecution path={activeFile()!} />
+            </Suspense>
           </div>
         </Show>
       </div>

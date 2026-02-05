@@ -215,3 +215,5 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
     </div>
   );
 };
+
+export default EditorWithExecution;

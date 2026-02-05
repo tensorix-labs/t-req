@@ -137,3 +137,5 @@ export const CodeEditor: Component<CodeEditorProps> = (props) => {
     </div>
   );
 };
+
+export default CodeEditor;

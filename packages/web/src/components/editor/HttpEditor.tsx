@@ -134,3 +134,5 @@ export const HttpEditor: Component<HttpEditorProps> = (props) => {
     </div>
   );
 };
+
+export default HttpEditor;

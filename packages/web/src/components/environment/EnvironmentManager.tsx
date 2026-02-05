@@ -83,7 +83,7 @@ function getSectionComponent(type: SectionType): (props: SectionRenderProps) => 
   return section.component;
 }
 
-export function EnvironmentManager(props: EnvironmentManagerProps) {
+function EnvironmentManager(props: EnvironmentManagerProps) {
   const store = useWorkspace();
   const [activeSection, setActiveSection] = createSignal<SectionType>('variables');
   const [previewProfile, setPreviewProfile] = createSignal(store.activeProfile());
@@ -168,3 +168,6 @@ export function EnvironmentManager(props: EnvironmentManagerProps) {
     </Portal>
   );
 }
+
+export { EnvironmentManager };
+export default EnvironmentManager;
