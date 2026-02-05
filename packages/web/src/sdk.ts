@@ -247,6 +247,22 @@ export interface RunTestResponse {
   flowId: string;
 }
 
+export interface GetFileContentResponse {
+  path: string;
+  content: string;
+  lastModified: number;
+}
+
+export interface UpdateFileRequest {
+  path: string;
+  content: string;
+}
+
+export interface CreateFileRequest {
+  path: string;
+  content?: string;
+}
+
 export interface SDK {
   /** Base URL for API requests (empty string for relative URLs) */
   baseUrl: string;
@@ -285,6 +301,12 @@ export interface SDK {
   getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse>;
   runTest(filePath: string, frameworkId?: string, flowId?: string): Promise<RunTestResponse>;
   cancelTest(runId: string): Promise<void>;
+
+  // File CRUD
+  getFileContent(path: string): Promise<GetFileContentResponse>;
+  updateFile(path: string, content: string): Promise<void>;
+  createFile(path: string, content?: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
 
   // SSE subscription
   subscribeEvents(
@@ -580,6 +602,54 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
         credentials: 'include',
         headers
       });
+    },
+
+    // File CRUD
+    async getFileContent(path: string): Promise<GetFileContentResponse> {
+      const encodedPath = encodeURIComponent(path);
+      return request<GetFileContentResponse>(`/workspace/file?path=${encodedPath}`);
+    },
+
+    async updateFile(path: string, content: string): Promise<void> {
+      await request<void>('/workspace/file', {
+        method: 'PUT',
+        body: JSON.stringify({ path, content })
+      });
+    },
+
+    async createFile(path: string, content?: string): Promise<void> {
+      await request<void>('/workspace/file', {
+        method: 'POST',
+        body: JSON.stringify({ path, content })
+      });
+    },
+
+    async deleteFile(path: string): Promise<void> {
+      const url = buildUrl(`/workspace/file?path=${encodeURIComponent(path)}`);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorBody = (await response.json()) as {
+            error?: { message?: string };
+          };
+          if (errorBody.error?.message) {
+            errorMessage = errorBody.error.message;
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new SDKError(errorMessage, response.status);
+      }
     },
 
     subscribeEvents(

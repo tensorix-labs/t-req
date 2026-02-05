@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import {
   CapabilitiesResponseSchema,
   ConfigSummaryResponseSchema,
+  CreateFileRequestSchema,
   CreateFlowRequestSchema,
   CreateFlowResponseSchema,
   CreateSessionRequestSchema,
@@ -11,6 +12,7 @@ import {
   ExecuteResponseSchema,
   ExecutionDetailSchema,
   FinishFlowResponseSchema,
+  GetFileContentResponseSchema,
   GetRunnersResponseSchema,
   GetTestFrameworksResponseSchema,
   HealthResponseSchema,
@@ -24,6 +26,7 @@ import {
   RunTestRequestSchema,
   RunTestResponseSchema,
   SessionStateSchema,
+  UpdateFileRequestSchema,
   UpdateVariablesRequestSchema,
   UpdateVariablesResponseSchema
 } from './schemas';
@@ -423,6 +426,132 @@ export const listWorkspaceRequestsRoute = createRoute({
     400: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'Invalid path'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'File not found'
+    }
+  }
+});
+
+// File path query schema (for GET and DELETE)
+const FilePathQuerySchema = z.object({
+  path: z.string().openapi({
+    param: { name: 'path', in: 'query' },
+    description: 'Path to .http file (relative to workspace)'
+  })
+});
+
+// Get file content
+export const getFileContentRoute = createRoute({
+  method: 'get',
+  path: '/workspace/file',
+  tags: ['Workspace'],
+  summary: 'Get file content',
+  description: 'Get raw content of an .http file',
+  request: {
+    query: FilePathQuerySchema
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: GetFileContentResponseSchema } },
+      description: 'File content'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid path'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'File not found'
+    }
+  }
+});
+
+// Update file
+export const updateFileRoute = createRoute({
+  method: 'put',
+  path: '/workspace/file',
+  tags: ['Workspace'],
+  summary: 'Update file',
+  description: 'Update content of an existing .http file',
+  request: {
+    body: {
+      content: { 'application/json': { schema: UpdateFileRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      description: 'File updated successfully'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'File not found'
+    }
+  }
+});
+
+// Create file
+export const createFileRoute = createRoute({
+  method: 'post',
+  path: '/workspace/file',
+  tags: ['Workspace'],
+  summary: 'Create file',
+  description: 'Create a new .http file',
+  request: {
+    body: {
+      content: { 'application/json': { schema: CreateFileRequestSchema } }
+    }
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: GetFileContentResponseSchema } },
+      description: 'File created'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid path or file already exists'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
+    }
+  }
+});
+
+// Delete file
+export const deleteFileRoute = createRoute({
+  method: 'delete',
+  path: '/workspace/file',
+  tags: ['Workspace'],
+  summary: 'Delete file',
+  description: 'Delete an .http file from the workspace',
+  request: {
+    query: FilePathQuerySchema
+  },
+  responses: {
+    204: {
+      description: 'File deleted'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Path outside workspace'
     },
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },

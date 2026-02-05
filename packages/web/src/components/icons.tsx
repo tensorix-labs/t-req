@@ -164,3 +164,18 @@ export function CloseIcon() {
     </svg>
   );
 }
+
+export function CollapseIcon(props: { collapsed?: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      class="transition-transform duration-200"
+      style={{ transform: props.collapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
+    >
+      <path d="M10 4L6 8L10 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  );
+}

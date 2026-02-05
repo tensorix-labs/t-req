@@ -532,6 +532,47 @@ export const ListWorkspaceRequestsResponseSchema = z.object({
   requests: z.array(WorkspaceRequestSchema)
 });
 
+export const GetFileContentResponseSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  lastModified: z.number()
+});
+
+export const UpdateFileRequestSchema = z.object({
+  path: z.string(),
+  content: z.string()
+});
+
+const SCRIPT_EXTENSIONS = ['.js', '.mjs', '.ts', '.mts', '.py'];
+const TEST_EXTENSIONS = [
+  '.test.js',
+  '.test.mjs',
+  '.test.ts',
+  '.test.mts',
+  '.spec.js',
+  '.spec.mjs',
+  '.spec.ts',
+  '.spec.mts'
+];
+
+function isAllowedFileType(path: string): boolean {
+  if (path.endsWith('.http')) return true;
+  if (TEST_EXTENSIONS.some((ext) => path.endsWith(ext))) return true;
+  if (SCRIPT_EXTENSIONS.some((ext) => path.endsWith(ext))) return true;
+  return false;
+}
+
+export const CreateFileRequestSchema = z.object({
+  path: z.string().refine(isAllowedFileType, {
+    message: 'File must be .http, script (.js, .ts, .py), or test file'
+  }),
+  content: z.string().optional()
+});
+
+export const DeleteFileRequestSchema = z.object({
+  path: z.string()
+});
+
 // ============================================================================
 // Script Execution Schemas
 // ============================================================================
@@ -647,6 +688,12 @@ export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
 export type ListWorkspaceFilesResponse = z.infer<typeof ListWorkspaceFilesResponseSchema>;
 export type WorkspaceRequest = z.infer<typeof WorkspaceRequestSchema>;
 export type ListWorkspaceRequestsResponse = z.infer<typeof ListWorkspaceRequestsResponseSchema>;
+
+// File CRUD types
+export type GetFileContentResponse = z.infer<typeof GetFileContentResponseSchema>;
+export type UpdateFileRequest = z.infer<typeof UpdateFileRequestSchema>;
+export type CreateFileRequest = z.infer<typeof CreateFileRequestSchema>;
+export type DeleteFileRequest = z.infer<typeof DeleteFileRequestSchema>;
 
 // Script execution types
 export type RunScriptRequest = z.infer<typeof RunScriptRequestSchema>;

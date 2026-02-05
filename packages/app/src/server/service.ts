@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { createEngine, parse } from '@t-req/core';
 import {
   buildEngineOptions,
@@ -15,6 +16,7 @@ import {
 } from '@t-req/core/cookies/persistence';
 import type { CookieStore } from '@t-req/core/runtime';
 import packageJson from '../../package.json';
+import { getFileType } from '../tui/store';
 import { createCookieStoreFromJar, dirname, isAbsolute, isPathSafe, resolve } from '../utils';
 import { generateScriptToken, revokeScriptToken } from './auth';
 import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from './diagnostics';
@@ -36,6 +38,7 @@ import {
 import type {
   CapabilitiesResponse,
   ConfigSummaryResponse,
+  CreateFileRequest,
   CreateFlowRequest,
   CreateFlowResponse,
   CreateSessionRequest,
@@ -48,6 +51,7 @@ import type {
   ExecutionStatus,
   FinishFlowResponse,
   FlowSummary,
+  GetFileContentResponse,
   GetRunnersResponse,
   GetTestFrameworksResponse,
   HealthResponse,
@@ -64,6 +68,7 @@ import type {
   RunTestRequest,
   RunTestResponse,
   SessionState,
+  UpdateFileRequest,
   UpdateVariablesRequest,
   UpdateVariablesResponse,
   WorkspaceFile,
@@ -1642,6 +1647,106 @@ export function createService(config: ServiceConfig) {
     return { path, requests };
   }
 
+  async function getFileContent(path: string): Promise<GetFileContentResponse> {
+    if (!isPathSafe(config.workspaceRoot, path)) {
+      throw new PathOutsideWorkspaceError(path);
+    }
+
+    const fullPath = resolve(config.workspaceRoot, path);
+    const file = Bun.file(fullPath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      throw new FileNotFoundError(path);
+    }
+
+    const content = await file.text();
+    const stat = await file.stat();
+
+    return {
+      path,
+      content,
+      lastModified: stat.mtime?.getTime() ?? Date.now()
+    };
+  }
+
+  async function updateFile(request: UpdateFileRequest): Promise<void> {
+    if (!isPathSafe(config.workspaceRoot, request.path)) {
+      throw new PathOutsideWorkspaceError(request.path);
+    }
+
+    const fileType = getFileType(request.path);
+    if (fileType === 'other') {
+      throw new ValidationError('Only .http, script, and test files can be updated');
+    }
+
+    const fullPath = resolve(config.workspaceRoot, request.path);
+    const file = Bun.file(fullPath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      throw new FileNotFoundError(request.path);
+    }
+
+    await Bun.write(fullPath, request.content);
+  }
+
+  async function createFile(request: CreateFileRequest): Promise<GetFileContentResponse> {
+    if (!isPathSafe(config.workspaceRoot, request.path)) {
+      throw new PathOutsideWorkspaceError(request.path);
+    }
+
+    const fileType = getFileType(request.path);
+    if (fileType === 'other') {
+      throw new ValidationError('File must be .http, script, or test file');
+    }
+
+    const fullPath = resolve(config.workspaceRoot, request.path);
+    const file = Bun.file(fullPath);
+    const exists = await file.exists();
+
+    if (exists) {
+      throw new ValidationError(`File already exists: ${request.path}`);
+    }
+
+    // Ensure parent directory exists
+    const parentDir = dirname(fullPath);
+    await mkdir(parentDir, { recursive: true });
+
+    // Write file with provided or empty content
+    const content = request.content ?? '';
+    await Bun.write(fullPath, content);
+
+    const stat = await file.stat();
+
+    return {
+      path: request.path,
+      content,
+      lastModified: stat.mtime?.getTime() ?? Date.now()
+    };
+  }
+
+  async function deleteFile(path: string): Promise<void> {
+    if (!isPathSafe(config.workspaceRoot, path)) {
+      throw new PathOutsideWorkspaceError(path);
+    }
+
+    const fileType = getFileType(path);
+    if (fileType === 'other') {
+      throw new ValidationError('Only .http, script, and test files can be deleted');
+    }
+
+    const fullPath = resolve(config.workspaceRoot, path);
+    const file = Bun.file(fullPath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      throw new FileNotFoundError(path);
+    }
+
+    await file.delete();
+  }
+
   // ============================================================================
   // Script Execution
   // ============================================================================
@@ -2053,6 +2158,11 @@ export function createService(config: ServiceConfig) {
     // Workspace discovery
     listWorkspaceFiles,
     listWorkspaceRequests,
+    // File CRUD
+    getFileContent,
+    updateFile,
+    createFile,
+    deleteFile,
     // Script execution
     executeScript,
     stopScript,

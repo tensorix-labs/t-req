@@ -23,6 +23,14 @@ export interface FlatNode {
   isExpanded: boolean;
 }
 
+export interface FileContent {
+  content: string;
+  originalContent: string; // Track what was loaded from server
+  lastModified: number;
+  isLoading: boolean;
+  error?: string;
+}
+
 export interface WorkspaceStore {
   // Connection state
   connectionStatus: () => ConnectionStatus;
@@ -53,6 +61,12 @@ export interface WorkspaceStore {
   selectedRequests: () => WorkspaceRequest[];
   loadingRequests: () => boolean;
 
+  // File editor state
+  openFiles: () => string[];
+  activeFile: () => string | undefined;
+  fileContents: () => Record<string, FileContent>;
+  unsavedChanges: () => Set<string>;
+
   // Actions
   /**
    * Connect to a t-req server.
@@ -66,6 +80,16 @@ export interface WorkspaceStore {
   disconnect: () => void;
   loadRequests: (path: string) => Promise<void>;
   refresh: () => Promise<void>;
+
+  // File editor actions
+  openFile: (path: string) => Promise<void>;
+  closeFile: (path: string) => void;
+  setActiveFile: (path: string | undefined) => void;
+  updateFileContent: (path: string, content: string) => void;
+  saveFile: (path: string) => Promise<void>;
+  createFile: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+  hasUnsavedChanges: (path: string) => boolean;
 }
 
 function buildTree(files: WorkspaceFile[]): TreeNode[] {
@@ -203,6 +227,12 @@ export function createWorkspaceStore(): WorkspaceStore {
   const [requestsByPath, setRequestsByPath] = createSignal<Record<string, WorkspaceRequest[]>>({});
   const [loadingRequests, setLoadingRequests] = createSignal(false);
 
+  // File editor state
+  const [openFiles, setOpenFiles] = createSignal<string[]>([]);
+  const [activeFile, setActiveFile] = createSignal<string | undefined>(undefined);
+  const [fileContents, setFileContents] = createSignal<Record<string, FileContent>>({});
+  const [unsavedChanges, setUnsavedChanges] = createSignal<Set<string>>(new Set());
+
   // Derived: tree structure from files
   const tree = createMemo(() => buildTree(files()));
 
@@ -331,6 +361,177 @@ export function createWorkspaceStore(): WorkspaceStore {
     }
   };
 
+  // File editor actions
+  const openFile = async (path: string) => {
+    const currentSdk = sdk();
+    if (!currentSdk) return;
+
+    // Add to open files if not already open
+    setOpenFiles((prev) => {
+      if (prev.includes(path)) return prev;
+      return [...prev, path];
+    });
+
+    // Set as active file
+    setActiveFile(path);
+
+    // Load content if not already loaded
+    if (!fileContents()[path]) {
+      setFileContents((prev) => ({
+        ...prev,
+        [path]: { content: '', originalContent: '', lastModified: 0, isLoading: true }
+      }));
+
+      try {
+        const response = await currentSdk.getFileContent(path);
+        setFileContents((prev) => ({
+          ...prev,
+          [path]: {
+            content: response.content,
+            originalContent: response.content, // Store original for dirty comparison
+            lastModified: response.lastModified,
+            isLoading: false
+          }
+        }));
+      } catch (err) {
+        setFileContents((prev) => ({
+          ...prev,
+          [path]: {
+            content: '',
+            originalContent: '',
+            lastModified: 0,
+            isLoading: false,
+            error: err instanceof Error ? err.message : String(err)
+          }
+        }));
+      }
+    }
+  };
+
+  const closeFile = (path: string) => {
+    setOpenFiles((prev) => prev.filter((p) => p !== path));
+
+    // If closing the active file, switch to another open file
+    if (activeFile() === path) {
+      const remaining = openFiles().filter((p) => p !== path);
+      setActiveFile(remaining.length > 0 ? remaining[remaining.length - 1] : undefined);
+    }
+
+    // Remove from unsaved changes
+    setUnsavedChanges((prev) => {
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+  };
+
+  const updateFileContent = (path: string, content: string) => {
+    const original = fileContents()[path]?.originalContent;
+
+    setFileContents((prev) => ({
+      ...prev,
+      [path]: {
+        ...prev[path],
+        content
+      }
+    }));
+
+    // Only mark dirty if content differs from original
+    if (content !== original) {
+      setUnsavedChanges((prev) => new Set(prev).add(path));
+    } else {
+      // Content matches original, remove dirty flag
+      setUnsavedChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }
+  };
+
+  const saveFile = async (path: string) => {
+    const currentSdk = sdk();
+    if (!currentSdk) return;
+
+    const content = fileContents()[path]?.content;
+    if (content === undefined) return;
+
+    try {
+      await currentSdk.updateFile(path, content);
+
+      // Mark as saved
+      setUnsavedChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+
+      // Update lastModified and originalContent (content is now saved)
+      setFileContents((prev) => ({
+        ...prev,
+        [path]: {
+          ...prev[path],
+          originalContent: prev[path].content, // Update original after save
+          lastModified: Date.now()
+        }
+      }));
+
+      // Refresh file list to update request counts (but don't clear all requests)
+      const response = await currentSdk.listWorkspaceFiles();
+      setFiles(response.files);
+      setWorkspaceRoot(response.workspaceRoot);
+
+      // Only clear this file's cached requests (they may have changed)
+      setRequestsByPath((prev) => {
+        const next = { ...prev };
+        delete next[path];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const createFile = async (path: string) => {
+    const currentSdk = sdk();
+    if (!currentSdk) return;
+
+    try {
+      await currentSdk.createFile(path);
+
+      // Refresh file list
+      await refresh();
+
+      // Open the new file
+      await openFile(path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const deleteFile = async (path: string) => {
+    const currentSdk = sdk();
+    if (!currentSdk) return;
+
+    try {
+      await currentSdk.deleteFile(path);
+
+      // Close if open
+      if (openFiles().includes(path)) {
+        closeFile(path);
+      }
+
+      // Refresh file list
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const hasUnsavedChanges = (path: string) => {
+    return unsavedChanges().has(path);
+  };
+
   return {
     // Connection
     connectionStatus,
@@ -362,10 +563,26 @@ export function createWorkspaceStore(): WorkspaceStore {
     selectedRequests,
     loadingRequests,
 
+    // File editor state
+    openFiles,
+    activeFile,
+    fileContents,
+    unsavedChanges,
+
     // Actions
     connect,
     disconnect,
     loadRequests,
-    refresh
+    refresh,
+
+    // File editor actions
+    openFile,
+    closeFile,
+    setActiveFile,
+    updateFileContent,
+    saveFile,
+    createFile,
+    deleteFile,
+    hasUnsavedChanges
   };
 }
