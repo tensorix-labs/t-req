@@ -55,21 +55,6 @@ export function createSessionManager(context: ServiceContext): SessionManager {
     }
   }
 
-  async function withSessionLock<T>(session: Session, fn: () => Promise<T>): Promise<T> {
-    // Simple per-session mutex: serialize all mutations + runs in a session.
-    const prev = session.lock;
-    let release: (() => void) | undefined;
-    session.lock = new Promise<void>((r) => {
-      release = r;
-    });
-    await prev;
-    try {
-      return await fn();
-    } finally {
-      release?.();
-    }
-  }
-
   function create(request: CreateSessionRequest): CreateSessionResponse {
     // LRU eviction when limit reached (instead of hard error)
     if (sessions.size >= context.maxSessions) {
@@ -183,7 +168,6 @@ export function createSessionManager(context: ServiceContext): SessionManager {
   };
 }
 
-// Re-export withSessionLock for use by execution-engine
 export async function withSessionLock<T>(session: Session, fn: () => Promise<T>): Promise<T> {
   const prev = session.lock;
   let release: (() => void) | undefined;
