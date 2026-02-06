@@ -32,7 +32,11 @@ export function ExitProvider(props: {
       // ignore
     }
 
-    await props.onExit?.(reason);
+    try {
+      await props.onExit?.(reason);
+    } catch {
+      // Server cleanup errors must not prevent exit
+    }
 
     const formatted = formatExitReason(reason);
     if (formatted) {
