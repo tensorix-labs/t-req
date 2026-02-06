@@ -19,6 +19,10 @@ curl -fsSL https://t-req.io/install | bash
 ```
 
 <p align="center">
+  <img src="./docs/assets/tui.gif" alt="t-req TUI">
+</p>
+
+<p align="center">
   <img src="./docs/assets/web.png" alt="t-req web dashboard">
 </p>
 
