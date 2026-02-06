@@ -185,9 +185,6 @@ async function runOpen(argv: OpenOptions): Promise<void> {
     server.stop(true);
   };
 
-  process.on('SIGTERM', () => void shutdown());
-  process.on('SIGINT', () => void shutdown());
-
   // Wait for server to be healthy
   try {
     await waitForHealthWithRetry(serverUrl, token, {
@@ -210,7 +207,7 @@ async function runOpen(argv: OpenOptions): Promise<void> {
   // Import and start TUI
   const { startTui } = await import('../tui');
   try {
-    await startTui({ serverUrl, token });
+    await startTui({ serverUrl, token, onExit: shutdown });
   } finally {
     // Cleanup on TUI exit
     await shutdown();

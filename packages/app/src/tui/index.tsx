@@ -20,6 +20,7 @@ import { ToastProvider } from './components/toast';
 export interface TuiConfig {
   serverUrl: string;
   token?: string;
+  onExit?: (reason?: unknown) => Promise<void> | void;
 }
 
 export async function startTui(config: TuiConfig): Promise<void> {
@@ -67,7 +68,7 @@ export async function startTui(config: TuiConfig): Promise<void> {
       <SDKProvider sdk={sdk}>
         <StoreProvider store={store}>
           <ObserverProvider store={observerStore}>
-            <ExitProvider register={(fn) => (exitFn = fn)}>
+            <ExitProvider register={(fn) => (exitFn = fn)} onExit={config.onExit}>
               <KeybindProvider>
                 <LogProvider>
                   <ToastProvider>
