@@ -1,5 +1,16 @@
 # @t-req/app
 
+## 0.3.7
+
+### Patch Changes
+
+- 7f32a00: @t-req/sdk: Add TypeScript SDK with client, server spawner, and SSE streaming support
+  @t-req/app: Migrate TUI to @t-req/sdk clietn and add OpenAPI spec export
+- 37d724c: Add integrated code editor to the web UI
+- 7e4856e: Add SSE support and stream view in TUI
+- Updated dependencies [7f32a00]
+  - @t-req/sdk@0.1.0
+
 ## 0.3.6
 
 ### Patch Changes
