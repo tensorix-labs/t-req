@@ -1,6 +1,7 @@
 import { createEffect, createMemo, For, Show } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
 import { theme, rgba } from '../theme';
+import { extractFilename } from '../util/path';
 
 export interface ScriptOutputProps {
   stdoutLines: string[];
@@ -58,8 +59,7 @@ export function ScriptOutput(props: ScriptOutputProps) {
   // Script name for header
   const scriptName = createMemo(() => {
     if (!props.scriptPath) return 'Script';
-    const parts = props.scriptPath.split('/');
-    return parts[parts.length - 1] ?? 'Script';
+    return extractFilename(props.scriptPath, 'Script');
   });
 
   return (

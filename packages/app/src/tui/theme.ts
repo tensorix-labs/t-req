@@ -34,6 +34,15 @@ export function rgba(hex: string): RGBA {
   return RGBA.fromHex(hex);
 }
 
+export function getHttpStatusColor(status?: number): string {
+  if (!status) return theme.textMuted;
+  if (status >= 200 && status < 300) return theme.success;
+  if (status >= 300 && status < 400) return theme.info;
+  if (status >= 400 && status < 500) return theme.warning;
+  if (status >= 500) return theme.error;
+  return theme.textMuted;
+}
+
 export function getMethodColor(method: string): string {
   const normalized = method.toUpperCase();
   switch (normalized) {

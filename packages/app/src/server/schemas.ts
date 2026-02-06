@@ -524,7 +524,8 @@ export const WorkspaceRequestSchema = z.object({
   index: z.number(),
   name: z.string().optional(),
   method: z.string(),
-  url: z.string()
+  url: z.string(),
+  protocol: z.enum(['http', 'sse']).optional()
 });
 
 export const ListWorkspaceRequestsResponseSchema = z.object({

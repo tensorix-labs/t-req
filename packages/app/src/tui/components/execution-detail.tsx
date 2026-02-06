@@ -2,8 +2,11 @@ import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } 
 import { useKeyboard } from '@opentui/solid';
 import type { ExecutionDetail, PluginHookInfo } from '../sdk';
 import { useDialog } from '../context';
-import { theme, rgba, getMethodColor } from '../theme';
+import { theme, rgba, getMethodColor, getHttpStatusColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
+import { formatDuration, prettyPrintJson } from '../util/format';
+import { detectFiletype } from '../syntax';
+import { HighlightedContent } from './highlighted-content';
 
 type DetailTab = 'body' | 'headers' | 'plugins';
 
@@ -16,27 +19,6 @@ const TABS = [
 export interface ExecutionDetailProps {
   execution: ExecutionDetail | undefined;
   isLoading: boolean;
-}
-
-/**
- * Format a duration in milliseconds to a human-readable string.
- */
-function formatDuration(ms?: number): string {
-  if (ms === undefined) return 'N/A';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
-}
-
-/**
- * Get HTTP status color based on code range
- */
-function getHttpStatusColor(status?: number): string {
-  if (!status) return theme.textMuted;
-  if (status >= 200 && status < 300) return theme.success;
-  if (status >= 300 && status < 400) return theme.info;
-  if (status >= 400 && status < 500) return theme.warning;
-  if (status >= 500) return theme.error;
-  return theme.textMuted;
 }
 
 /**
@@ -58,17 +40,10 @@ function decodeBody(body?: string, encoding?: string): string {
  * Format body content, pretty printing JSON when detected
  */
 function formatBody(body: string, contentType?: string): string {
-  // Check if content type suggests JSON
   const isJson = contentType?.toLowerCase().includes('application/json');
 
   if (isJson || !contentType) {
-    try {
-      const parsed = JSON.parse(body);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      // Not valid JSON, return as-is
-      return body;
-    }
+    return prettyPrintJson(body);
   }
   return body;
 }
@@ -85,15 +60,25 @@ function useExecutionData(execution: () => ExecutionDetail | undefined) {
     headers().filter(h => h.name.toLowerCase() !== 'set-cookie')
   );
 
+  const contentType = createMemo(() =>
+    headers().find(h => h.name.toLowerCase() === 'content-type')?.value
+  );
+
   const body = createMemo(() => {
     const res = response();
     if (!res) return '';
     const decoded = decodeBody(res.body, res.encoding);
-    const contentType = headers().find(h => h.name.toLowerCase() === 'content-type')?.value;
-    return formatBody(decoded, contentType);
+    return formatBody(decoded, contentType());
   });
 
-  return { response, cookies, nonCookieHeaders, body };
+  const filetype = createMemo(() => {
+    const res = response();
+    if (!res) return undefined;
+    const decoded = decodeBody(res.body, res.encoding);
+    return detectFiletype(contentType(), decoded);
+  });
+
+  return { response, cookies, nonCookieHeaders, body, filetype };
 }
 
 function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => void }) {
@@ -119,13 +104,13 @@ function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => 
 }
 
 
-function BodyTab(props: { body: string }) {
+function BodyTab(props: { body: string; filetype?: string }) {
   return (
     <box id="body" flexDirection="column">
-      <Show when={props.body !== undefined} fallback={
+      <Show when={props.body} fallback={
         <text fg={rgba(theme.textMuted)}>No body content</text>
       }>
-        <text fg={rgba(theme.text)}>{props.body}</text>
+        <HighlightedContent content={props.body} filetype={props.filetype} />
       </Show>
     </box>
   );
@@ -201,7 +186,7 @@ function PluginsTab(props: { pluginHooks: PluginHookInfo[] | undefined }) {
 export function ExecutionDetailView(props: ExecutionDetailProps) {
   const dialog = useDialog();
   const [activeTab, setActiveTab] = createSignal<DetailTab>('body');
-  const { response, cookies, nonCookieHeaders, body } = useExecutionData(() => props.execution);
+  const { response, cookies, nonCookieHeaders, body, filetype } = useExecutionData(() => props.execution);
 
   // Reset tab when execution changes
   createEffect(on(
@@ -278,13 +263,13 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   <Show when={execution.timing.ttfb !== undefined}>
                     <box flexDirection="row">
                       <text fg={rgba(theme.textMuted)}>TTFB:  </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb)}</text>
+                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb, { precision: 2, emptyValue: 'N/A' })}</text>
                     </box>
                   </Show>
                   <Show when={execution.timing.durationMs !== undefined}>
                     <box flexDirection="row">
                       <text fg={rgba(theme.textMuted)}>Total: </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs)}</text>
+                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs, { precision: 2, emptyValue: 'N/A' })}</text>
                     </box>
                   </Show>
                 </box>
@@ -329,7 +314,7 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
             <scrollbox flexGrow={1} paddingLeft={2} paddingRight={1}>
               <Switch>
                 <Match when={activeTab() === 'body'}>
-                  <BodyTab body={body()} />
+                  <BodyTab body={body()} filetype={filetype()} />
                 </Match>
                 <Match when={activeTab() === 'headers'}>
                   <HeadersTab cookies={cookies()} headers={nonCookieHeaders()} />

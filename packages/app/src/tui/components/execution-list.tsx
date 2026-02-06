@@ -2,6 +2,7 @@ import { createEffect, For, Show } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
 import type { ExecutionSummary, ExecutionStatus } from '../observer-store';
 import { theme, rgba, getMethodColor } from '../theme';
+import { formatDuration } from '../util/format';
 
 export interface ExecutionListProps {
   executions: ExecutionSummary[];
@@ -24,15 +25,6 @@ function getStatusDisplay(status: ExecutionStatus): { icon: string; color: strin
     case 'failed':
       return { icon: '\u2717', color: theme.error }; // ✗
   }
-}
-
-/**
- * Format a duration in milliseconds to a human-readable string.
- */
-function formatDuration(ms?: number): string {
-  if (ms === undefined) return '';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 export function ExecutionList(props: ExecutionListProps) {

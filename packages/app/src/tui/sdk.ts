@@ -21,6 +21,7 @@ export interface WorkspaceRequest {
   name?: string;
   method: string;
   url: string;
+  protocol?: 'http' | 'sse';
 }
 
 export interface ListWorkspaceRequestsResponse {

@@ -11,6 +11,8 @@ import { FrameworkSelectDialog } from './components/framework-select';
 import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
+import { StreamView } from './components/stream-view';
+import type { StreamState } from './stream';
 import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
 import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
@@ -100,13 +102,23 @@ export function App() {
   async function executeFirstRequest(filePath: string) {
     const requests = await workspace.loadRequests(filePath);
     const firstRequest = requests?.[0];
-    if (firstRequest) {
+    if (!firstRequest) return;
+
+    if (firstRequest.protocol === 'sse') {
+      void requestExecution.executeStreamRequest(
+        filePath,
+        firstRequest.index,
+        firstRequest.method,
+        firstRequest.url
+      );
+    } else {
       void requestExecution.executeRequest(filePath, firstRequest.index);
     }
   }
 
   // Cleanup handler
   async function cleanupAndExit() {
+    requestExecution.disconnectStream();
     scriptRunner.cleanup();
     testRunner.cleanup();
     flowSubscription.cleanup();
@@ -285,33 +297,43 @@ export function App() {
         </Show>
 
         <Panel flexGrow={1}>
-          <Show
-            when={observer.state.flowId}
-            keyed
-            fallback={
-              <box
-                flexGrow={1}
-                flexDirection="column"
-                overflow="hidden"
-                backgroundColor={rgba(theme.backgroundPanel)}
-              >
-                <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                  <text fg={rgba(theme.primary)} attributes={1}>
-                    Details
-                  </text>
-                </box>
-                <box paddingLeft={2}>
-                  <text fg={rgba(theme.textMuted)}>Select an execution to view details</text>
-                </box>
-              </box>
-            }
-          >
-            {() => (
-              <ExecutionDetailView
-                execution={executionDetail()}
-                isLoading={loadingDetail()}
+          <Show when={observer.state.streamState}>
+            {(stream: () => StreamState) => (
+              <StreamView
+                stream={stream()}
+                onDisconnect={() => requestExecution.disconnectStream()}
               />
             )}
+          </Show>
+          <Show when={!observer.state.streamState}>
+            <Show
+              when={observer.state.flowId}
+              keyed
+              fallback={
+                <box
+                  flexGrow={1}
+                  flexDirection="column"
+                  overflow="hidden"
+                  backgroundColor={rgba(theme.backgroundPanel)}
+                >
+                  <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                    <text fg={rgba(theme.primary)} attributes={1}>
+                      Details
+                    </text>
+                  </box>
+                  <box paddingLeft={2}>
+                    <text fg={rgba(theme.textMuted)}>Select an execution to view details</text>
+                  </box>
+                </box>
+              }
+            >
+              {() => (
+                <ExecutionDetailView
+                  execution={executionDetail()}
+                  isLoading={loadingDetail()}
+                />
+              )}
+            </Show>
           </Show>
         </Panel>
       </SplitPanel>
