@@ -1,5 +1,5 @@
+import type { WorkspaceFile, WorkspaceRequest } from '@t-req/sdk/client';
 import { createEffect, createMemo, createSignal, on } from 'solid-js';
-import type { WorkspaceFile, WorkspaceRequest } from './sdk';
 
 // ============================================================================
 // Types

@@ -5,9 +5,9 @@
  * Provides a clean interface for file tree operations without exposing store internals.
  */
 
+import type { WorkspaceRequest } from '@t-req/sdk/client';
 import { onMount } from 'solid-js';
-import { useSDK, useStore } from '../context';
-import type { WorkspaceRequest } from '../sdk';
+import { unwrap, useSDK, useStore } from '../context';
 
 export interface WorkspaceReturn {
   /** Navigate to a file in the tree, expanding parents if needed */
@@ -24,7 +24,7 @@ export function useWorkspace(): WorkspaceReturn {
 
   onMount(async () => {
     try {
-      const config = await sdk.getConfig();
+      const config = await unwrap(sdk.getConfig());
       store.setAvailableProfiles(config.availableProfiles);
     } catch {
       // Ignore errors - profiles just won't be available
@@ -79,7 +79,7 @@ export function useWorkspace(): WorkspaceReturn {
 
     // Fetch from SDK
     try {
-      const response = await sdk.listWorkspaceRequests(filePath);
+      const response = await unwrap(sdk.getWorkspaceRequests({ query: { path: filePath } }));
       store.setRequestsForPath(filePath, response.requests);
       return response.requests;
     } catch (_e) {

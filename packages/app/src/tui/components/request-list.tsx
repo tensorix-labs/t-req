@@ -1,5 +1,5 @@
 import { createMemo } from 'solid-js';
-import type { WorkspaceRequest } from '../sdk';
+import type { WorkspaceRequest } from '@t-req/sdk/client';
 import { theme, rgba, getMethodColor } from '../theme';
 
 export interface RequestListProps {

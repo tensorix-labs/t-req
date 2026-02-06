@@ -6,9 +6,9 @@
  * and server-side process spawning with live output streaming.
  */
 
+import type { TestFrameworkOption } from '@t-req/sdk/client';
 import { type Accessor, createSignal } from 'solid-js';
-import { useObserver, useSDK } from '../context';
-import type { TestFrameworkOption } from '../sdk';
+import { unwrap, useObserver, useSDK } from '../context';
 import { useFlowSubscription } from './use-flow-subscription';
 
 export interface TestRunnerOptions {
@@ -37,13 +37,15 @@ export function useTestRunner(options: TestRunnerOptions): TestRunnerReturn {
   async function startTest(testPath: string, frameworkId?: string) {
     let flowId: string | undefined;
     try {
-      const createdFlow = await sdk.createFlow(`Test: ${testPath}`);
+      const createdFlow = await unwrap(sdk.postFlows({ body: { label: `Test: ${testPath}` } }));
       flowId = createdFlow.flowId;
 
       observer.setState('flowId', flowId);
       flowSubscription.subscribe(flowId);
 
-      const { runId } = await sdk.runTest(testPath, frameworkId, flowId);
+      const { runId } = await unwrap(
+        sdk.postTest({ body: { filePath: testPath, frameworkId, flowId } })
+      );
       currentRunId = runId;
 
       if (!observer.state.runningScript) {
@@ -73,7 +75,9 @@ export function useTestRunner(options: TestRunnerOptions): TestRunnerReturn {
     observer.reset();
 
     try {
-      const { detected, options: frameworkOptions } = await sdk.getTestFrameworks(testPath);
+      const { detected, options: frameworkOptions } = await unwrap(
+        sdk.getTestFrameworks({ query: { filePath: testPath } })
+      );
 
       if (detected) {
         await startTest(testPath, detected);
@@ -93,7 +97,7 @@ export function useTestRunner(options: TestRunnerOptions): TestRunnerReturn {
   async function cancelTest() {
     if (currentRunId) {
       try {
-        await sdk.cancelTest(currentRunId);
+        await sdk.deleteTestByRunId({ path: { runId: currentRunId } });
       } catch {
         // Test may have already finished
       }
@@ -105,7 +109,7 @@ export function useTestRunner(options: TestRunnerOptions): TestRunnerReturn {
 
   function cleanup() {
     if (currentRunId) {
-      sdk.cancelTest(currentRunId).catch(() => {});
+      sdk.deleteTestByRunId({ path: { runId: currentRunId } }).catch(() => {});
       currentRunId = undefined;
     }
     flowSubscription.cleanup();

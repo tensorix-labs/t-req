@@ -5,10 +5,10 @@
  * Manages the SSE connection lifecycle and updates observer state with execution events.
  */
 
+import type { EventEnvelope } from '@t-req/sdk/client';
 import type { Accessor } from 'solid-js';
 import { useObserver, useSDK } from '../context';
 import type { ExecutionStatus, SSEStatus } from '../observer-store';
-import type { EventEnvelope } from '../sdk';
 
 export interface FlowSubscriptionReturn {
   subscribe: (flowId: string) => () => void;
@@ -21,8 +21,8 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
   const sdk = useSDK();
   const observer = useObserver();
 
-  // Keep track of unsubscribe function
-  let sseUnsubscribe: (() => void) | undefined;
+  // Keep track of abort controller for current subscription
+  let currentController: AbortController | undefined;
 
   // Handle SSE events
   function handleSSEEvent(event: EventEnvelope) {
@@ -181,43 +181,65 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
 
   function subscribe(flowId: string): () => void {
     // Unsubscribe from any previous subscription
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
+    if (currentController) {
+      currentController.abort();
+      currentController = undefined;
     }
+
+    const controller = new AbortController();
+    currentController = controller;
 
     observer.setState('sseStatus', 'connecting');
 
-    // Capture the specific unsubscribe function for this subscription
-    const currentUnsubscribe = sdk.subscribeEvents(
-      flowId,
-      handleSSEEvent,
-      (error) => {
-        observer.setState('sseStatus', 'error');
-        console.error('SSE error:', error);
+    // Use generated SSE client — getEvent returns { stream } with onSseEvent callback
+    const resultPromise = sdk.getEvent({
+      query: { flowId },
+      signal: controller.signal,
+      onSseEvent: (event) => {
+        handleSSEEvent(event.data as EventEnvelope);
       },
-      () => {
-        observer.setState('sseStatus', 'closed');
-      }
-    );
+      onSseError: () => {
+        if (!controller.signal.aborted) {
+          observer.setState('sseStatus', 'error');
+        }
+      },
+      sseMaxRetryAttempts: 0
+    });
 
-    sseUnsubscribe = currentUnsubscribe;
-    observer.setState('sseStatus', 'open');
+    // Drive the generator to consume events
+    (async () => {
+      try {
+        const { stream } = await resultPromise;
+        observer.setState('sseStatus', 'open');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        for await (const _ of stream) {
+          // onSseEvent handles dispatch
+        }
+        if (!controller.signal.aborted) {
+          observer.setState('sseStatus', 'closed');
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          observer.setState('sseStatus', 'error');
+          console.error('SSE error:', err);
+        }
+      }
+    })();
 
     // Return a function that unsubscribes THIS specific subscription
     return () => {
-      currentUnsubscribe(); // Use captured value, not closure variable
-      if (sseUnsubscribe === currentUnsubscribe) {
-        sseUnsubscribe = undefined;
+      controller.abort();
+      if (currentController === controller) {
+        currentController = undefined;
       }
       observer.setState('sseStatus', 'closed');
     };
   }
 
   function unsubscribe() {
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
+    if (currentController) {
+      currentController.abort();
+      currentController = undefined;
     }
     observer.setState('sseStatus', 'closed');
   }

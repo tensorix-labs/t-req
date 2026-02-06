@@ -6,7 +6,7 @@ import { unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CliRenderer } from '@opentui/core';
-import type { ExecutionDetail } from './sdk';
+import type { ExecutionDetail } from '@t-req/sdk/client';
 
 /**
  * Get the user's preferred editor.

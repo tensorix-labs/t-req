@@ -7,7 +7,14 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**/*.ts", "**/*.js", "**/*.json", "**/*.mjs", "**/*.cjs"]
+    "includes": [
+      "**/*.ts",
+      "**/*.js",
+      "**/*.json",
+      "**/*.mjs",
+      "**/*.cjs",
+      "!packages/sdk/js/src/gen"
+    ]
   },
   "formatter": {
     "enabled": true,
