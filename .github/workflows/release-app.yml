@@ -68,6 +68,10 @@ jobs:
         run: bun run build
         working-directory: packages/core
 
+      - name: Build SDK (workspace dependency)
+        run: bun run build
+        working-directory: packages/sdk/js
+
       - name: Build all platform binaries
         run: bun run build:all
         working-directory: packages/app
