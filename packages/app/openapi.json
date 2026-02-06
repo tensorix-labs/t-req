@@ -1,0 +1,2941 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "t-req Server API",
+    "version": "0.3.6",
+    "description": "HTTP API for parsing and executing .http files, managing sessions, and subscribing to real-time events.",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4097",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "System endpoints for health checks and capabilities"
+    },
+    {
+      "name": "Requests",
+      "description": "Parse and execute HTTP requests from .http files"
+    },
+    {
+      "name": "Sessions",
+      "description": "Manage stateful sessions with variables and cookies"
+    },
+    {
+      "name": "Flows",
+      "description": "Observer Mode - track and correlate request executions"
+    },
+    {
+      "name": "Workspace",
+      "description": "Workspace discovery - list .http files and requests"
+    },
+    {
+      "name": "Scripts",
+      "description": "Run JavaScript, TypeScript, and Python scripts"
+    },
+    {
+      "name": "Tests",
+      "description": "Run tests with detected frameworks (bun, vitest, jest, pytest)"
+    },
+    {
+      "name": "Plugins",
+      "description": "List and manage loaded plugins"
+    },
+    {
+      "name": "Events",
+      "description": "Real-time event streaming via Server-Sent Events"
+    }
+  ],
+  "externalDocs": {
+    "description": "t-req Documentation",
+    "url": "https://github.com/tensorix-labs/t-req"
+  },
+  "components": {
+    "schemas": {},
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Check if the server is running and healthy",
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "healthy": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["healthy", "version"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Get server capabilities",
+        "description": "Returns the protocol version and supported features",
+        "responses": {
+          "200": {
+            "description": "Server capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "protocolVersion": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "features": {
+                      "type": "object",
+                      "properties": {
+                        "sessions": {
+                          "type": "boolean"
+                        },
+                        "diagnostics": {
+                          "type": "boolean"
+                        },
+                        "streamingBodies": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["sessions", "diagnostics", "streamingBodies"]
+                    }
+                  },
+                  "required": ["protocolVersion", "version", "features"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Get resolved configuration",
+        "description": "Returns the resolved project configuration including active profile, layers applied, and cookie settings",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "profile",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved configuration summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configPath": {
+                      "type": "string"
+                    },
+                    "projectRoot": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": ["jsonc", "json", "ts", "js", "mjs"]
+                    },
+                    "profile": {
+                      "type": "string"
+                    },
+                    "availableProfiles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "layersApplied": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "resolvedConfig": {
+                      "type": "object",
+                      "properties": {
+                        "variables": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          }
+                        },
+                        "defaults": {
+                          "type": "object",
+                          "properties": {
+                            "timeoutMs": {
+                              "type": "number"
+                            },
+                            "followRedirects": {
+                              "type": "boolean"
+                            },
+                            "validateSSL": {
+                              "type": "boolean"
+                            },
+                            "proxy": {
+                              "type": "string"
+                            },
+                            "headers": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["timeoutMs", "followRedirects", "validateSSL", "headers"]
+                        },
+                        "cookies": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "jarPath": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": ["disabled", "memory", "persistent"]
+                            }
+                          },
+                          "required": ["enabled", "mode"]
+                        },
+                        "security": {
+                          "type": "object",
+                          "properties": {
+                            "allowExternalFiles": {
+                              "type": "boolean"
+                            },
+                            "allowPluginsOutsideProject": {
+                              "type": "boolean"
+                            },
+                            "pluginPermissions": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "required": ["allowExternalFiles", "allowPluginsOutsideProject"]
+                        },
+                        "resolverNames": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["variables", "defaults", "cookies", "security", "resolverNames"]
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "projectRoot",
+                    "availableProfiles",
+                    "layersApplied",
+                    "resolvedConfig",
+                    "warnings"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/parse": {
+      "post": {
+        "tags": ["Requests"],
+        "summary": "Parse .http file content",
+        "description": "Parse HTTP request content and return structured request information with diagnostics",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "includeDiagnostics": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed requests with diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "request": {
+                            "type": "object",
+                            "properties": {
+                              "index": {
+                                "type": "number"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "method": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "headers": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              "hasBody": {
+                                "type": "boolean"
+                              },
+                              "hasFormData": {
+                                "type": "boolean"
+                              },
+                              "hasBodyFile": {
+                                "type": "boolean"
+                              },
+                              "meta": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "index",
+                              "method",
+                              "url",
+                              "headers",
+                              "hasBody",
+                              "hasFormData",
+                              "hasBodyFile",
+                              "meta"
+                            ]
+                          },
+                          "diagnostics": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "severity": {
+                                  "type": "string",
+                                  "enum": ["error", "warning", "info"]
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                },
+                                "range": {
+                                  "type": "object",
+                                  "properties": {
+                                    "start": {
+                                      "type": "object",
+                                      "properties": {
+                                        "line": {
+                                          "type": "number"
+                                        },
+                                        "column": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["line", "column"]
+                                    },
+                                    "end": {
+                                      "type": "object",
+                                      "properties": {
+                                        "line": {
+                                          "type": "number"
+                                        },
+                                        "column": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["line", "column"]
+                                    }
+                                  },
+                                  "required": ["start", "end"]
+                                }
+                              },
+                              "required": ["severity", "code", "message", "range"]
+                            }
+                          }
+                        },
+                        "required": ["diagnostics"]
+                      }
+                    },
+                    "diagnostics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "severity": {
+                            "type": "string",
+                            "enum": ["error", "warning", "info"]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "range": {
+                            "type": "object",
+                            "properties": {
+                              "start": {
+                                "type": "object",
+                                "properties": {
+                                  "line": {
+                                    "type": "number"
+                                  },
+                                  "column": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["line", "column"]
+                              },
+                              "end": {
+                                "type": "object",
+                                "properties": {
+                                  "line": {
+                                    "type": "number"
+                                  },
+                                  "column": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["line", "column"]
+                              }
+                            },
+                            "required": ["start", "end"]
+                          }
+                        },
+                        "required": ["severity", "code", "message", "range"]
+                      }
+                    },
+                    "resolved": {
+                      "type": "object",
+                      "properties": {
+                        "workspaceRoot": {
+                          "type": "string"
+                        },
+                        "projectRoot": {
+                          "type": "string"
+                        },
+                        "httpFilePath": {
+                          "type": "string"
+                        },
+                        "basePath": {
+                          "type": "string"
+                        },
+                        "configPath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["workspaceRoot", "projectRoot", "basePath"]
+                    }
+                  },
+                  "required": ["requests", "diagnostics", "resolved"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/execute": {
+      "post": {
+        "tags": ["Requests"],
+        "summary": "Execute HTTP request",
+        "description": "Execute an HTTP request from .http file content or file path",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "requestName": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "requestIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "profile": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "flowId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "reqLabel": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "timeoutMs": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 300000
+                  },
+                  "basePath": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "followRedirects": {
+                    "type": "boolean"
+                  },
+                  "validateSSL": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "reqExecId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "snapshotVersion": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["sessionId", "snapshotVersion"]
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "index": {
+                          "type": "number"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["index", "method", "url"]
+                    },
+                    "resolved": {
+                      "type": "object",
+                      "properties": {
+                        "workspaceRoot": {
+                          "type": "string"
+                        },
+                        "projectRoot": {
+                          "type": "string"
+                        },
+                        "httpFilePath": {
+                          "type": "string"
+                        },
+                        "basePath": {
+                          "type": "string"
+                        },
+                        "configPath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["workspaceRoot", "projectRoot", "basePath"]
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "number"
+                        },
+                        "statusText": {
+                          "type": "string"
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["name", "value"]
+                          }
+                        },
+                        "bodyMode": {
+                          "type": "string",
+                          "enum": ["buffered", "none"]
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "encoding": {
+                          "type": "string",
+                          "enum": ["utf-8", "base64"]
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "bodyBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "statusText",
+                        "headers",
+                        "bodyMode",
+                        "encoding",
+                        "truncated",
+                        "bodyBytes"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "maxBodyBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["maxBodyBytes"]
+                    },
+                    "timing": {
+                      "type": "object",
+                      "properties": {
+                        "startTime": {
+                          "type": "number"
+                        },
+                        "endTime": {
+                          "type": "number"
+                        },
+                        "durationMs": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["startTime", "endTime", "durationMs"]
+                    }
+                  },
+                  "required": ["runId", "request", "resolved", "response", "limits", "timing"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/execute/sse": {
+      "post": {
+        "tags": ["Requests"],
+        "summary": "Execute SSE streaming request",
+        "description": "Execute an SSE (Server-Sent Events) request and stream events. Request must have @sse directive or Accept: text/event-stream header.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "requestName": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "requestIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "profile": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "flowId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "reqLabel": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 3600000
+                  },
+                  "lastEventId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "parseStarted",
+                        "parseFinished",
+                        "interpolateStarted",
+                        "interpolateFinished",
+                        "compileStarted",
+                        "compileFinished",
+                        "fetchStarted",
+                        "fetchFinished",
+                        "error",
+                        "sessionUpdated",
+                        "flowStarted",
+                        "flowFinished",
+                        "requestQueued",
+                        "executionFailed",
+                        "scriptStarted",
+                        "scriptOutput",
+                        "scriptFinished",
+                        "testStarted",
+                        "testOutput",
+                        "testFinished"
+                      ]
+                    },
+                    "ts": {
+                      "type": "number"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "reqExecId": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "number"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["type", "ts", "runId", "seq", "payload"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or not an SSE request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Create a new session",
+        "description": "Create a new session with optional initial variables",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["sessionId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/{id}": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Get session state",
+        "description": "Retrieve the current state of a session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "variables": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "cookieCount": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    },
+                    "lastUsedAt": {
+                      "type": "number"
+                    },
+                    "snapshotVersion": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "variables",
+                    "cookieCount",
+                    "createdAt",
+                    "lastUsedAt",
+                    "snapshotVersion"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Sessions"],
+        "summary": "Delete a session",
+        "description": "Delete a session and its associated data",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session deleted"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/{id}/variables": {
+      "put": {
+        "tags": ["Sessions"],
+        "summary": "Update session variables",
+        "description": "Update session variables using merge or replace mode",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["merge", "replace"]
+                  }
+                },
+                "required": ["variables", "mode"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Variables updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "snapshotVersion": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["sessionId", "snapshotVersion"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flows": {
+      "post": {
+        "tags": ["Flows"],
+        "summary": "Create a new flow",
+        "description": "Create a new flow to group related request executions for Observer Mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "meta": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Flow created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "flowId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["flowId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found (if sessionId provided)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flows/{flowId}/finish": {
+      "post": {
+        "tags": ["Flows"],
+        "summary": "Mark flow as complete",
+        "description": "Mark a flow as complete and get summary statistics",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "flow_abc123"
+            },
+            "required": true,
+            "name": "flowId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flow finished with summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "number"
+                        },
+                        "succeeded": {
+                          "type": "number"
+                        },
+                        "failed": {
+                          "type": "number"
+                        },
+                        "durationMs": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["total", "succeeded", "failed", "durationMs"]
+                    }
+                  },
+                  "required": ["flowId", "summary"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Flow not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flows/{flowId}/executions/{reqExecId}": {
+      "get": {
+        "tags": ["Flows"],
+        "summary": "Get execution details",
+        "description": "Retrieve full request/response details for a specific execution",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "flow_abc123"
+            },
+            "required": true,
+            "name": "flowId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "exec_def456"
+            },
+            "required": true,
+            "name": "reqExecId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reqExecId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "reqLabel": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": ["file", "string"]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "requestIndex": {
+                          "type": "number"
+                        },
+                        "requestName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind"]
+                    },
+                    "rawHttpBlock": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "urlTemplate": {
+                      "type": "string"
+                    },
+                    "urlResolved": {
+                      "type": "string"
+                    },
+                    "headers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["name", "value"]
+                      }
+                    },
+                    "bodyPreview": {
+                      "type": "string"
+                    },
+                    "timing": {
+                      "type": "object",
+                      "properties": {
+                        "startTime": {
+                          "type": "number"
+                        },
+                        "endTime": {
+                          "type": "number"
+                        },
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "ttfb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["startTime"]
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "number"
+                        },
+                        "statusText": {
+                          "type": "string"
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["name", "value"]
+                          }
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "encoding": {
+                          "type": "string",
+                          "enum": ["utf-8", "base64"]
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "bodyBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "statusText",
+                        "headers",
+                        "encoding",
+                        "truncated",
+                        "bodyBytes"
+                      ]
+                    },
+                    "pluginHooks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pluginName": {
+                            "type": "string"
+                          },
+                          "hook": {
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "type": "number"
+                          },
+                          "modified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["pluginName", "hook", "durationMs", "modified"]
+                      }
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "running", "success", "failed"]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["stage", "message"]
+                    }
+                  },
+                  "required": ["reqExecId", "flowId", "timing", "status"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Flow or execution not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/files": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "List .http files",
+        "description": "List all .http files in the workspace",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated additional glob patterns to ignore"
+            },
+            "required": false,
+            "description": "Comma-separated additional glob patterns to ignore",
+            "name": "ignore",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of .http files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "requestCount": {
+                            "type": "number"
+                          },
+                          "lastModified": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["path", "name", "requestCount", "lastModified"]
+                      }
+                    },
+                    "workspaceRoot": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["files", "workspaceRoot"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/requests": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "List requests in file",
+        "description": "List all requests in a specific .http file",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Path to .http file (relative to workspace)"
+            },
+            "required": true,
+            "description": "Path to .http file (relative to workspace)",
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "number"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "protocol": {
+                            "type": "string",
+                            "enum": ["http", "sse"]
+                          }
+                        },
+                        "required": ["index", "method", "url"]
+                      }
+                    }
+                  },
+                  "required": ["path", "requests"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/file": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get file content",
+        "description": "Get raw content of an .http file",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Path to .http file (relative to workspace)"
+            },
+            "required": true,
+            "description": "Path to .http file (relative to workspace)",
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "lastModified": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["path", "content", "lastModified"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Workspace"],
+        "summary": "Update file",
+        "description": "Update content of an existing .http file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File updated successfully"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Create file",
+        "description": "Create a new .http file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "lastModified": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["path", "content", "lastModified"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path or file already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Workspace"],
+        "summary": "Delete file",
+        "description": "Delete an .http file from the workspace",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Path to .http file (relative to workspace)"
+            },
+            "required": true,
+            "description": "Path to .http file (relative to workspace)",
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "File deleted"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/script": {
+      "post": {
+        "tags": ["Scripts"],
+        "summary": "Run a script",
+        "description": "Execute a JavaScript, TypeScript, or Python script with server-side process spawning",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "runnerId": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "flowId": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                },
+                "required": ["filePath"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Script started, subscribe to flow SSE for output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["runId", "flowId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or runner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Flow not found (if flowId provided)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/script/{runId}": {
+      "delete": {
+        "tags": ["Scripts"],
+        "summary": "Cancel a running script",
+        "description": "Stop a running script by its run ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "script_abc123"
+            },
+            "required": true,
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Script cancelled"
+          },
+          "404": {
+            "description": "Script not found or already finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/script/runners": {
+      "get": {
+        "tags": ["Scripts"],
+        "summary": "Get available script runners",
+        "description": "List available runners and auto-detect the best one for a file",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional file path to filter available runners"
+            },
+            "required": false,
+            "description": "Optional file path to filter available runners",
+            "name": "filePath",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available runners with detected default",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detected": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id", "label"]
+                      }
+                    }
+                  },
+                  "required": ["detected", "options"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test": {
+      "post": {
+        "tags": ["Tests"],
+        "summary": "Run tests",
+        "description": "Execute tests using a detected or specified test framework",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "frameworkId": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "flowId": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                },
+                "required": ["filePath"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tests started, subscribe to flow SSE for output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["runId", "flowId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or framework",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Path outside workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Flow not found (if flowId provided)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test/{runId}": {
+      "delete": {
+        "tags": ["Tests"],
+        "summary": "Cancel a running test",
+        "description": "Stop a running test by its run ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "test_abc123"
+            },
+            "required": true,
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Test cancelled"
+          },
+          "404": {
+            "description": "Test not found or already finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test/frameworks": {
+      "get": {
+        "tags": ["Tests"],
+        "summary": "Get available test frameworks",
+        "description": "List available test frameworks and auto-detect the best one",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional file path to help detect the framework"
+            },
+            "required": false,
+            "description": "Optional file path to help detect the framework",
+            "name": "filePath",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available frameworks with detected default",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detected": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id", "label"]
+                      }
+                    }
+                  },
+                  "required": ["detected", "options"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins": {
+      "get": {
+        "tags": ["Plugins"],
+        "summary": "List loaded plugins",
+        "description": "Returns information about all loaded plugins including their capabilities and permissions",
+        "responses": {
+          "200": {
+            "description": "List of loaded plugins with their capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plugins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": ["npm", "file", "inline", "subprocess"]
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "capabilities": {
+                            "type": "object",
+                            "properties": {
+                              "hasHooks": {
+                                "type": "boolean"
+                              },
+                              "hasResolvers": {
+                                "type": "boolean"
+                              },
+                              "hasCommands": {
+                                "type": "boolean"
+                              },
+                              "hasMiddleware": {
+                                "type": "boolean"
+                              },
+                              "hasTools": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "hasHooks",
+                              "hasResolvers",
+                              "hasCommands",
+                              "hasMiddleware",
+                              "hasTools"
+                            ]
+                          }
+                        },
+                        "required": ["name", "source", "permissions", "capabilities"]
+                      }
+                    },
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["plugins", "count"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/event": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "Event stream (SSE)",
+        "description": "Subscribe to server-sent events for real-time updates. Filter by sessionId or flowId.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sessionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "flowId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "parseStarted",
+                        "parseFinished",
+                        "interpolateStarted",
+                        "interpolateFinished",
+                        "compileStarted",
+                        "compileFinished",
+                        "fetchStarted",
+                        "fetchFinished",
+                        "error",
+                        "sessionUpdated",
+                        "flowStarted",
+                        "flowFinished",
+                        "requestQueued",
+                        "executionFailed",
+                        "scriptStarted",
+                        "scriptOutput",
+                        "scriptFinished",
+                        "testStarted",
+                        "testOutput",
+                        "testFinished"
+                      ]
+                    },
+                    "ts": {
+                      "type": "number"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "reqExecId": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "number"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["type", "ts", "runId", "seq", "payload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

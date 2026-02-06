@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
-import type { ExecutionDetail, PluginHookInfo } from '../sdk';
+import type { ExecutionDetail, PluginHookInfo } from '@t-req/sdk/client';
 import { useDialog } from '../context';
 import { theme, rgba, getMethodColor, getHttpStatusColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';

@@ -13,7 +13,7 @@ import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { StreamView } from './components/stream-view';
 import type { StreamState } from './stream';
-import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
+import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate, unwrap } from './context';
 import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
 import {
@@ -126,7 +126,7 @@ export function App() {
     const flowId = observer.state.flowId;
     if (flowId) {
       try {
-        await sdk.finishFlow(flowId);
+        await unwrap(sdk.postFlowsByFlowIdFinish({ path: { flowId } }));
       } catch {
         // Ignore errors
       }

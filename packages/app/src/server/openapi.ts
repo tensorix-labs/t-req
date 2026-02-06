@@ -8,6 +8,7 @@ import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
+  EventEnvelopeSchema,
   ExecuteRequestSchema,
   ExecuteResponseSchema,
   ExecuteSSERequestSchema,
@@ -134,7 +135,8 @@ export const executeSSERoute = createRoute({
   },
   responses: {
     200: {
-      description: 'SSE event stream'
+      description: 'SSE event stream',
+      content: { 'text/event-stream': { schema: EventEnvelopeSchema } }
     },
     400: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
@@ -268,7 +270,8 @@ export const eventRoute = createRoute({
   },
   responses: {
     200: {
-      description: 'SSE stream'
+      description: 'SSE stream',
+      content: { 'text/event-stream': { schema: EventEnvelopeSchema } }
     }
   }
 });

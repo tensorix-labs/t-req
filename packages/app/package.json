@@ -55,7 +55,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "check-types": "tsc -p tsconfig.build.json --noEmit"
+    "check-types": "tsc -p tsconfig.build.json --noEmit",
+    "openapi:export": "bun run script/export-openapi.ts"
   },
   "devDependencies": {
     "@tsconfig/bun": "^1.0.10",
@@ -69,6 +70,7 @@
     "@opentui/core": "^0.1.74",
     "@opentui/solid": "^0.1.74",
     "@t-req/core": "^0.2.2",
+    "@t-req/sdk": "workspace:*",
     "fuzzysort": "^3.1.0",
     "hono": "^4.11.4",
     "solid-js": "^1.9.0",

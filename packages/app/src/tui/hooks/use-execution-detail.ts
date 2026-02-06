@@ -5,9 +5,9 @@
  * Watches selectedReqExecId and execution status, fetches details via SDK.
  */
 
+import type { ExecutionDetail } from '@t-req/sdk/client';
 import { type Accessor, createEffect, createSignal, on } from 'solid-js';
-import { useObserver, useSDK } from '../context';
-import type { ExecutionDetail } from '../sdk';
+import { unwrap, useObserver, useSDK } from '../context';
 
 export interface ExecutionDetailReturn {
   detail: Accessor<ExecutionDetail | undefined>;
@@ -47,7 +47,11 @@ export function useExecutionDetail(): ExecutionDetailReturn {
 
         setLoadingDetail(true);
         try {
-          const detail = await sdk.getExecution(flowId, id);
+          const detail = await unwrap(
+            sdk.getFlowsByFlowIdExecutionsByReqExecId({
+              path: { flowId, reqExecId: id }
+            })
+          );
 
           // Validate state hasn't changed during async fetch (prevents stale data after reset)
           if (

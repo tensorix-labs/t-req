@@ -6,7 +6,7 @@
  * Also handles SSE stream execution for @sse protocol requests.
  */
 
-import { useObserver, useSDK, useStore } from '../context';
+import { unwrap, useObserver, useSDK, useStore } from '../context';
 import { useFlowSubscription } from './use-flow-subscription';
 
 export interface RequestExecutionReturn {
@@ -53,7 +53,9 @@ export function useRequestExecution(): RequestExecutionReturn {
 
     try {
       // Create flow
-      const { flowId } = await sdk.createFlow(`Running request ${requestIndex} from ${filePath}`);
+      const { flowId } = await unwrap(
+        sdk.postFlows({ body: { label: `Running request ${requestIndex} from ${filePath}` } })
+      );
       observer.setState('flowId', flowId);
 
       // Subscribe to SSE events
@@ -61,10 +63,10 @@ export function useRequestExecution(): RequestExecutionReturn {
 
       // Execute the request via SDK with active profile
       const profile = store.activeProfile();
-      await sdk.executeRequest(flowId, filePath, requestIndex, profile);
+      await unwrap(sdk.postExecute({ body: { path: filePath, requestIndex, flowId, profile } }));
 
       // Finish flow after request completes
-      await sdk.finishFlow(flowId);
+      await unwrap(sdk.postFlowsByFlowIdFinish({ path: { flowId } }));
 
       // Unsubscribe from SSE
       unsubscribe();
@@ -93,10 +95,13 @@ export function useRequestExecution(): RequestExecutionReturn {
 
     let flowId: string | undefined;
     let unsubscribe: (() => void) | undefined;
+    const controller = new AbortController();
 
     try {
       // Create flow
-      const flow = await sdk.createFlow(`SSE stream ${requestIndex} from ${filePath}`);
+      const flow = await unwrap(
+        sdk.postFlows({ body: { label: `SSE stream ${requestIndex} from ${filePath}` } })
+      );
       flowId = flow.flowId;
       observer.setState('flowId', flowId);
 
@@ -106,22 +111,25 @@ export function useRequestExecution(): RequestExecutionReturn {
       // Start stream state
       observer.startStream('sse', method, url);
 
-      // Open SSE connection
-      const result = await sdk.streamRequest(flowId, filePath, requestIndex);
-      observer.setStreamCloseRef(result.close);
+      // Open SSE connection via generated client
+      const { stream } = await sdk.postExecuteSse({
+        body: { path: filePath, requestIndex, flowId },
+        signal: controller.signal
+      });
+
+      observer.setStreamCloseRef(() => controller.abort());
 
       // Stream messages — mark connected on first successful read
       let connected = false;
-      for await (const msg of result.messages) {
+      for await (const msg of stream) {
         if (!connected) {
           observer.markStreamConnected();
           connected = true;
         }
-        observer.addStreamMessage(msg.data, {
-          event: msg.event,
-          id: msg.id,
-          retry: msg.retry
-        });
+        // msg is the parsed data from the SSE event (EventEnvelope shape)
+        // For stream display we show the raw data as a string
+        const data = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        observer.addStreamMessage(data, {});
       }
 
       // Natural end of stream
@@ -133,7 +141,7 @@ export function useRequestExecution(): RequestExecutionReturn {
       // Finish flow
       if (flowId) {
         try {
-          await sdk.finishFlow(flowId);
+          await unwrap(sdk.postFlowsByFlowIdFinish({ path: { flowId } }));
         } catch {
           // Ignore errors
         }

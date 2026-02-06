@@ -6,9 +6,9 @@
  * and server-side process spawning with live output streaming.
  */
 
+import type { RunnerOption } from '@t-req/sdk/client';
 import { type Accessor, createSignal } from 'solid-js';
-import { useObserver, useSDK } from '../context';
-import type { RunnerOption } from '../sdk';
+import { unwrap, useObserver, useSDK } from '../context';
 import { useFlowSubscription } from './use-flow-subscription';
 
 export interface ScriptRunnerOptions {
@@ -42,7 +42,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
     let flowId: string | undefined;
     try {
       // Create flow first so we can subscribe before the script starts
-      const createdFlow = await sdk.createFlow(`Script: ${scriptPath}`);
+      const createdFlow = await unwrap(sdk.postFlows({ body: { label: `Script: ${scriptPath}` } }));
       flowId = createdFlow.flowId;
 
       observer.setState('flowId', flowId);
@@ -52,7 +52,9 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
       flowSubscription.subscribe(flowId);
 
       // Start script after subscription is active
-      const { runId } = await sdk.runScript(scriptPath, runnerId, flowId);
+      const { runId } = await unwrap(
+        sdk.postScript({ body: { filePath: scriptPath, runnerId, flowId } })
+      );
 
       currentRunId = runId;
 
@@ -89,7 +91,9 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
 
     try {
       // Get available runners and auto-detect best one from server
-      const { detected, options: runnerOptions } = await sdk.getRunners(scriptPath);
+      const { detected, options: runnerOptions } = await unwrap(
+        sdk.getScriptRunners({ query: { filePath: scriptPath } })
+      );
 
       if (detected) {
         // Auto-detected runner available, start immediately
@@ -111,7 +115,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
   async function cancelScript() {
     if (currentRunId) {
       try {
-        await sdk.cancelScript(currentRunId);
+        await sdk.deleteScriptByRunId({ path: { runId: currentRunId } });
       } catch {
         // Script may have already finished
       }
@@ -124,7 +128,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
   function cleanup() {
     if (currentRunId) {
       // Fire and forget cancellation
-      sdk.cancelScript(currentRunId).catch(() => {});
+      sdk.deleteScriptByRunId({ path: { runId: currentRunId } }).catch(() => {});
       currentRunId = undefined;
     }
     flowSubscription.cleanup();

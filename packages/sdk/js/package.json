@@ -1,0 +1,74 @@
+{
+  "name": "@t-req/sdk",
+  "version": "0.0.0",
+  "description": "TypeScript SDK for the t-req HTTP testing server",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tensorix-labs/t-req",
+    "directory": "packages/sdk/js"
+  },
+  "homepage": "https://github.com/tensorix-labs/t-req#readme",
+  "bugs": {
+    "url": "https://github.com/tensorix-labs/t-req/issues"
+  },
+  "keywords": [
+    "http",
+    "api",
+    "testing",
+    "sdk",
+    "http-client",
+    "api-testing",
+    "http-file",
+    "rest-client",
+    "sse",
+    "server-sent-events"
+  ],
+  "author": "tensorix labs",
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "generate": "bun run script/build.ts",
+    "build": "bun run generate && bun run build:js && bun run build:types",
+    "build:js": "bun build --target node --minify --sourcemap --outdir ./dist --root ./src ./src/index.ts ./src/client.ts ./src/server.ts",
+    "build:types": "tsc -p tsconfig.build.json",
+    "check-types": "tsc -p tsconfig.build.json --noEmit",
+    "clean": "rm -rf src/gen dist",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.90.0",
+    "@tsconfig/bun": "^1.0.10",
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}

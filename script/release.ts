@@ -29,7 +29,8 @@ interface PackageConfig {
 
 const PACKAGES: Record<string, PackageConfig> = {
   core: { path: 'packages/core', tagPrefix: 'core-v' },
-  app: { path: 'packages/app', tagPrefix: 'app-v' }
+  app: { path: 'packages/app', tagPrefix: 'app-v' },
+  sdk: { path: 'packages/sdk/js', tagPrefix: 'sdk-v' }
 };
 
 function parseArgs(): { packages: string[]; dryRun: boolean } {
@@ -72,13 +73,14 @@ function printHelp(): void {
 Usage: bun run script/release.ts [options]
 
 Options:
-  --package, -p <name>   Package to release (core, app). Can be specified multiple times.
+  --package, -p <name>   Package to release (core, app, sdk). Can be specified multiple times.
   --dry-run, -n          Show what would be done without making changes
   --help, -h             Show this help message
 
 Examples:
   bun run script/release.ts --package core
   bun run script/release.ts --package app --dry-run
+  bun run script/release.ts --package sdk
   bun run script/release.ts --package core --package app
 `);
 }

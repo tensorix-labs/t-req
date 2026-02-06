@@ -250,6 +250,17 @@ export const BaseEventSchema = z.object({
   seq: z.number()
 });
 
+export const EventEnvelopeSchema = z.object({
+  type: EventTypeSchema,
+  ts: z.number(),
+  runId: z.string(),
+  sessionId: z.string().optional(),
+  flowId: z.string().optional(),
+  reqExecId: z.string().optional(),
+  seq: z.number(),
+  payload: z.record(z.string(), z.unknown())
+});
+
 export const ParseStartedPayloadSchema = z.object({
   source: z.enum(['string', 'file'])
 });
@@ -752,6 +763,9 @@ export type GetTestFrameworksResponse = z.infer<typeof GetTestFrameworksResponse
 // Plugin types
 export type PluginInfo = z.infer<typeof PluginInfoSchema>;
 export type PluginsResponse = z.infer<typeof PluginsResponseSchema>;
+
+// Event envelope type
+export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;
 
 // SSE Execute types
 export type ExecuteSSERequest = z.infer<typeof ExecuteSSERequestSchema>;

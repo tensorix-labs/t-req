@@ -1,7 +1,7 @@
 import type { JSX } from 'solid-js';
 import { useDialog } from '../context/dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
-import type { RunnerOption } from '../sdk';
+import type { RunnerOption } from '@t-req/sdk/client';
 import { extractFilename } from '../util/path';
 
 export interface RunnerSelectProps {

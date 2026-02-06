@@ -1,7 +1,7 @@
 import { render } from '@opentui/solid';
 import { App } from './app';
 import { createObserverStore } from './observer-store';
-import { createSDK } from './sdk';
+import { createTreqClient } from '@t-req/sdk/client';
 import { createStore } from './store';
 import {
   DialogProvider,
@@ -12,6 +12,7 @@ import {
   SDKProvider,
   StoreProvider,
   UpdateProvider,
+  unwrap,
   type ExitFn
 } from './context';
 import { ToastProvider } from './components/toast';
@@ -22,7 +23,7 @@ export interface TuiConfig {
 }
 
 export async function startTui(config: TuiConfig): Promise<void> {
-  const sdk = createSDK(config.serverUrl, config.token);
+  const sdk = createTreqClient({ baseUrl: config.serverUrl, token: config.token });
   const store = createStore();
   const observerStore = createObserverStore();
 
@@ -49,7 +50,7 @@ export async function startTui(config: TuiConfig): Promise<void> {
   // Start fetching data immediately (in background)
   const dataPromise = (async () => {
     try {
-      const response = await sdk.listWorkspaceFiles();
+      const response = await unwrap(sdk.getWorkspaceFiles());
       store.setWorkspaceRoot(response.workspaceRoot);
       store.setFiles(response.files);
       store.setConnectionStatus('connected');
