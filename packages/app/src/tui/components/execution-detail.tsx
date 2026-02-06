@@ -2,8 +2,9 @@ import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } 
 import { useKeyboard } from '@opentui/solid';
 import type { ExecutionDetail, PluginHookInfo } from '../sdk';
 import { useDialog } from '../context';
-import { theme, rgba, getMethodColor } from '../theme';
+import { theme, rgba, getMethodColor, getHttpStatusColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
+import { formatDuration, prettyPrintJson } from '../util/format';
 import { detectFiletype } from '../syntax';
 import { HighlightedContent } from './highlighted-content';
 
@@ -18,27 +19,6 @@ const TABS = [
 export interface ExecutionDetailProps {
   execution: ExecutionDetail | undefined;
   isLoading: boolean;
-}
-
-/**
- * Format a duration in milliseconds to a human-readable string.
- */
-function formatDuration(ms?: number): string {
-  if (ms === undefined) return 'N/A';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
-}
-
-/**
- * Get HTTP status color based on code range
- */
-function getHttpStatusColor(status?: number): string {
-  if (!status) return theme.textMuted;
-  if (status >= 200 && status < 300) return theme.success;
-  if (status >= 300 && status < 400) return theme.info;
-  if (status >= 400 && status < 500) return theme.warning;
-  if (status >= 500) return theme.error;
-  return theme.textMuted;
 }
 
 /**
@@ -60,17 +40,10 @@ function decodeBody(body?: string, encoding?: string): string {
  * Format body content, pretty printing JSON when detected
  */
 function formatBody(body: string, contentType?: string): string {
-  // Check if content type suggests JSON
   const isJson = contentType?.toLowerCase().includes('application/json');
 
   if (isJson || !contentType) {
-    try {
-      const parsed = JSON.parse(body);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      // Not valid JSON, return as-is
-      return body;
-    }
+    return prettyPrintJson(body);
   }
   return body;
 }
@@ -290,13 +263,13 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   <Show when={execution.timing.ttfb !== undefined}>
                     <box flexDirection="row">
                       <text fg={rgba(theme.textMuted)}>TTFB:  </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb)}</text>
+                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb, { precision: 2, emptyValue: 'N/A' })}</text>
                     </box>
                   </Show>
                   <Show when={execution.timing.durationMs !== undefined}>
                     <box flexDirection="row">
                       <text fg={rgba(theme.textMuted)}>Total: </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs)}</text>
+                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs, { precision: 2, emptyValue: 'N/A' })}</text>
                     </box>
                   </Show>
                 </box>

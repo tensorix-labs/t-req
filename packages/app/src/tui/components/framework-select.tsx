@@ -2,6 +2,7 @@ import type { JSX } from 'solid-js';
 import { useDialog } from '../context/dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
 import type { TestFrameworkOption } from '../sdk';
+import { extractFilename } from '../util/path';
 
 export interface FrameworkSelectProps {
   testPath: string;
@@ -23,10 +24,7 @@ export function FrameworkSelectDialog(props: FrameworkSelectProps): JSX.Element 
     props.onSelect(opt.value);
   };
 
-  const testName = () => {
-    const parts = props.testPath.split('/');
-    return parts[parts.length - 1] ?? props.testPath;
-  };
+  const testName = () => extractFilename(props.testPath, props.testPath);
 
   return (
     <DialogSelect

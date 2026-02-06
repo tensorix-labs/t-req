@@ -5,67 +5,13 @@ import { useDialog } from '../context';
 import type { StreamMessage, StreamState } from '../stream';
 import { theme, rgba, getMethodColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
+import { formatTime, formatElapsed, prettyPrintJson } from '../util/format';
+import { getStreamStatusDisplay } from '../util/status-display';
 import { HighlightedContent } from './highlighted-content';
 
 export interface StreamViewProps {
   stream: StreamState;
   onDisconnect: () => void;
-}
-
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  const ms = String(d.getMilliseconds()).padStart(3, '0');
-  return `${h}:${m}:${s}.${ms}`;
-}
-
-function formatElapsed(startedAt: number | undefined, endedAt: number | undefined): string {
-  if (!startedAt) return '';
-  const end = endedAt ?? Date.now();
-  const totalSec = Math.floor((end - startedAt) / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  if (min > 0) return `${min}m ${sec}s`;
-  return `${sec}s`;
-}
-
-function formatMessageData(msg: StreamMessage): string {
-  if (msg.isJson) {
-    try {
-      return JSON.stringify(JSON.parse(msg.data), null, 2);
-    } catch {
-      return msg.data;
-    }
-  }
-  return msg.data;
-}
-
-function getStatusDotColor(status: StreamState['connectionStatus']): string {
-  switch (status) {
-    case 'connected':
-      return theme.success;
-    case 'connecting':
-      return theme.warning;
-    case 'error':
-      return theme.error;
-    case 'disconnected':
-      return theme.textMuted;
-  }
-}
-
-function getStatusLabel(status: StreamState['connectionStatus']): string {
-  switch (status) {
-    case 'connected':
-      return 'Connected';
-    case 'connecting':
-      return 'Connecting...';
-    case 'error':
-      return 'Error';
-    case 'disconnected':
-      return 'Disconnected';
-  }
 }
 
 function StreamStatusBar(props: { stream: StreamState }) {
@@ -107,8 +53,8 @@ function StreamStatusBar(props: { stream: StreamState }) {
       </box>
 
       <box flexDirection="row" gap={1} marginBottom={1}>
-        <text fg={rgba(getStatusDotColor(props.stream.connectionStatus))}>
-          {getStatusLabel(props.stream.connectionStatus)}
+        <text fg={rgba(getStreamStatusDisplay(props.stream.connectionStatus).color)}>
+          {getStreamStatusDisplay(props.stream.connectionStatus).text}
         </text>
         <text fg={rgba(theme.textMuted)}>
           {props.stream.messageCount} message{props.stream.messageCount !== 1 ? 's' : ''}
@@ -189,7 +135,7 @@ function StreamMessageList(props: { stream: StreamState }) {
             <MessageMetaLine msg={msg} />
             <box paddingLeft={2} flexShrink={0}>
               <HighlightedContent
-                content={formatMessageData(msg)}
+                content={msg.isJson ? prettyPrintJson(msg.data) : msg.data}
                 filetype={msg.isJson ? 'json' : undefined}
               />
             </box>

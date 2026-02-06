@@ -2,6 +2,7 @@ import type { JSX } from 'solid-js';
 import { useDialog } from '../context/dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
 import type { RunnerOption } from '../sdk';
+import { extractFilename } from '../util/path';
 
 export interface RunnerSelectProps {
   scriptPath: string;
@@ -27,11 +28,7 @@ export function RunnerSelectDialog(props: RunnerSelectProps): JSX.Element {
     props.onSelect(opt.value);
   };
 
-  // Get script filename for display
-  const scriptName = () => {
-    const parts = props.scriptPath.split('/');
-    return parts[parts.length - 1] ?? props.scriptPath;
-  };
+  const scriptName = () => extractFilename(props.scriptPath, props.scriptPath);
 
   return (
     <DialogSelect
