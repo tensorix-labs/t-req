@@ -1,0 +1,85 @@
+name: Release Plugin Base
+
+on:
+  push:
+    tags:
+      - "plugin-base-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Dry run (don't actually publish)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    name: Build and Publish Plugin Base
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Extract version from tag (plugin-base-v1.2.3 -> 1.2.3)
+            VERSION="${GITHUB_REF#refs/tags/plugin-base-v}"
+          else
+            # For manual trigger, read from package.json
+            VERSION=$(jq -r .version packages/plugins/base/package.json)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Verify version matches package.json
+        run: |
+          PKG_VERSION=$(jq -r .version packages/plugins/base/package.json)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$PKG_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            echo "The tag must match the committed version. Ensure you've merged the Version Packages PR first."
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+        working-directory: packages/plugins/base
+
+      - name: Check types
+        run: bun run check-types
+        working-directory: packages/plugins/base
+
+      - name: Publish to npm
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        run: npm publish --access public
+        working-directory: packages/plugins/base
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry run publish
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          npm pack
+          echo "[dry-run] Would publish @t-req/plugin-base@${{ steps.version.outputs.version }}"
+        working-directory: packages/plugins/base

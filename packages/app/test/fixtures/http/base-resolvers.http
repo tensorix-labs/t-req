@@ -1,0 +1,5 @@
+GET {{baseUrl}}/get
+Accept: application/json
+X-Request-ID: {{$uuid()}}
+X-Timestamp: {{$timestamp()}}
+X-Isodate: {{$isodate()}}

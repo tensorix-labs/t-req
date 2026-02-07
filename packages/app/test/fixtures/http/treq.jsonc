@@ -25,6 +25,7 @@
     },
     // Plugins to load
     "plugins": [
-        "file://../../../../../examples/plugins/treq-plugin-test.ts"
+        "file://../../../../../examples/plugins/treq-plugin-test.ts",
+        "@t-req/plugin-base"
     ]
 }

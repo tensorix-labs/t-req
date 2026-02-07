@@ -371,7 +371,7 @@ async function loadPluginRef(
   }
 
   // Handle npm package
-  return await loadNpmPlugin(packageName, pluginOptions, pluginPermissions, warnings);
+  return await loadNpmPlugin(packageName, projectRoot, pluginOptions, pluginPermissions, warnings);
 }
 
 /**
@@ -441,6 +441,7 @@ async function loadFilePlugin(
  */
 async function loadNpmPlugin(
   packageName: string,
+  projectRoot: string,
   options: Record<string, unknown> | undefined,
   pluginPermissions: PluginPermissionsConfig | undefined,
   warnings: string[]
@@ -456,8 +457,14 @@ async function loadNpmPlugin(
       // version is packageName.slice(atIndex + 1) - not used but parsed
     }
 
-    // Dynamic import
-    const module = await import(name);
+    // Resolve from the project root so plugins installed as
+    // dependencies of the CLI (or the user's project) are found,
+    // regardless of package manager isolation strategy.
+    const pathModule = require('node:path') as typeof import('node:path');
+    const { createRequire } = require('node:module') as typeof import('node:module');
+    const projectRequire = createRequire(pathModule.join(projectRoot, 'package.json'));
+    const resolved = projectRequire.resolve(name);
+    const module = await import(resolved);
     const pluginOrFactory = module.default ?? module;
 
     let plugin: TreqPlugin;
@@ -491,7 +498,9 @@ async function loadNpmPlugin(
     };
   } catch (err) {
     throw new Error(
-      `Failed to load plugin "${packageName}": ${err instanceof Error ? err.message : String(err)}`
+      `Failed to load plugin "${packageName}" from project "${projectRoot}": ${
+        err instanceof Error ? err.message : String(err)
+      }`
     );
   }
 }

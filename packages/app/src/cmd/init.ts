@@ -267,6 +267,9 @@ async function createProjectStructure(projectPath: string, config: ProjectConfig
 
 export function generateConfig(): string {
   return `{
+  // Enable base resolvers: {{$uuid()}}, {{$timestamp()}}, {{$env(KEY)}}, etc.
+  "plugins": ["@t-req/plugin-base"],
+
   "variables": {
     // Default base URL for the included sample requests.
     // Switch profiles with: treq run ... --profile dev
@@ -489,10 +492,11 @@ export function generateTsconfig(runtime: Runtime): string {
 export function generateCreatePostRequest(): string {
   return `POST {{baseUrl}}/posts
 Content-Type: application/json
+X-Request-ID: {{$uuid()}}
 
 {
   "title": "Hello from t-req",
-  "body": "This is a sample post.",
+  "body": "Created at {{$isodate()}}",
   "userId": 1
 }
 `;
