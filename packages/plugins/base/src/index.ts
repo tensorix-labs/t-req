@@ -10,7 +10,7 @@ import { definePlugin } from '@t-req/core/plugin';
  */
 export const base = definePlugin({
   name: 'base',
-  version: '0.0.1',
+  version: '0.0.0',
   permissions: ['env'],
   resolvers: {
     $env: (key: string) => process.env[key] ?? '',
