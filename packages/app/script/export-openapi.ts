@@ -35,7 +35,7 @@ const spec = await response.json();
 
 // Write to openapi.json with stable formatting
 const outPath = path.join(dir, 'openapi.json');
-fs.writeFileSync(outPath, JSON.stringify(spec, null, 2) + '\n');
+fs.writeFileSync(outPath, `${JSON.stringify(spec, null, 2)}\n`);
 
 console.log(`OpenAPI spec exported to ${outPath}`);
 

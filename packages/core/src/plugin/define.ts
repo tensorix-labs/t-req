@@ -22,7 +22,7 @@ import type { ToolContext, ToolDefinition, TreqPlugin } from './types';
  * });
  * ```
  */
-export function definePlugin(plugin: TreqPlugin): TreqPlugin {
+export function definePlugin<T extends TreqPlugin>(plugin: T): T & { instanceId: string } {
   // Validate required fields
   if (!plugin.name) {
     throw new Error('Plugin must have a name');
