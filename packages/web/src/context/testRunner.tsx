@@ -1,5 +1,6 @@
 import { createContext, createSignal, onCleanup, useContext, type Accessor, type JSX } from 'solid-js';
-import { useObserver, useWorkspace } from './index';
+import { useObserver } from './index';
+import { useSDK } from './sdk';
 import type { TestFrameworkOption, SDK } from '../sdk';
 
 export interface TestRunnerContextValue {
@@ -17,8 +18,8 @@ export interface TestRunnerContextValue {
 const TestRunnerContext = createContext<TestRunnerContextValue>();
 
 export function TestRunnerProvider(props: { children: JSX.Element }) {
-  const workspace = useWorkspace();
   const observer = useObserver();
+  const getSDK = useSDK();
 
   let currentRunId: string | undefined;
   let sseUnsubscribe: (() => void) | undefined;
@@ -59,7 +60,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
   }
 
   async function startTest(testPath: string, frameworkId?: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     let flowId: string | undefined;
@@ -94,7 +95,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
   }
 
   async function runTest(testPath: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     if (observer.state.runningScript || isStarting()) {
@@ -126,7 +127,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
   }
 
   async function cancelTest() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       try {
         await sdk.cancelTest(currentRunId);
@@ -157,7 +158,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
   }
 
   function cleanup() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       sdk.cancelTest(currentRunId).catch(() => {});
       currentRunId = undefined;

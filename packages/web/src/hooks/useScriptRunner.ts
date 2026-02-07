@@ -7,7 +7,7 @@
  */
 
 import { type Accessor, createSignal, onCleanup } from 'solid-js';
-import { useObserver, useWorkspace } from '../context';
+import { useObserver, useSDK } from '../context';
 import type { RunnerOption, SDK } from '../sdk';
 
 export interface ScriptRunnerOptions {
@@ -26,8 +26,8 @@ export interface ScriptRunnerReturn {
 }
 
 export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerReturn {
-  const workspace = useWorkspace();
   const observer = useObserver();
+  const getSDK = useSDK();
 
   // Track current run ID for cancellation
   let currentRunId: string | undefined;
@@ -67,7 +67,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
 
   // Start script execution with a runner ID
   async function startScript(scriptPath: string, runnerId?: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     let flowId: string | undefined;
@@ -109,7 +109,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
 
   // Handle running a script - entry point
   async function handleRunScript(scriptPath: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     // Don't allow running another script while one is running
@@ -143,7 +143,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
   }
 
   async function cancelScript() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       try {
         await sdk.cancelScript(currentRunId);
@@ -160,7 +160,7 @@ export function useScriptRunner(options: ScriptRunnerOptions): ScriptRunnerRetur
   }
 
   function cleanup() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       // Fire and forget cancellation
       sdk.cancelScript(currentRunId).catch(() => {});

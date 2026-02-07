@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { useWorkspace } from '../../context';
+import { useWorkspace, useSDK } from '../../context';
 import { useAccessibleDialog, useEnvironmentData } from '../../hooks';
 import { CloseIcon } from '../icons';
 import type { SectionType, SectionConfig, SectionRenderProps } from './types';
@@ -85,6 +85,7 @@ function getSectionComponent(type: SectionType): (props: SectionRenderProps) => 
 
 function EnvironmentManager(props: EnvironmentManagerProps) {
   const store = useWorkspace();
+  const sdk = useSDK();
   const [activeSection, setActiveSection] = createSignal<SectionType>('variables');
   const [previewProfile, setPreviewProfile] = createSignal(store.activeProfile());
 
@@ -99,7 +100,7 @@ function EnvironmentManager(props: EnvironmentManagerProps) {
   });
 
   const { refetch, resolvedConfig, pluginsResponse, loading, error } =
-    useEnvironmentData(() => store.sdk(), () => previewProfile());
+    useEnvironmentData(sdk, () => previewProfile());
 
   const currentSectionComponent = () => getSectionComponent(activeSection());
 

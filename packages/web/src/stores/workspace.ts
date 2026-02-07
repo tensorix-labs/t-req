@@ -1,4 +1,5 @@
 import { createMemo, createSignal } from 'solid-js';
+import { createStore, produce } from 'solid-js/store';
 import {
   createSDK,
   type SDK,
@@ -31,11 +32,22 @@ export interface FileContent {
   error?: string;
 }
 
+interface DeepState {
+  expandedDirs: Record<string, boolean>;
+  requestsByPath: Record<string, WorkspaceRequest[]>;
+  fileContents: Record<string, FileContent>;
+  unsavedChanges: Record<string, boolean>;
+}
+
+export interface WorkspaceStoreDeps {
+  sdk: () => SDK | null;
+  setSdk: (sdk: SDK | null) => void;
+}
+
 export interface WorkspaceStore {
   // Connection state
   connectionStatus: () => ConnectionStatus;
   error: () => string | undefined;
-  sdk: () => SDK | null;
 
   // Workspace data
   workspaceRoot: () => string;
@@ -48,7 +60,7 @@ export interface WorkspaceStore {
   // Tree state
   tree: () => TreeNode[];
   flattenedVisible: () => FlatNode[];
-  expandedDirs: () => Set<string>;
+  expandedDirs: () => Record<string, boolean>;
   toggleDir: (path: string) => void;
 
   // Selection state
@@ -65,7 +77,7 @@ export interface WorkspaceStore {
   openFiles: () => string[];
   activeFile: () => string | undefined;
   fileContents: () => Record<string, FileContent>;
-  unsavedChanges: () => Set<string>;
+  unsavedChanges: () => Record<string, boolean>;
 
   // Actions
   /**
@@ -180,11 +192,11 @@ function sortNodes(nodes: TreeNode[]): TreeNode[] {
     });
 }
 
-function flattenTree(nodes: TreeNode[], expandedDirs: Set<string>): FlatNode[] {
+function flattenTree(nodes: TreeNode[], expandedDirs: Record<string, boolean>): FlatNode[] {
   const result: FlatNode[] = [];
 
   function traverse(node: TreeNode) {
-    const isExpanded = expandedDirs.has(node.path);
+    const isExpanded = !!expandedDirs[node.path];
     result.push({ node, isExpanded });
 
     if (node.isDir && isExpanded && node.children) {
@@ -205,65 +217,48 @@ function flattenTree(nodes: TreeNode[], expandedDirs: Set<string>): FlatNode[] {
 // Store Factory
 // ============================================================================
 
-export function createWorkspaceStore(): WorkspaceStore {
-  // Connection state
+export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
+  const { sdk, setSdk } = deps;
+
+  // ── Signals: simple flat state ──────────────────────────────────────────
   const [connectionStatus, setConnectionStatus] = createSignal<ConnectionStatus>('disconnected');
   const [error, setError] = createSignal<string | undefined>(undefined);
-  const [sdk, setSdk] = createSignal<SDK | null>(null);
-
-  // Workspace data
   const [workspaceRoot, setWorkspaceRoot] = createSignal<string>('');
   const [files, setFiles] = createSignal<WorkspaceFile[]>([]);
-
-  // Profile state
   const [activeProfile, setActiveProfile] = createSignal<string | undefined>(undefined);
   const [availableProfiles, setAvailableProfiles] = createSignal<string[]>([]);
-
-  // Selection and expansion state
   const [selectedPath, setSelectedPath] = createSignal<string | undefined>(undefined);
-  const [expandedDirs, setExpandedDirs] = createSignal<Set<string>>(new Set());
-
-  // Requests cache
-  const [requestsByPath, setRequestsByPath] = createSignal<Record<string, WorkspaceRequest[]>>({});
   const [loadingRequests, setLoadingRequests] = createSignal(false);
-
-  // File editor state
   const [openFiles, setOpenFiles] = createSignal<string[]>([]);
   const [activeFile, setActiveFile] = createSignal<string | undefined>(undefined);
-  const [fileContents, setFileContents] = createSignal<Record<string, FileContent>>({});
-  const [unsavedChanges, setUnsavedChanges] = createSignal<Set<string>>(new Set());
 
-  // Derived: tree structure from files
+  // ── Store: deeply nested state with fine-grained updates ────────────────
+  const [deep, setDeep] = createStore<DeepState>({
+    expandedDirs: {},
+    requestsByPath: {},
+    fileContents: {},
+    unsavedChanges: {}
+  });
+
+  // ── Derived ─────────────────────────────────────────────────────────────
   const tree = createMemo(() => buildTree(files()));
+  const flattenedVisible = createMemo(() => flattenTree(tree(), deep.expandedDirs));
 
-  // Derived: flattened visible nodes
-  const flattenedVisible = createMemo(() => flattenTree(tree(), expandedDirs()));
-
-  // Derived: currently selected node
   const selectedNode = createMemo(() => {
     const path = selectedPath();
     if (!path) return undefined;
     return flattenedVisible().find((f) => f.node.path === path);
   });
 
-  // Derived: requests for selected file
   const selectedRequests = createMemo(() => {
     const path = selectedPath();
     if (!path) return [];
-    return requestsByPath()[path] ?? [];
+    return deep.requestsByPath[path] ?? [];
   });
 
-  // Actions
+  // ── Actions ─────────────────────────────────────────────────────────────
   const toggleDir = (path: string) => {
-    setExpandedDirs((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
+    setDeep('expandedDirs', path, (v) => !v);
   };
 
   const connect = async (config?: SDKConfig | string) => {
@@ -271,7 +266,7 @@ export function createWorkspaceStore(): WorkspaceStore {
     setError(undefined);
     setFiles([]);
     setSelectedPath(undefined);
-    setRequestsByPath({});
+    setDeep('requestsByPath', {});
     setActiveProfile(undefined);
     setAvailableProfiles([]);
 
@@ -307,7 +302,11 @@ export function createWorkspaceStore(): WorkspaceStore {
       const firstLevelDirs = response.files
         .map((f) => f.path.split('/')[0])
         .filter((v, i, a) => a.indexOf(v) === i);
-      setExpandedDirs(new Set(firstLevelDirs));
+      const expanded: Record<string, boolean> = {};
+      for (const dir of firstLevelDirs) {
+        expanded[dir] = true;
+      }
+      setDeep('expandedDirs', expanded);
     } catch (err) {
       setConnectionStatus('error');
       setError(err instanceof Error ? err.message : String(err));
@@ -321,8 +320,8 @@ export function createWorkspaceStore(): WorkspaceStore {
     setFiles([]);
     setWorkspaceRoot('');
     setSelectedPath(undefined);
-    setRequestsByPath({});
-    setExpandedDirs(new Set<string>());
+    setDeep('requestsByPath', {});
+    setDeep('expandedDirs', {});
   };
 
   const loadRequests = async (path: string) => {
@@ -330,15 +329,12 @@ export function createWorkspaceStore(): WorkspaceStore {
     if (!currentSdk) return;
 
     // Skip if already loaded
-    if (requestsByPath()[path]) return;
+    if (deep.requestsByPath[path]) return;
 
     setLoadingRequests(true);
     try {
       const response = await currentSdk.listWorkspaceRequests(path);
-      setRequestsByPath((prev) => ({
-        ...prev,
-        [path]: response.requests
-      }));
+      setDeep('requestsByPath', path, response.requests);
     } catch (err) {
       console.error('Failed to load requests:', err);
     } finally {
@@ -355,13 +351,13 @@ export function createWorkspaceStore(): WorkspaceStore {
       setFiles(response.files);
       setWorkspaceRoot(response.workspaceRoot);
       // Clear requests cache to force reload
-      setRequestsByPath({});
+      setDeep('requestsByPath', {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  // File editor actions
+  // ── File editor actions ─────────────────────────────────────────────────
   const openFile = async (path: string) => {
     const currentSdk = sdk();
     if (!currentSdk) return;
@@ -376,34 +372,30 @@ export function createWorkspaceStore(): WorkspaceStore {
     setActiveFile(path);
 
     // Load content if not already loaded
-    if (!fileContents()[path]) {
-      setFileContents((prev) => ({
-        ...prev,
-        [path]: { content: '', originalContent: '', lastModified: 0, isLoading: true }
-      }));
+    if (!deep.fileContents[path]) {
+      setDeep('fileContents', path, {
+        content: '',
+        originalContent: '',
+        lastModified: 0,
+        isLoading: true
+      });
 
       try {
         const response = await currentSdk.getFileContent(path);
-        setFileContents((prev) => ({
-          ...prev,
-          [path]: {
-            content: response.content,
-            originalContent: response.content, // Store original for dirty comparison
-            lastModified: response.lastModified,
-            isLoading: false
-          }
-        }));
+        setDeep('fileContents', path, {
+          content: response.content,
+          originalContent: response.content,
+          lastModified: response.lastModified,
+          isLoading: false
+        });
       } catch (err) {
-        setFileContents((prev) => ({
-          ...prev,
-          [path]: {
-            content: '',
-            originalContent: '',
-            lastModified: 0,
-            isLoading: false,
-            error: err instanceof Error ? err.message : String(err)
-          }
-        }));
+        setDeep('fileContents', path, {
+          content: '',
+          originalContent: '',
+          lastModified: 0,
+          isLoading: false,
+          error: err instanceof Error ? err.message : String(err)
+        });
       }
     }
   };
@@ -417,35 +409,36 @@ export function createWorkspaceStore(): WorkspaceStore {
       setActiveFile(remaining.length > 0 ? remaining[remaining.length - 1] : undefined);
     }
 
-    // Remove from unsaved changes
-    setUnsavedChanges((prev) => {
-      const next = new Set(prev);
-      next.delete(path);
-      return next;
-    });
+    // Clean up file contents and unsaved changes (fixes memory leak)
+    setDeep(
+      'fileContents',
+      produce((contents) => {
+        delete contents[path];
+      })
+    );
+    setDeep(
+      'unsavedChanges',
+      produce((changes) => {
+        delete changes[path];
+      })
+    );
   };
 
   const updateFileContent = (path: string, content: string) => {
-    const original = fileContents()[path]?.originalContent;
+    const original = deep.fileContents[path]?.originalContent;
 
-    setFileContents((prev) => ({
-      ...prev,
-      [path]: {
-        ...prev[path],
-        content
-      }
-    }));
+    setDeep('fileContents', path, 'content', content);
 
     // Only mark dirty if content differs from original
     if (content !== original) {
-      setUnsavedChanges((prev) => new Set(prev).add(path));
+      setDeep('unsavedChanges', path, true);
     } else {
-      // Content matches original, remove dirty flag
-      setUnsavedChanges((prev) => {
-        const next = new Set(prev);
-        next.delete(path);
-        return next;
-      });
+      setDeep(
+        'unsavedChanges',
+        produce((changes) => {
+          delete changes[path];
+        })
+      );
     }
   };
 
@@ -453,28 +446,25 @@ export function createWorkspaceStore(): WorkspaceStore {
     const currentSdk = sdk();
     if (!currentSdk) return;
 
-    const content = fileContents()[path]?.content;
+    const content = deep.fileContents[path]?.content;
     if (content === undefined) return;
 
     try {
       await currentSdk.updateFile(path, content);
 
       // Mark as saved
-      setUnsavedChanges((prev) => {
-        const next = new Set(prev);
-        next.delete(path);
-        return next;
-      });
+      setDeep(
+        'unsavedChanges',
+        produce((changes) => {
+          delete changes[path];
+        })
+      );
 
       // Update lastModified and originalContent (content is now saved)
-      setFileContents((prev) => ({
-        ...prev,
-        [path]: {
-          ...prev[path],
-          originalContent: prev[path].content, // Update original after save
-          lastModified: Date.now()
-        }
-      }));
+      setDeep('fileContents', path, {
+        originalContent: deep.fileContents[path].content,
+        lastModified: Date.now()
+      });
 
       // Refresh file list to update request counts (but don't clear all requests)
       const response = await currentSdk.listWorkspaceFiles();
@@ -482,11 +472,12 @@ export function createWorkspaceStore(): WorkspaceStore {
       setWorkspaceRoot(response.workspaceRoot);
 
       // Only clear this file's cached requests (they may have changed)
-      setRequestsByPath((prev) => {
-        const next = { ...prev };
-        delete next[path];
-        return next;
-      });
+      setDeep(
+        'requestsByPath',
+        produce((reqs) => {
+          delete reqs[path];
+        })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -529,14 +520,13 @@ export function createWorkspaceStore(): WorkspaceStore {
   };
 
   const hasUnsavedChanges = (path: string) => {
-    return unsavedChanges().has(path);
+    return !!deep.unsavedChanges[path];
   };
 
   return {
     // Connection
     connectionStatus,
     error,
-    sdk,
 
     // Workspace
     workspaceRoot,
@@ -550,7 +540,7 @@ export function createWorkspaceStore(): WorkspaceStore {
     // Tree
     tree,
     flattenedVisible,
-    expandedDirs,
+    expandedDirs: () => deep.expandedDirs,
     toggleDir,
 
     // Selection
@@ -559,15 +549,15 @@ export function createWorkspaceStore(): WorkspaceStore {
     selectedNode,
 
     // Requests
-    requestsByPath,
+    requestsByPath: () => deep.requestsByPath,
     selectedRequests,
     loadingRequests,
 
     // File editor state
     openFiles,
     activeFile,
-    fileContents,
-    unsavedChanges,
+    fileContents: () => deep.fileContents,
+    unsavedChanges: () => deep.unsavedChanges,
 
     // Actions
     connect,

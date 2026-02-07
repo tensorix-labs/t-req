@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { useWorkspace, useObserver } from '../../context';
+import { useWorkspace, useObserver, useSDK } from '../../context';
 import type { WorkspaceRequest } from '../../sdk';
 import { SpinnerIcon } from '../icons';
 import { RequestItem } from './RequestItem';
@@ -7,13 +7,14 @@ import { RequestItem } from './RequestItem';
 export function RequestList() {
   const store = useWorkspace();
   const observer = useObserver();
+  const sdk = useSDK();
 
   const handleExecute = (request: WorkspaceRequest) => {
-    const sdk = store.sdk();
+    const client = sdk();
     const path = store.selectedPath();
-    if (!sdk || !path) return;
+    if (!client || !path) return;
     const profile = store.activeProfile();
-    observer.execute(sdk, path, request.index, profile);
+    observer.execute(client, path, request.index, profile);
   };
 
   return (

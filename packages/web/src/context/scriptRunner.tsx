@@ -1,5 +1,6 @@
 import { createContext, createSignal, onCleanup, useContext, type Accessor, type JSX } from 'solid-js';
-import { useObserver, useWorkspace } from './index';
+import { useObserver } from './index';
+import { useSDK } from './sdk';
 import type { RunnerOption, SDK } from '../sdk';
 
 export interface ScriptRunnerContextValue {
@@ -17,8 +18,8 @@ export interface ScriptRunnerContextValue {
 const ScriptRunnerContext = createContext<ScriptRunnerContextValue>();
 
 export function ScriptRunnerProvider(props: { children: JSX.Element }) {
-  const workspace = useWorkspace();
   const observer = useObserver();
+  const getSDK = useSDK();
 
   // Track current run ID for cancellation
   let currentRunId: string | undefined;
@@ -63,7 +64,7 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
 
   // Start script execution with a runner ID
   async function startScript(scriptPath: string, runnerId?: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     let flowId: string | undefined;
@@ -99,7 +100,7 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
 
   // Handle running a script
   async function runScript(scriptPath: string) {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (!sdk) return;
 
     if (observer.state.runningScript || isStarting()) {
@@ -132,7 +133,7 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   }
 
   async function cancelScript() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       try {
         await sdk.cancelScript(currentRunId);
@@ -163,7 +164,7 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   }
 
   function cleanup() {
-    const sdk = workspace.sdk();
+    const sdk = getSDK();
     if (currentRunId && sdk) {
       sdk.cancelScript(currentRunId).catch(() => {});
       currentRunId = undefined;
