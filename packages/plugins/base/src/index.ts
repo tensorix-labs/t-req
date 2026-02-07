@@ -25,14 +25,14 @@ export const base = definePlugin({
 
     // Random
     $randomInt: (min: string, max: string) => {
-      const lo = Number(min);
-      const hi = Number(max);
+      const lo = Math.floor(Number(min));
+      const hi = Math.floor(Number(max));
       return String(Math.floor(Math.random() * (hi - lo + 1)) + lo);
     },
 
     // Encoding
-    $base64: (value: string) => btoa(value),
-    $base64Decode: (value: string) => atob(value)
+    $base64: (value: string) => Buffer.from(value, 'utf8').toString('base64'),
+    $base64Decode: (value: string) => Buffer.from(value, 'base64').toString('utf8')
   }
 });
 

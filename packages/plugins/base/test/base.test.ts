@@ -112,11 +112,13 @@ describe('$randomInt', () => {
     expectString($randomInt('1', '10'));
   });
 
-  test('handles decimal string arguments by truncating', () => {
-    const result = Number($randomInt('1.9', '10.1'));
-    // Decimal args are truncated to integers (1 and 10)
-    expect(result).toBeGreaterThanOrEqual(1);
-    expect(result).toBeLessThanOrEqual(10);
+  test('floors decimal string arguments to integers', () => {
+    for (let i = 0; i < 50; i++) {
+      const result = Number($randomInt('1.9', '10.9'));
+      expect(Number.isInteger(result)).toBe(true);
+      expect(result).toBeGreaterThanOrEqual(1);
+      expect(result).toBeLessThanOrEqual(10);
+    }
   });
 });
 
@@ -136,6 +138,11 @@ describe('$base64', () => {
     test(`encodes "${input.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"`, () => {
       expect($base64(input)).toBe(expected);
     });
+  });
+
+  test('handles UTF-8 characters', () => {
+    expect($base64('こんにちは')).toBe('44GT44KT44Gr44Gh44Gv');
+    expect($base64('price: €50')).toBe('cHJpY2U6IOKCrDUw');
   });
 
   test('returns string type', () => {
@@ -163,6 +170,14 @@ describe('$base64Decode', () => {
   test('round-trips with $base64', () => {
     const $base64 = resolvers['$base64'];
     const original = 'Test message with special chars! @#$%';
+    const encoded = $base64(original);
+    const decoded = $base64Decode(encoded);
+    expect(decoded).toBe(original);
+  });
+
+  test('round-trips UTF-8 with $base64', () => {
+    const $base64 = resolvers['$base64'];
+    const original = 'こんにちは 🌍 price: €50';
     const encoded = $base64(original);
     const decoded = $base64Decode(encoded);
     expect(decoded).toBe(original);
