@@ -1,5 +1,5 @@
 import { type Component, createSignal, createEffect, on, Show, Switch, Match } from 'solid-js';
-import { useWorkspace, useObserver, useScriptRunner, useTestRunner } from '../../context';
+import { useWorkspace, useObserver, useSDK, useScriptRunner, useTestRunner } from '../../context';
 import { HttpEditor } from './HttpEditor';
 import { CodeEditor } from './CodeEditor';
 import { ResizableSplitPane } from './ResizableSplitPane';
@@ -18,6 +18,7 @@ const COLLAPSE_STORAGE_KEY = 'treq:editor:resultsPanelCollapsed';
 export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) => {
   const workspace = useWorkspace();
   const observer = useObserver();
+  const sdk = useSDK();
   const scriptRunner = useScriptRunner();
   const testRunner = useTestRunner();
 
@@ -92,8 +93,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
   const hasRequests = () => requests().length > 0;
 
   const handleHttpExecute = async () => {
-    const sdk = workspace.sdk();
-    if (!sdk || !hasRequests()) return;
+    if (!sdk() || !hasRequests()) return;
 
     if (workspace.hasUnsavedChanges(props.path)) {
       await workspace.saveFile(props.path);
@@ -103,7 +103,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
     }
 
     const profile = workspace.activeProfile();
-    await observer.execute(sdk, props.path, selectedRequestIndex(), profile);
+    await observer.execute(sdk()!, props.path, selectedRequestIndex(), profile);
 
     if (resultsPanelCollapsed()) {
       setResultsPanelCollapsed(false);

@@ -1,7 +1,7 @@
 import { createSignal, createResource, For, Show } from 'solid-js';
 import type { ExecutionSummary } from '../../stores/observer';
 import { ResponseViewer } from '../response';
-import { useWorkspace } from '../../context/workspace';
+import { useSDK } from '../../context/sdk';
 import type { PluginHookInfo } from '../../sdk';
 
 type TabType = 'response' | 'headers' | 'plugins';
@@ -11,17 +11,17 @@ interface ExecutionDetailProps {
 }
 
 export function ExecutionDetail(props: ExecutionDetailProps) {
-  const workspace = useWorkspace();
+  const sdk = useSDK();
   const [activeTab, setActiveTab] = createSignal<TabType>('response');
 
   // Fetch full execution details (includes pluginHooks) when plugins tab is active
   const [executionDetail] = createResource(
     () => (activeTab() === 'plugins' ? props.execution : null),
     async (exec) => {
-      const sdk = workspace.sdk();
-      if (!exec || !sdk) return null;
+      const client = sdk();
+      if (!exec || !client) return null;
       try {
-        return await sdk.getExecution(exec.flowId, exec.reqExecId);
+        return await client.getExecution(exec.flowId, exec.reqExecId);
       } catch {
         return null;
       }

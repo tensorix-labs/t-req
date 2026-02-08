@@ -1,4 +1,4 @@
-import { Show, createSignal, createEffect } from 'solid-js';
+import { Show, createSignal, createEffect, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { useObserver } from '../context';
 
@@ -8,18 +8,27 @@ export function Toast() {
 
   const error = () => observer.state.executeError;
 
+  let animateTimer: ReturnType<typeof setTimeout> | undefined;
+  let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+
   createEffect(() => {
     if (error()) {
-      // Trigger slide-in animation
-      setTimeout(() => setIsVisible(true), 10);
+      clearTimeout(animateTimer);
+      animateTimer = setTimeout(() => setIsVisible(true), 10);
     } else {
       setIsVisible(false);
     }
   });
 
+  onCleanup(() => {
+    clearTimeout(animateTimer);
+    clearTimeout(dismissTimer);
+  });
+
   const handleDismiss = () => {
     setIsVisible(false);
-    setTimeout(() => observer.setState('executeError', undefined), 150);
+    clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(() => observer.setState('executeError', undefined), 150);
   };
 
   return (

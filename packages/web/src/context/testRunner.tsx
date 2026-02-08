@@ -1,6 +1,8 @@
-import { createContext, createSignal, onCleanup, useContext, type Accessor, type JSX } from 'solid-js';
-import { useObserver, useWorkspace } from './index';
-import type { TestFrameworkOption, SDK } from '../sdk';
+import { createContext, useContext, type Accessor, type JSX } from 'solid-js';
+import { useObserver } from './index';
+import { useSDK } from './sdk';
+import type { TestFrameworkOption } from '../sdk';
+import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
 
 export interface TestRunnerContextValue {
   runTest: (testPath: string) => Promise<void>;
@@ -17,169 +19,27 @@ export interface TestRunnerContextValue {
 const TestRunnerContext = createContext<TestRunnerContextValue>();
 
 export function TestRunnerProvider(props: { children: JSX.Element }) {
-  const workspace = useWorkspace();
   const observer = useObserver();
+  const getSDK = useSDK();
 
-  let currentRunId: string | undefined;
-  let sseUnsubscribe: (() => void) | undefined;
-
-  const [isStarting, setIsStarting] = createSignal(false);
-
-  // Framework selection dialog state
-  const [dialogOpen, setDialogOpen] = createSignal(false);
-  const [dialogTestPath, setDialogTestPath] = createSignal('');
-  const [dialogOptions, setDialogOptions] = createSignal<TestFrameworkOption[]>([]);
-  const [dialogCallback, setDialogCallback] = createSignal<((id: string) => void) | null>(null);
-
-  function subscribeToFlow(sdk: SDK, flowId: string) {
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
-    }
-
-    observer.setState('flowId', flowId);
-    observer.setState('sseStatus', 'connecting');
-
-    sseUnsubscribe = sdk.subscribeEvents(
-      flowId,
-      (event) => {
-        if (observer.state.sseStatus !== 'open') {
-          observer.setState('sseStatus', 'open');
-        }
-        observer.handleSSEEvent(event);
-      },
-      (error) => {
-        console.error('SSE error:', error);
-        observer.setState('sseStatus', 'error');
-      },
-      () => {
-        observer.setState('sseStatus', 'closed');
-      }
-    );
-  }
-
-  async function startTest(testPath: string, frameworkId?: string) {
-    const sdk = workspace.sdk();
-    if (!sdk) return;
-
-    let flowId: string | undefined;
-    try {
-      const createdFlow = await sdk.createFlow(`Test: ${testPath}`);
-      flowId = createdFlow.flowId;
-
-      subscribeToFlow(sdk, flowId);
-
-      const { runId } = await sdk.runTest(testPath, frameworkId, flowId);
-      currentRunId = runId;
-
-      if (!observer.state.runningScript) {
-        observer.setState('runningScript', {
-          path: testPath,
-          pid: 0,
-          startedAt: Date.now()
-        });
-      }
-    } catch (err) {
-      console.error('Failed to start test:', err);
-      if (flowId) {
-        if (sseUnsubscribe) {
-          sseUnsubscribe();
-          sseUnsubscribe = undefined;
-        }
-        observer.setState('flowId', undefined);
-      }
-      observer.setState('sseStatus', 'error');
-      currentRunId = undefined;
-    }
-  }
-
-  async function runTest(testPath: string) {
-    const sdk = workspace.sdk();
-    if (!sdk) return;
-
-    if (observer.state.runningScript || isStarting()) {
-      return;
-    }
-
-    setIsStarting(true);
-    observer.reset();
-
-    try {
-      const { detected, options: frameworkOptions } = await sdk.getTestFrameworks(testPath);
-
-      if (detected) {
-        await startTest(testPath, detected);
-      } else {
-        setDialogTestPath(testPath);
-        setDialogOptions(frameworkOptions);
-        setDialogCallback(() => (selectedFrameworkId: string) => {
-          void startTest(testPath, selectedFrameworkId);
-        });
-        setDialogOpen(true);
-      }
-    } catch (err) {
-      console.error('Failed to get test frameworks:', err);
-      observer.setState('sseStatus', 'error');
-    } finally {
-      setIsStarting(false);
-    }
-  }
-
-  async function cancelTest() {
-    const sdk = workspace.sdk();
-    if (currentRunId && sdk) {
-      try {
-        await sdk.cancelTest(currentRunId);
-      } catch {
-        // Test may have already finished
-      }
-      currentRunId = undefined;
-    }
-    setIsStarting(false);
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
-    }
-  }
-
-  function handleFrameworkSelect(frameworkId: string) {
-    const callback = dialogCallback();
-    if (callback) {
-      callback(frameworkId);
-    }
-    setDialogOpen(false);
-    setDialogCallback(null);
-  }
-
-  function handleDialogClose() {
-    setDialogOpen(false);
-    setDialogCallback(null);
-  }
-
-  function cleanup() {
-    const sdk = workspace.sdk();
-    if (currentRunId && sdk) {
-      sdk.cancelTest(currentRunId).catch(() => {});
-      currentRunId = undefined;
-    }
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
-    }
-    setIsStarting(false);
-  }
-
-  onCleanup(cleanup);
+  const lifecycle = createRunnerLifecycle<TestFrameworkOption>({
+    getSDK,
+    observer,
+    detectRunners: (sdk, path) => sdk.getTestFrameworks(path),
+    startRun: (sdk, path, frameworkId, flowId) => sdk.runTest(path, frameworkId, flowId),
+    cancelRun: (sdk, runId) => sdk.cancelTest(runId),
+    flowLabel: 'Test'
+  });
 
   const value: TestRunnerContextValue = {
-    runTest,
-    cancelTest,
-    isRunning: () => isStarting() || !!observer.state.runningScript,
-    dialogOpen,
-    dialogTestPath,
-    dialogOptions,
-    handleFrameworkSelect,
-    handleDialogClose
+    runTest: lifecycle.run,
+    cancelTest: lifecycle.cancel,
+    isRunning: lifecycle.isRunning,
+    dialogOpen: lifecycle.dialogOpen,
+    dialogTestPath: lifecycle.dialogPath,
+    dialogOptions: lifecycle.dialogOptions,
+    handleFrameworkSelect: lifecycle.handleSelect,
+    handleDialogClose: lifecycle.handleDialogClose
   };
 
   return (

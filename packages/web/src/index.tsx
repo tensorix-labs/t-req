@@ -1,8 +1,10 @@
 /* @refresh reload */
+import { createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
-import { WorkspaceProvider, ObserverProvider, ScriptRunnerProvider, TestRunnerProvider } from './context'
+import { SDKProvider, WorkspaceProvider, ObserverProvider, ScriptRunnerProvider, TestRunnerProvider } from './context'
 import { createWorkspaceStore } from './stores/workspace'
 import { createObserverStore } from './stores/observer'
+import type { SDK } from './sdk'
 import '@t-req/ui/fonts'
 import './index.css'
 import App from './App.tsx'
@@ -10,18 +12,21 @@ import App from './App.tsx'
 const root = document.getElementById('root')
 
 render(() => {
-  const workspaceStore = createWorkspaceStore()
+  const [sdk, setSdk] = createSignal<SDK | null>(null)
+  const workspaceStore = createWorkspaceStore({ sdk, setSdk })
   const observerStore = createObserverStore()
 
   return (
-    <WorkspaceProvider store={workspaceStore}>
-      <ObserverProvider store={observerStore}>
-        <ScriptRunnerProvider>
-          <TestRunnerProvider>
-            <App />
-          </TestRunnerProvider>
-        </ScriptRunnerProvider>
-      </ObserverProvider>
-    </WorkspaceProvider>
+    <SDKProvider sdk={sdk}>
+      <WorkspaceProvider store={workspaceStore}>
+        <ObserverProvider store={observerStore}>
+          <ScriptRunnerProvider>
+            <TestRunnerProvider>
+              <App />
+            </TestRunnerProvider>
+          </ScriptRunnerProvider>
+        </ObserverProvider>
+      </WorkspaceProvider>
+    </SDKProvider>
   )
 }, root!)
