@@ -72,6 +72,10 @@ export interface ObserverStore {
   state: ObserverState;
   setState: SetStoreFunction<ObserverState>;
 
+  // Flow lifecycle
+  openFlow: (sdk: SDK) => Promise<string>;
+  closeFlow: () => void;
+
   // Actions
   execute: (
     sdk: SDK,
@@ -282,12 +286,23 @@ export function createObserverStore(): ObserverStore {
   const openHistory = () => setState('showHistory', true);
   const closeHistory = () => setState('showHistory', false);
 
-  const subscribeToFlow = (sdk: SDK, flowId: string) => {
-    // Cleanup existing subscription
+  // ── Flow Lifecycle ──────────────────────────────────────────────────────
+  // openFlow/closeFlow are the primary interface for SSE connection management.
+  // All SSE teardown goes through closeFlow — no duplication.
+
+  /** Tear down the SSE connection and clear flow state. Idempotent. */
+  const closeFlow = () => {
     if (unsubscribeSSE) {
       unsubscribeSSE();
       unsubscribeSSE = null;
     }
+    setState('flowId', undefined);
+    setState('sseStatus', 'idle');
+  };
+
+  /** Subscribe SSE to a specific flow. Tears down any existing connection first. */
+  const subscribeToSSE = (sdk: SDK, flowId: string) => {
+    closeFlow();
 
     setState('flowId', flowId);
     setState('sseStatus', 'connecting');
@@ -310,6 +325,17 @@ export function createObserverStore(): ObserverStore {
     );
   };
 
+  /** Create a flow and subscribe to its SSE stream. Reuses existing flow. */
+  const openFlow = async (sdk: SDK): Promise<string> => {
+    if (state.flowId) return state.flowId;
+
+    const { flowId } = await sdk.createFlow('web-execution');
+    subscribeToSSE(sdk, flowId);
+    return flowId;
+  };
+
+  // ── Execute ─────────────────────────────────────────────────────────────
+
   const execute = async (
     sdk: SDK,
     path: string,
@@ -320,13 +346,7 @@ export function createObserverStore(): ObserverStore {
     setState('executeError', undefined);
 
     try {
-      // Create flow if needed
-      let flowId = state.flowId;
-      if (!flowId) {
-        const flowResponse = await sdk.createFlow('web-execution');
-        flowId = flowResponse.flowId;
-        subscribeToFlow(sdk, flowId);
-      }
+      const flowId = await openFlow(sdk);
 
       // Execute the request with profile
       const response = await sdk.executeRequest(flowId, path, requestIndex, profile);
@@ -355,6 +375,7 @@ export function createObserverStore(): ObserverStore {
       setState('executing', false);
       return response;
     } catch (err) {
+      closeFlow();
       const message = err instanceof Error ? err.message : String(err);
       setState('executeError', message);
       setState('executing', false);
@@ -418,16 +439,16 @@ export function createObserverStore(): ObserverStore {
 
   // Reset all state
   const reset = () => {
-    if (unsubscribeSSE) {
-      unsubscribeSSE();
-      unsubscribeSSE = null;
-    }
+    closeFlow();
     setState(reconcile(createInitialState()));
   };
 
   return {
     state,
     setState,
+
+    openFlow,
+    closeFlow,
 
     execute,
     clearExecutions,
