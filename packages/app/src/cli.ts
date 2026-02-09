@@ -8,6 +8,7 @@ import { runCommand } from './cmd/run';
 import { serveCommand } from './cmd/serve';
 import { tuiCommand } from './cmd/tui';
 import { upgradeCommand } from './cmd/upgrade';
+import { validateCommand } from './cmd/validate';
 import { webCommand } from './cmd/web';
 import { Installation } from './installation';
 import { resolveWorkspaceRoot } from './utils';
@@ -99,6 +100,7 @@ export async function cli(args: string[]): Promise<void> {
     .command(serveCommand)
     .command(tuiCommand)
     .command(upgradeCommand)
+    .command(validateCommand)
     .command(webCommand);
 
   // Try to load plugin commands (non-blocking - don't fail if no config)
