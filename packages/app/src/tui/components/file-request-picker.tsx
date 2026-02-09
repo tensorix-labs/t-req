@@ -1,10 +1,11 @@
-import { useKeyboard } from '@opentui/solid';
+import type { WorkspaceRequest } from '@t-req/sdk/client';
 import fuzzysort from 'fuzzysort';
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import { useDialog, useStore } from '../context';
+import { usePickerNavigation } from '../hooks';
 import { rgba, theme } from '../theme';
-import { normalizeKey } from '../util/normalize-key';
 import { isRunnableScript, isHttpFile, isTestFile } from '../store';
+import { RequestPicker } from './request-picker';
 
 type PickerItemType = 'test' | 'script' | 'http';
 
@@ -14,10 +15,14 @@ interface PickerItem {
   filePath: string;
   fileName: string;
   searchText: string;
+  requestCount: number;
 }
 
 export type FileRequestPickerProps = {
   onExecute?: (filePath: string) => void;
+  onExecuteAll?: (filePath: string) => void;
+  onExecuteRequest?: (filePath: string, requestIndex: number, request: WorkspaceRequest) => void;
+  loadRequests?: (filePath: string) => Promise<WorkspaceRequest[] | undefined>;
 };
 
 const CONFIRM_TIMEOUT_MS = 2000;
@@ -27,7 +32,6 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
   const dialog = useDialog();
 
   const [query, setQuery] = createSignal('');
-  const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [pendingSendId, setPendingSendId] = createSignal<string | undefined>(undefined);
   let inputRef: { focus: () => void } | undefined;
   let confirmTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -49,7 +53,8 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
           type: 'test',
           filePath: path,
           fileName,
-          searchText: path
+          searchText: path,
+          requestCount: file.requestCount
         });
       } else if (isRunnableScript(path)) {
         scripts.push({
@@ -57,7 +62,8 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
           type: 'script',
           filePath: path,
           fileName,
-          searchText: path
+          searchText: path,
+          requestCount: file.requestCount
         });
       } else if (isHttpFile(path)) {
         httpFiles.push({
@@ -65,7 +71,8 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
           type: 'http',
           filePath: path,
           fileName,
-          searchText: path
+          searchText: path,
+          requestCount: file.requestCount
         });
       }
     }
@@ -89,21 +96,6 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     return results.map((r) => r.obj);
   });
 
-  // Clamp selected index when options change
-  const clampedIndex = createMemo(() => {
-    const items = filteredItems();
-    const idx = selectedIndex();
-    if (items.length === 0) return 0;
-    return Math.min(idx, items.length - 1);
-  });
-
-  // Clear pending send when query changes or selection changes
-  createEffect(() => {
-    query();
-    selectedIndex();
-    clearPendingSend();
-  });
-
   function clearPendingSend() {
     if (confirmTimeout) {
       clearTimeout(confirmTimeout);
@@ -112,7 +104,47 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     setPendingSendId(undefined);
   }
 
+  // Guard against concurrent drill-down loads
+  let drillLoading = false;
+
+  async function drillIntoFile(item: PickerItem) {
+    if (drillLoading || !props.loadRequests) return;
+    drillLoading = true;
+
+    try {
+      const requests = await props.loadRequests(item.filePath);
+      if (!requests || requests.length <= 1) {
+        // Stale count or single request — fall back to direct execution
+        props.onExecute?.(item.filePath);
+        dialog.clear();
+        return;
+      }
+
+      dialog.push(() => (
+        <RequestPicker
+          filePath={item.filePath}
+          fileName={item.fileName}
+          requests={requests}
+          onExecute={props.onExecuteRequest}
+          onExecuteAll={props.onExecuteAll}
+        />
+      ));
+    } catch {
+      // Load failed — fall back to direct execution
+      props.onExecute?.(item.filePath);
+      dialog.clear();
+    } finally {
+      drillLoading = false;
+    }
+  }
+
   function handleSend(item: PickerItem) {
+    // Multi-request HTTP files drill down immediately (no two-step confirm)
+    if (item.type === 'http' && item.requestCount > 1 && props.loadRequests) {
+      void drillIntoFile(item);
+      return;
+    }
+
     const pending = pendingSendId();
 
     if (pending === item.id) {
@@ -130,53 +162,24 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     }
   }
 
-  // Handle keyboard navigation
-  useKeyboard((evt) => {
-    const key = normalizeKey(evt);
-    const items = filteredItems();
-    const currentIdx = clampedIndex();
-
-    switch (key.name) {
-      case 'up':
-        evt.preventDefault();
-        evt.stopPropagation();
-        setSelectedIndex(Math.max(0, currentIdx - 1));
-        break;
-      case 'down':
-        evt.preventDefault();
-        evt.stopPropagation();
-        setSelectedIndex(Math.min(items.length - 1, currentIdx + 1));
-        break;
-      case 'return':
-        evt.preventDefault();
-        evt.stopPropagation();
-        const selected = items[currentIdx];
-        if (selected) {
-          handleSend(selected);
-        }
-        break;
-      default:
-        // j/k navigation
-        if (key.name === 'j') {
-          evt.preventDefault();
-          evt.stopPropagation();
-          setSelectedIndex(Math.min(items.length - 1, currentIdx + 1));
-        } else if (key.name === 'k') {
-          evt.preventDefault();
-          evt.stopPropagation();
-          setSelectedIndex(Math.max(0, currentIdx - 1));
-        }
-        // ctrl+p = up, ctrl+n = down
-        else if (key.ctrl && key.name === 'p') {
-          evt.preventDefault();
-          evt.stopPropagation();
-          setSelectedIndex(Math.max(0, currentIdx - 1));
-        } else if (key.ctrl && key.name === 'n') {
-          evt.preventDefault();
-          evt.stopPropagation();
-          setSelectedIndex(Math.min(items.length - 1, currentIdx + 1));
-        }
+  const { clampedIndex, setSelectedIndex } = usePickerNavigation<PickerItem>({
+    items: filteredItems,
+    onSelect: handleSend,
+    additionalKeys: (key, item, _evt) => {
+      if (key.ctrl && key.name === 'a' && item?.type === 'http') {
+        props.onExecuteAll?.(item.filePath);
+        dialog.clear();
+        return true;
+      }
+      return false;
     }
+  });
+
+  // Clear pending send when query or selection changes
+  createEffect(() => {
+    query();
+    clampedIndex();
+    clearPendingSend();
   });
 
   // Auto-focus input on mount
@@ -190,6 +193,12 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
       clearTimeout(confirmTimeout);
     }
   });
+
+  function itemLabel(item: PickerItem): string {
+    if (item.type === 'test') return `✓ ${item.filePath}`;
+    if (item.type === 'script') return `▷ ${item.filePath}`;
+    return item.filePath;
+  }
 
   return (
     <box flexDirection="column">
@@ -226,6 +235,8 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
           {(item, idx) => {
             const isSelected = () => idx() === clampedIndex();
             const isPendingSend = () => pendingSendId() === item.id;
+            const showBadge = () =>
+              !isPendingSend() && item.type === 'http' && item.requestCount > 1;
 
             return (
               <box
@@ -242,37 +253,37 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
                       : undefined
                 }
               >
-                <text
-                  fg={rgba(
-                    isPendingSend()
-                      ? theme.background
-                      : isSelected()
-                        ? theme.primary
-                        : theme.text
-                  )}
+                <Show
+                  when={!isPendingSend()}
+                  fallback={
+                    <text fg={rgba(theme.background)}>Press enter to confirm</text>
+                  }
                 >
-                  {isPendingSend()
-                    ? 'Press enter to confirm'
-                    : item.type === 'test'
-                      ? `✓ ${item.filePath}`
-                      : item.type === 'script'
-                        ? `▷ ${item.filePath}`
-                        : item.filePath}
-                </text>
+                  <box flexDirection="row">
+                    <text
+                      fg={rgba(isSelected() ? theme.primary : theme.text)}
+                    >
+                      {itemLabel(item)}
+                    </text>
+                    <Show when={showBadge()}>
+                      <text fg={rgba(theme.textMuted)}>{` [${item.requestCount}]`}</text>
+                    </Show>
+                  </box>
+                </Show>
               </box>
             );
           }}
         </For>
-        {filteredItems().length === 0 && (
+        <Show when={filteredItems().length === 0}>
           <box height={1} paddingLeft={1}>
             <text fg={rgba(theme.textMuted)}>No matches</text>
           </box>
-        )}
+        </Show>
       </box>
 
       {/* Action bar */}
       <box height={1} paddingLeft={1} paddingTop={1}>
-        <text fg={rgba(theme.textMuted)}>enter send</text>
+        <text fg={rgba(theme.textMuted)}>enter send · ctrl+a run all</text>
       </box>
     </box>
   );

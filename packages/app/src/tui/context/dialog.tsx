@@ -18,6 +18,7 @@ export type DialogEntry = {
 
 export type DialogContextValue = {
   replace: (Component: () => JSX.Element, onClose?: () => void) => void;
+  push: (Component: () => JSX.Element, onClose?: () => void) => void;
   clear: () => void;
   readonly stack: DialogEntry[];
 };
@@ -58,21 +59,27 @@ export function DialogProvider(props: { children: JSX.Element }) {
     }
   });
 
+  const saveFocusIfEmpty = () => {
+    if (store.stack.length > 0) return;
+    const currentFocused = (renderer as { currentFocusedRenderable?: unknown })
+      .currentFocusedRenderable;
+    setSavedFocus(currentFocused);
+    if (
+      currentFocused &&
+      typeof (currentFocused as { blur?: () => void }).blur === 'function'
+    ) {
+      (currentFocused as { blur: () => void }).blur();
+    }
+  };
+
   const contextValue: DialogContextValue = {
     replace: (Component: () => JSX.Element, onClose?: () => void) => {
-      // Save focus when opening first dialog
-      if (store.stack.length === 0) {
-        const currentFocused = (renderer as { currentFocusedRenderable?: unknown })
-          .currentFocusedRenderable;
-        setSavedFocus(currentFocused);
-        if (
-          currentFocused &&
-          typeof (currentFocused as { blur?: () => void }).blur === 'function'
-        ) {
-          (currentFocused as { blur: () => void }).blur();
-        }
-      }
+      saveFocusIfEmpty();
       setStore('stack', [{ Component, onClose }]);
+    },
+    push: (Component: () => JSX.Element, onClose?: () => void) => {
+      saveFocusIfEmpty();
+      setStore('stack', [...store.stack, { Component, onClose }]);
     },
     clear: () => {
       setStore('stack', []);

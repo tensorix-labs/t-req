@@ -12,6 +12,11 @@ import { useFlowSubscription } from './use-flow-subscription';
 export interface RequestExecutionReturn {
   /** Execute a specific request by file path and request index */
   executeRequest: (filePath: string, requestIndex: number) => Promise<void>;
+  /** Execute all HTTP requests in a file sequentially within a single flow */
+  executeAllRequests: (
+    filePath: string,
+    requests: Array<{ index: number; protocol?: string; method: string; url: string }>
+  ) => Promise<void>;
   /** Execute a streaming SSE request */
   executeStreamRequest: (
     filePath: string,
@@ -31,11 +36,14 @@ export function useRequestExecution(): RequestExecutionReturn {
   const observer = useObserver();
   const flowSubscription = useFlowSubscription();
 
+  // Concurrency guard — plain mutable flag, not reactive (same pattern as keybind.tsx:71)
+  let executing = false;
+
   /**
    * Check if request execution is blocked.
    */
   function isBlocked(): boolean {
-    return !!observer.state.runningScript;
+    return !!observer.state.runningScript || executing;
   }
 
   /**
@@ -43,12 +51,9 @@ export function useRequestExecution(): RequestExecutionReturn {
    * Orchestrates the full flow lifecycle.
    */
   async function executeRequest(filePath: string, requestIndex: number) {
-    // Don't allow running while a script is running
-    if (isBlocked()) {
-      return;
-    }
+    if (isBlocked()) return;
 
-    // Reset observer state for new run
+    executing = true;
     observer.reset();
 
     try {
@@ -74,6 +79,61 @@ export function useRequestExecution(): RequestExecutionReturn {
       console.error('Failed to execute request:', err);
       observer.setState('sseStatus', 'error');
       flowSubscription.unsubscribe();
+    } finally {
+      executing = false;
+    }
+  }
+
+  /**
+   * Execute all HTTP requests in a file sequentially within a single flow.
+   * SSE requests are skipped (they require executeStreamRequest).
+   */
+  async function executeAllRequests(
+    filePath: string,
+    requests: Array<{ index: number; protocol?: string; method: string; url: string }>
+  ) {
+    // Filter to HTTP-only requests (skip SSE)
+    const httpRequests = requests.filter((r) => r.protocol !== 'sse');
+    if (httpRequests.length === 0 || isBlocked()) return;
+
+    executing = true;
+    observer.reset();
+
+    try {
+      // Create flow
+      const { flowId } = await unwrap(
+        sdk.postFlows({ body: { label: `Running all requests from ${filePath}` } })
+      );
+      observer.setState('flowId', flowId);
+
+      // Subscribe to SSE events
+      const unsubscribe = flowSubscription.subscribe(flowId);
+
+      // Execute each request sequentially
+      const profile = store.activeProfile();
+      for (const req of httpRequests) {
+        try {
+          await unwrap(
+            sdk.postExecute({ body: { path: filePath, requestIndex: req.index, flowId, profile } })
+          );
+        } catch (err) {
+          // Per-request failure: continue to next. The flow tracker emits
+          // executionFailed via SSE so the observer shows it as failed.
+          console.error(`Request ${req.index} failed:`, err);
+        }
+      }
+
+      // Finish flow after all requests complete
+      await unwrap(sdk.postFlowsByFlowIdFinish({ path: { flowId } }));
+
+      // Unsubscribe from SSE
+      unsubscribe();
+    } catch (err) {
+      console.error('Failed to execute all requests:', err);
+      observer.setState('sseStatus', 'error');
+      flowSubscription.unsubscribe();
+    } finally {
+      executing = false;
     }
   }
 
@@ -90,7 +150,7 @@ export function useRequestExecution(): RequestExecutionReturn {
   ) {
     if (isBlocked()) return;
 
-    // Reset observer state for new run
+    executing = true;
     observer.reset();
 
     let flowId: string | undefined;
@@ -147,6 +207,7 @@ export function useRequestExecution(): RequestExecutionReturn {
         }
       }
       unsubscribe?.();
+      executing = false;
     }
   }
 
@@ -159,6 +220,7 @@ export function useRequestExecution(): RequestExecutionReturn {
 
   return {
     executeRequest,
+    executeAllRequests,
     executeStreamRequest,
     disconnectStream,
     isBlocked

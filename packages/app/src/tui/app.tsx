@@ -12,7 +12,7 @@ import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { StreamView } from './components/stream-view';
 import type { StreamState } from './stream';
-import { useDialog, useExit, useObserver, useSDK, useUpdate, unwrap } from './context';
+import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate, unwrap } from './context';
 import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
 import {
@@ -45,6 +45,7 @@ export function App() {
   const update = useUpdate();
 
   // Custom hooks encapsulate business logic
+  const store = useStore();
   const workspace = useWorkspace();
   const requestExecution = useRequestExecution();
   const flowSubscription = useFlowSubscription();
@@ -105,6 +106,23 @@ export function App() {
     }
   }
 
+  // Execute a specific request by index
+  function handleRequestExecute(filePath: string, requestIndex: number, request: { protocol?: string; method: string; url: string }) {
+    if (request.protocol === 'sse') {
+      void requestExecution.executeStreamRequest(filePath, requestIndex, request.method, request.url);
+    } else {
+      void requestExecution.executeRequest(filePath, requestIndex);
+    }
+  }
+
+  // Execute all requests in an HTTP file
+  async function handleFileExecuteAll(filePath: string) {
+    if (!isHttpFile(filePath)) return;
+    const requests = await workspace.loadRequests(filePath);
+    if (!requests || requests.length === 0) return;
+    void requestExecution.executeAllRequests(filePath, requests);
+  }
+
   // Cleanup handler
   async function cleanupAndExit() {
     requestExecution.disconnectStream();
@@ -136,6 +154,9 @@ export function App() {
         action: () => dialog.replace(() => (
           <FileRequestPicker
             onExecute={handleFileExecute}
+            onExecuteAll={handleFileExecuteAll}
+            onExecuteRequest={handleRequestExecute}
+            loadRequests={(filePath) => workspace.loadRequests(filePath)}
           />
         ))
       },
@@ -151,6 +172,14 @@ export function App() {
           if (detail) {
             void openInEditor(detail, renderer as CliRenderer);
           }
+        }
+      },
+      run_all: {
+        action: async () => {
+          const selectedNode = store.selectedNode();
+          if (!selectedNode || selectedNode.node.isDir) return;
+          if (!isHttpFile(selectedNode.node.path)) return;
+          await handleFileExecuteAll(selectedNode.node.path);
         }
       }
     },
