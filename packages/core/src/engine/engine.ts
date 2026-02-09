@@ -1,6 +1,6 @@
 import { executeWithTransport } from '../execute';
 import { createInterpolator } from '../interpolate';
-import { parse, parseFileWithIO } from '../parser';
+import { parse, parseDocument, parseDocumentFileWithIO } from '../parser';
 import type { PluginManager } from '../plugin/manager';
 import type {
   CompiledRequest,
@@ -115,11 +115,12 @@ export function createEngine(config: EngineConfig = {}): Engine {
     options: EngineRunOptions
   ): Promise<{
     requests: ParsedRequest[];
+    fileVariables: Record<string, string>;
     filePath?: string;
     basePath: string;
   }> {
     emitEvent({ type: 'parseStarted', source: 'string' });
-    const requests = parse(httpText);
+    const { requests, fileVariables } = parseDocument(httpText);
     emitEvent({ type: 'parseFinished', source: 'string', requestCount: requests.length });
 
     const basePath =
@@ -137,10 +138,10 @@ export function createEngine(config: EngineConfig = {}): Engine {
       const parseOutput = { file: parsedFile };
       await pluginManager.triggerParseAfter({ file: parsedFile, path: 'string' }, parseOutput);
       // Use potentially modified requests
-      return { requests: parseOutput.file.requests, basePath };
+      return { requests: parseOutput.file.requests, fileVariables, basePath };
     }
 
-    return { requests, basePath };
+    return { requests, fileVariables, basePath };
   }
 
   async function compileFromFile(
@@ -148,11 +149,12 @@ export function createEngine(config: EngineConfig = {}): Engine {
     _options: EngineRunOptions
   ): Promise<{
     requests: ParsedRequest[];
+    fileVariables: Record<string, string>;
     filePath: string;
     basePath: string;
   }> {
     emitEvent({ type: 'parseStarted', source: 'file' });
-    const requests = await parseFileWithIO(path, io);
+    const { requests, fileVariables } = await parseDocumentFileWithIO(path, io);
     emitEvent({ type: 'parseFinished', source: 'file', requestCount: requests.length });
 
     const basePath = getFileBasePath(path, io);
@@ -166,18 +168,19 @@ export function createEngine(config: EngineConfig = {}): Engine {
       const parseOutput = { file: parsedFile };
       await pluginManager.triggerParseAfter({ file: parsedFile, path }, parseOutput);
       // Use potentially modified requests
-      return { requests: parseOutput.file.requests, filePath: path, basePath };
+      return { requests: parseOutput.file.requests, fileVariables, filePath: path, basePath };
     }
 
-    return { requests, filePath: path, basePath };
+    return { requests, fileVariables, filePath: path, basePath };
   }
 
   async function processRequest(
     request: ParsedRequest,
     options: EngineRunOptions,
-    basePath: string
+    basePath: string,
+    fileVariables: Record<string, string> = {}
   ): Promise<Response> {
-    const variables = options.variables ?? {};
+    const variables = { ...fileVariables, ...(options.variables ?? {}) };
     let retries = 0;
 
     // Retry loop
@@ -354,7 +357,8 @@ export function createEngine(config: EngineConfig = {}): Engine {
   async function processStreamRequest(
     request: ParsedRequest,
     options: EngineRunOptions,
-    basePath: string
+    basePath: string,
+    fileVariables: Record<string, string> = {}
   ): Promise<StreamResponse> {
     // Determine protocol (explicit override > parsed > error)
     const protocol: Protocol = (options.protocol ?? request.protocol ?? 'http') as Protocol;
@@ -372,7 +376,7 @@ export function createEngine(config: EngineConfig = {}): Engine {
       throw new Error(`No handler registered for protocol: ${protocol}`);
     }
 
-    const variables = options.variables ?? {};
+    const variables = { ...fileVariables, ...(options.variables ?? {}) };
     const hookCtx = createHookCtx(0, variables);
     const prepared = await prepareRequest(pipelineConfig, request, variables, basePath, hookCtx);
 
@@ -412,24 +416,24 @@ export function createEngine(config: EngineConfig = {}): Engine {
   return {
     parseString: parse,
     async runString(httpText, options = {}) {
-      const { requests, basePath } = await compileFromString(httpText, options);
+      const { requests, fileVariables, basePath } = await compileFromString(httpText, options);
       const request = firstOrThrow(requests, 'No valid requests found in provided content.');
-      return await processRequest(request, options, basePath);
+      return await processRequest(request, options, basePath, fileVariables);
     },
     async runFile(path, options = {}) {
-      const { requests, basePath } = await compileFromFile(path, options);
+      const { requests, fileVariables, basePath } = await compileFromFile(path, options);
       const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
-      return await processRequest(request, options, basePath);
+      return await processRequest(request, options, basePath, fileVariables);
     },
     async streamString(httpText, options = {}) {
-      const { requests, basePath } = await compileFromString(httpText, options);
+      const { requests, fileVariables, basePath } = await compileFromString(httpText, options);
       const request = firstOrThrow(requests, 'No valid requests found in provided content.');
-      return await processStreamRequest(request, options, basePath);
+      return await processStreamRequest(request, options, basePath, fileVariables);
     },
     async streamFile(path, options = {}) {
-      const { requests, basePath } = await compileFromFile(path, options);
+      const { requests, fileVariables, basePath } = await compileFromFile(path, options);
       const request = firstOrThrow(requests, `No valid requests found in file: ${path}`);
-      return await processStreamRequest(request, options, basePath);
+      return await processStreamRequest(request, options, basePath, fileVariables);
     }
   };
 }

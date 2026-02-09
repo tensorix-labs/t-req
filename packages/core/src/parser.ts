@@ -2,6 +2,7 @@ import type { IO } from './runtime/types';
 import type {
   FileReference,
   FormField,
+  ParsedDocument,
   ParsedRequest,
   Protocol,
   ProtocolOptions,
@@ -11,6 +12,10 @@ import { setOptional } from './utils/optional';
 
 // Pattern to match form field lines: name = value or name=value
 const FORM_LINE_PATTERN = /^([^=]+?)\s*=\s*(.*)$/;
+
+// Pattern to match file-level variables: @varName = value
+// Requires `=` sign to avoid collision with bare directives like `@timeout 5000`
+const FILE_VARIABLE_PATTERN = /^@([A-Za-z_][\w.]*)\s*=\s*(.+)$/;
 
 /**
  * Check if body content matches form data syntax.
@@ -218,7 +223,7 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
       const commentContent = trimmedLine.replace(/^(#|\/\/)\s*/, '');
 
       // Check for @directive
-      const directiveMatch = commentContent.match(/^@(\w+)\s*(.*)?$/);
+      const directiveMatch = commentContent.match(/^@([\w-]+)\s*(.*)?$/);
       if (directiveMatch) {
         const [, directive, value] = directiveMatch;
         if (directive === 'name') {
@@ -232,30 +237,41 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
 
     // Parse request line (METHOD URL HTTP/VERSION)
     if (!requestLineFound) {
-      const requestLineMatch = trimmedLine.match(
+      const fullMatch = trimmedLine.match(
         /^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+(\S+)(\s+HTTP\/[\d.]+)?$/i
       );
-      if (requestLineMatch) {
-        const methodMatch = requestLineMatch[1];
-        const urlMatch = requestLineMatch[2];
-        if (!methodMatch || !urlMatch) continue;
-        method = methodMatch.toUpperCase();
-        url = urlMatch;
+      if (fullMatch) {
+        const [, m, u] = fullMatch;
+        if (!m || !u) continue;
+        method = m.toUpperCase();
+        url = u;
         requestLineFound = true;
-        continue;
       }
 
-      // Also support just METHOD URL without HTTP version
-      const simpleRequestMatch = trimmedLine.match(
-        /^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+(.+)$/i
-      );
-      if (simpleRequestMatch) {
-        const methodMatch = simpleRequestMatch[1];
-        const urlMatch = simpleRequestMatch[2];
-        if (!methodMatch || !urlMatch) continue;
-        method = methodMatch.toUpperCase();
-        url = urlMatch.trim();
-        requestLineFound = true;
+      if (!requestLineFound) {
+        const simpleMatch = trimmedLine.match(
+          /^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+(.+)$/i
+        );
+        if (simpleMatch) {
+          const [, m, u] = simpleMatch;
+          if (!m || !u) continue;
+          method = m.toUpperCase();
+          url = u.trim();
+          requestLineFound = true;
+        }
+      }
+
+      if (requestLineFound) {
+        // Consume URL continuation lines (?/& prefix)
+        while (i + 1 < lines.length) {
+          const nextLine = lines[i + 1]?.trim();
+          if (nextLine && (nextLine.startsWith('?') || nextLine.startsWith('&'))) {
+            url += nextLine;
+            i++;
+          } else {
+            break;
+          }
+        }
         continue;
       }
 
@@ -365,4 +381,73 @@ export async function parseFileWithIO(path: string, io?: IO): Promise<ParsedRequ
   }
 
   throw new Error('No IO adapter provided. Use parseFileWithIO(path, io) in this runtime.');
+}
+
+/**
+ * Extract file-level variables (@var = value) from raw content.
+ * Returns the variables and the cleaned content with variable lines removed.
+ */
+function extractFileVariables(content: string): {
+  fileVariables: Record<string, string>;
+  cleanedContent: string;
+} {
+  const fileVariables: Record<string, string> = {};
+  const lines = content.split(/\r?\n/);
+  const cleanedLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.trim().match(FILE_VARIABLE_PATTERN);
+    if (match) {
+      const [, name, value] = match;
+      if (name && value !== undefined) {
+        fileVariables[name] = value.trim();
+      }
+    } else {
+      cleanedLines.push(line);
+    }
+  }
+
+  return { fileVariables, cleanedContent: cleanedLines.join('\n') };
+}
+
+/**
+ * Parse .http file content into a full document with file-level variables.
+ *
+ * File variables use `@var = value` syntax and are extracted before
+ * request block parsing. They are available to all requests in the document.
+ */
+export function parseDocument(content: string): ParsedDocument {
+  const { fileVariables, cleanedContent } = extractFileVariables(content);
+  const requests = parse(cleanedContent);
+  return { requests, fileVariables };
+}
+
+/**
+ * Parse .http file from filesystem into a full document with file-level variables.
+ */
+export async function parseDocumentFile(path: string): Promise<ParsedDocument> {
+  return await parseDocumentFileWithIO(path);
+}
+
+/**
+ * Parse .http file from filesystem into a full document using an IO adapter.
+ * If `io` is omitted, Bun runtime fallback is used when available.
+ */
+export async function parseDocumentFileWithIO(path: string, io?: IO): Promise<ParsedDocument> {
+  if (io) {
+    const content = await io.readText(path);
+    return parseDocument(content);
+  }
+
+  if (typeof (globalThis as Record<string, unknown>)['Bun'] !== 'undefined') {
+    type BunFile = { text: () => Promise<string> };
+    type BunGlobal = { file: (p: string) => BunFile };
+
+    const bun = (globalThis as unknown as { Bun: BunGlobal }).Bun;
+    const file = bun.file(path);
+    const content = await file.text();
+    return parseDocument(content);
+  }
+
+  throw new Error('No IO adapter provided. Use parseDocumentFileWithIO(path, io) in this runtime.');
 }

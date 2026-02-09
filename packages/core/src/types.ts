@@ -160,6 +160,17 @@ export interface ParsedRequest {
   protocolOptions?: ProtocolOptions;
 }
 
+/**
+ * Result of parsing a full .http document, including file-level variables.
+ *
+ * File variables use `@var = value` syntax at the top of the file and are
+ * available to all requests in the document.
+ */
+export interface ParsedDocument {
+  requests: ParsedRequest[];
+  fileVariables: Record<string, string>;
+}
+
 // ============================================================================
 // Interpolation
 // ============================================================================

@@ -1,4 +1,4 @@
-import { createEngine, parse } from '@t-req/core';
+import { createEngine, parseDocument } from '@t-req/core';
 import {
   buildEngineOptions,
   type ConfigOverrideLayer,
@@ -332,7 +332,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
 
   // Read and parse file
   const content = await Bun.file(filePath).text();
-  const requests = parse(content);
+  const { requests, fileVariables } = parseDocument(content);
 
   if (requests.length === 0) {
     console.error('No valid requests found in file');
@@ -431,7 +431,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
   try {
     const startTime = Date.now();
     const response = await engine.runString(selectedRequest.raw, {
-      variables: config.variables,
+      variables: { ...fileVariables, ...config.variables },
       basePath,
       timeoutMs,
       followRedirects: requestDefaults.followRedirects,

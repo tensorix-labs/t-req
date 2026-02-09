@@ -1,4 +1,4 @@
-import { type ParsedRequest, parse } from '@t-req/core';
+import { type ParsedDocument, type ParsedRequest, parse, parseDocument } from '@t-req/core';
 import { dirname, isAbsolute, isPathSafe, resolve } from '../../utils';
 import {
   ContentOrPathRequiredError,
@@ -49,6 +49,14 @@ export async function loadContent(
 export function parseContent(content: string): ReturnType<typeof parse> {
   try {
     return parse(content);
+  } catch (err) {
+    throw new ParseError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export function parseDocumentContent(content: string): ParsedDocument {
+  try {
+    return parseDocument(content);
   } catch (err) {
     throw new ParseError(err instanceof Error ? err.message : String(err));
   }

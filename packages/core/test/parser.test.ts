@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'bun:test';
 import { parse } from '../src/parser.ts';
 
 describe('parse', () => {
@@ -654,5 +654,273 @@ GET https://api.example.com/stream
     expect(requests).toHaveLength(2);
     expect(requests[0]?.protocol).toBeUndefined();
     expect(requests[1]?.protocol).toBe('sse');
+  });
+});
+
+describe('parse hyphenated directives', () => {
+  test('@no-redirect is parsed as meta directive', () => {
+    const requests = parse(`
+# @no-redirect
+GET https://api.example.com/redirect
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.meta['no-redirect']).toBe('');
+  });
+
+  test('@no-cookie-jar with value', () => {
+    const requests = parse(`
+# @no-cookie-jar true
+GET https://api.example.com
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.meta['no-cookie-jar']).toBe('true');
+  });
+
+  test('@connection-timeout with numeric value', () => {
+    const requests = parse(`
+# @connection-timeout 5000
+GET https://api.example.com
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.meta['connection-timeout']).toBe('5000');
+  });
+});
+
+describe('parse multi-line query parameters', () => {
+  test('basic ?param + &param continuation', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+    ?page=1
+    &limit=10
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users?page=1&limit=10');
+  });
+
+  test('multiple & continuation lines', () => {
+    const requests = parse(`
+GET https://api.example.com/search
+    ?q=test
+    &page=1
+    &limit=10
+    &sort=name
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe(
+      'https://api.example.com/search?q=test&page=1&limit=10&sort=name'
+    );
+  });
+
+  test('continuation with HTTP/1.1 version on request line', () => {
+    const requests = parse(`
+GET https://api.example.com/users HTTP/1.1
+    ?page=1
+    &limit=10
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users?page=1&limit=10');
+  });
+
+  test('continuation followed by headers', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+    ?page=1
+    &limit=10
+Authorization: Bearer token123
+Content-Type: application/json
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users?page=1&limit=10');
+    expect(requests[0]?.headers['Authorization']).toBe('Bearer token123');
+    expect(requests[0]?.headers['Content-Type']).toBe('application/json');
+  });
+
+  test('continuation followed by body', () => {
+    const requests = parse(`
+POST https://api.example.com/search
+    ?format=json
+Content-Type: application/json
+
+{"query": "test"}
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/search?format=json');
+    expect(requests[0]?.body).toBe('{"query": "test"}');
+  });
+
+  test('inline query params + continuation', () => {
+    const requests = parse(`
+GET https://api.example.com/users?existing=true
+    &more=true
+    &extra=yes
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe(
+      'https://api.example.com/users?existing=true&more=true&extra=yes'
+    );
+  });
+
+  test('variables in continuation lines', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+    ?page={{page}}
+    &limit={{limit}}
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users?page={{page}}&limit={{limit}}');
+  });
+
+  test('no continuation when next line is empty', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+
+Authorization: Bearer token
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users');
+  });
+
+  test('no continuation when next line is a header', () => {
+    const requests = parse(`
+GET https://api.example.com/users
+Authorization: Bearer token
+`);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.example.com/users');
+    expect(requests[0]?.headers['Authorization']).toBe('Bearer token');
+  });
+});
+
+describe('parseDocument file variables', () => {
+  // Lazy import to avoid test file breakage if not yet exported
+  let parseDocument: typeof import('../src/parser').parseDocument;
+
+  beforeAll(async () => {
+    const mod = await import('../src/parser');
+    parseDocument = mod.parseDocument;
+  });
+
+  test('extracts single @var = value', () => {
+    const doc = parseDocument(`
+@host = api.example.com
+
+GET https://{{host}}/users
+`);
+    expect(doc.fileVariables).toEqual({ host: 'api.example.com' });
+    expect(doc.requests).toHaveLength(1);
+  });
+
+  test('extracts multiple file variables', () => {
+    const doc = parseDocument(`
+@host = api.example.com
+@token = abc123
+@version = v2
+
+GET https://{{host}}/{{version}}/users
+Authorization: Bearer {{token}}
+`);
+    expect(doc.fileVariables).toEqual({
+      host: 'api.example.com',
+      token: 'abc123',
+      version: 'v2'
+    });
+    expect(doc.requests).toHaveLength(1);
+  });
+
+  test('file variables removed from request block content', () => {
+    const doc = parseDocument(`
+@host = api.example.com
+
+GET https://{{host}}/users
+`);
+    // The request raw should NOT contain the @host line
+    expect(doc.requests[0]?.raw).not.toContain('@host');
+  });
+
+  test('# @name foo (comment directive) not matched as file variable', () => {
+    const doc = parseDocument(`
+# @name myRequest
+GET https://api.example.com/users
+`);
+    expect(doc.fileVariables).toEqual({});
+    expect(doc.requests[0]?.name).toBe('myRequest');
+  });
+
+  test('@timeout 5000 (bare directive, no =) not matched as file variable', () => {
+    const doc = parseDocument(`
+# @timeout 5000
+GET https://api.example.com/users
+`);
+    expect(doc.fileVariables).toEqual({});
+    expect(doc.requests[0]?.meta['timeout']).toBe('5000');
+  });
+
+  test('dotted names: @api.host = example.com', () => {
+    const doc = parseDocument(`
+@api.host = example.com
+
+GET https://{{api.host}}/users
+`);
+    expect(doc.fileVariables['api.host']).toBe('example.com');
+  });
+
+  test('variables between ### blocks extracted', () => {
+    const doc = parseDocument(`
+@host = api.example.com
+
+### First
+GET https://{{host}}/users
+
+### Second
+POST https://{{host}}/users
+`);
+    expect(doc.fileVariables).toEqual({ host: 'api.example.com' });
+    expect(doc.requests).toHaveLength(2);
+  });
+
+  test('spaces in values preserved', () => {
+    const doc = parseDocument(`
+@desc = My API Test
+
+GET https://api.example.com
+`);
+    expect(doc.fileVariables['desc']).toBe('My API Test');
+  });
+
+  test('last declaration wins for duplicates', () => {
+    const doc = parseDocument(`
+@host = first.com
+@host = second.com
+
+GET https://{{host}}/users
+`);
+    expect(doc.fileVariables['host']).toBe('second.com');
+  });
+
+  test('empty fileVariables when none declared', () => {
+    const doc = parseDocument(`
+GET https://api.example.com/users
+`);
+    expect(doc.fileVariables).toEqual({});
+  });
+
+  test('variable references in values stored literally', () => {
+    const doc = parseDocument(`
+@baseUrl = https://{{env}}.api.com
+
+GET https://api.example.com
+`);
+    expect(doc.fileVariables['baseUrl']).toBe('https://{{env}}.api.com');
+  });
+
+  test('parse() backward compat: still returns ParsedRequest[], skips @var = value lines', () => {
+    const requests = parse(`
+@host = api.example.com
+
+GET https://{{host}}/users
+`);
+    // parse() returns ParsedRequest[] — should still work, just ignores file variables
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.method).toBe('GET');
   });
 });
