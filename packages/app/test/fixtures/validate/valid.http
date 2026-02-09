@@ -1,0 +1,3 @@
+### Get Users
+GET https://api.example.com/users
+Accept: application/json

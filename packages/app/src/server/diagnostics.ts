@@ -10,7 +10,9 @@ export const DiagnosticCodes = {
   MISSING_URL: 'missing-url',
   INVALID_METHOD: 'invalid-method',
   DUPLICATE_HEADER: 'duplicate-header',
-  MALFORMED_HEADER: 'malformed-header'
+  MALFORMED_HEADER: 'malformed-header',
+  FILE_REFERENCE_NOT_FOUND: 'file-reference-not-found',
+  FORM_FILE_NOT_FOUND: 'form-file-not-found'
 } as const;
 
 // Valid HTTP methods

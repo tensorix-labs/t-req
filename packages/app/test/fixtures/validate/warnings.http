@@ -1,0 +1,4 @@
+### Duplicate Headers
+GET https://api.example.com/users
+Accept: application/json
+Accept: text/html
