@@ -11,12 +11,7 @@ import {
 } from '../server/schemas';
 import { WEB_UI_PROXY_URL } from '../server/web';
 import { resolveWorkspaceRoot } from '../utils';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+import { DEFAULT_HOST, DEFAULT_PORT, isLoopbackAddress } from '../utils/server';
 
 interface ServeOptions {
   port: number;
@@ -38,13 +33,13 @@ export const serveCommand: CommandModule<object, ServeOptions> = {
       type: 'number',
       describe: 'Port to listen on',
       alias: 'p',
-      default: 4097
+      default: DEFAULT_PORT
     },
     host: {
       type: 'string',
       describe: 'Host to bind to',
       alias: 'H',
-      default: '127.0.0.1'
+      default: DEFAULT_HOST
     },
     workspace: {
       type: 'string',
@@ -86,10 +81,6 @@ export const serveCommand: CommandModule<object, ServeOptions> = {
     await runServer(argv);
   }
 };
-
-function isLoopbackAddress(host: string): boolean {
-  return LOOPBACK_ADDRESSES.has(host.toLowerCase());
-}
 
 async function runServer(argv: ServeOptions): Promise<void> {
   // Security check: require token for non-loopback addresses
