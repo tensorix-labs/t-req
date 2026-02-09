@@ -1,11 +1,10 @@
 import type { CliRenderer } from '@opentui/core';
 import { useRenderer } from '@opentui/solid';
-import { createMemo, createSignal, Match, onCleanup, Show, Switch } from 'solid-js';
+import { createMemo, createSignal, onCleanup, Show } from 'solid-js';
 import { CommandDialog } from './components/command-dialog';
 import { DebugConsoleDialog } from './components/debug-console-dialog';
 import { ExecutionList } from './components/execution-list';
 import { FileRequestPicker } from './components/file-request-picker';
-import { FileTree } from './components/file-tree';
 import { ExecutionDetailView } from './components/execution-detail';
 import { FrameworkSelectDialog } from './components/framework-select';
 import { ProfileSelectDialog } from './components/profile-select';
@@ -13,7 +12,7 @@ import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { StreamView } from './components/stream-view';
 import type { StreamState } from './stream';
-import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate, unwrap } from './context';
+import { useDialog, useExit, useObserver, useSDK, useUpdate, unwrap } from './context';
 import { isRunnableScript, isHttpFile, isTestFile } from './store';
 import { rgba, theme } from './theme';
 import {
@@ -37,15 +36,12 @@ import {
 import { openInEditor } from './editor';
 import { Toast } from './components/toast';
 
-type LeftPanelMode = 'tree' | 'executions';
-
 export function App() {
   const sdk = useSDK();
   const observer = useObserver();
   const exit = useExit();
   const dialog = useDialog();
   const renderer = useRenderer();
-  const store = useStore();
   const update = useUpdate();
 
   // Custom hooks encapsulate business logic
@@ -70,14 +66,7 @@ export function App() {
     }
   });
 
-  // Left panel mode state
-  const [leftPanelMode, setLeftPanelMode] = createSignal<LeftPanelMode>('tree');
   const [panelHidden, setPanelHidden] = createSignal(false);
-
-  // Tab toggles between tree and executions
-  const togglePanelMode = () => {
-    setLeftPanelMode((mode) => (mode === 'tree' ? 'executions' : 'tree'));
-  };
 
   // Ctrl+H toggles panel visibility
   const togglePanelHidden = () => {
@@ -146,7 +135,6 @@ export function App() {
       file_picker: {
         action: () => dialog.replace(() => (
           <FileRequestPicker
-            onSelect={workspace.navigateToFile}
             onExecute={handleFileExecute}
           />
         ))
@@ -170,35 +158,9 @@ export function App() {
       scriptRunner.cancelScript();
       testRunner.cancelTest();
     },
-    onNavigateDown: () => {
-      if (leftPanelMode() === 'tree') {
-        store.selectNext();
-      } else {
-        observer.selectNextExecution();
-      }
-    },
-    onNavigateUp: () => {
-      if (leftPanelMode() === 'tree') {
-        store.selectPrevious();
-      } else {
-        observer.selectPreviousExecution();
-      }
-    },
-    onTabPress: togglePanelMode,
-    onToggleHide: togglePanelHidden,
-    onEnter: () => {
-      if (leftPanelMode() === 'tree') {
-        const selectedNode = store.selectedNode();
-        if (selectedNode) {
-          if (selectedNode.node.isDir) {
-            store.toggleDir(selectedNode.node.path);
-          } else {
-            handleFileExecute(selectedNode.node.path);
-            setLeftPanelMode('executions');
-          }
-        }
-      }
-    }
+    onNavigateDown: () => observer.selectNextExecution(),
+    onNavigateUp: () => observer.selectPreviousExecution(),
+    onToggleHide: togglePanelHidden
   });
 
   // Cleanup on unmount
@@ -214,84 +176,72 @@ export function App() {
       <SplitPanel>
         <Show when={!panelHidden()}>
           <Panel width="40%">
-            <Switch>
-              <Match when={leftPanelMode() === 'tree'}>
-                <FileTree
-                  nodes={store.flattenedVisible()}
-                  selectedIndex={store.selectedIndex()}
-                  onSelect={store.setSelectedIndex}
-                  onToggle={store.toggleDir}
-                />
-              </Match>
-              <Match when={leftPanelMode() === 'executions'}>
-                <Section height="50%">
-                  <Show
-                    when={observer.state.flowId}
-                    keyed
-                    fallback={
-                      <box
-                        flexGrow={1}
-                        flexDirection="column"
-                        overflow="hidden"
-                        backgroundColor={rgba(theme.backgroundPanel)}
-                      >
-                        <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                          <text fg={rgba(theme.primary)} attributes={1}>
-                            Executions
-                          </text>
-                        </box>
-                        <box paddingLeft={2}>
-                          <text fg={rgba(theme.textMuted)}>No executions yet</text>
-                        </box>
-                      </box>
-                    }
+            <Section height="50%">
+              <Show
+                when={observer.state.flowId}
+                keyed
+                fallback={
+                  <box
+                    flexGrow={1}
+                    flexDirection="column"
+                    overflow="hidden"
+                    backgroundColor={rgba(theme.backgroundPanel)}
                   >
-                    {() => (
-                      <ExecutionList
-                        executions={observer.executionsList()}
-                        selectedId={observer.state.selectedReqExecId}
-                        onSelect={(id) => observer.setState('selectedReqExecId', id)}
-                        isRunning={isRunning()}
-                      />
-                    )}
-                  </Show>
-                </Section>
-                <HorizontalDivider />
-                <Section flexGrow={1}>
-                  <Show
-                    when={observer.state.flowId}
-                    keyed
-                    fallback={
-                      <box
-                        flexGrow={1}
-                        flexDirection="column"
-                        overflow="hidden"
-                        backgroundColor={rgba(theme.backgroundPanel)}
-                      >
-                        <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                          <text fg={rgba(theme.primary)} attributes={1}>
-                            Output
-                          </text>
-                        </box>
-                        <box paddingLeft={2}>
-                          <text fg={rgba(theme.textMuted)}>No output yet</text>
-                        </box>
-                      </box>
-                    }
+                    <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                      <text fg={rgba(theme.primary)} attributes={1}>
+                        Executions
+                      </text>
+                    </box>
+                    <box paddingLeft={2}>
+                      <text fg={rgba(theme.textMuted)}>No executions yet</text>
+                    </box>
+                  </box>
+                }
+              >
+                {() => (
+                  <ExecutionList
+                    executions={observer.executionsList()}
+                    selectedId={observer.state.selectedReqExecId}
+                    onSelect={(id) => observer.setState('selectedReqExecId', id)}
+                    isRunning={isRunning()}
+                  />
+                )}
+              </Show>
+            </Section>
+            <HorizontalDivider />
+            <Section flexGrow={1}>
+              <Show
+                when={observer.state.flowId}
+                keyed
+                fallback={
+                  <box
+                    flexGrow={1}
+                    flexDirection="column"
+                    overflow="hidden"
+                    backgroundColor={rgba(theme.backgroundPanel)}
                   >
-                    {() => (
-                      <ScriptOutput
-                        stdoutLines={observer.state.stdoutLines}
-                        stderrLines={observer.state.stderrLines}
-                        exitCode={observer.state.exitCode}
-                        isRunning={isRunning()}
-                        scriptPath={observer.state.runningScript?.path}
-                      />
-                    )}
-                  </Show>
-                </Section>
-              </Match>
-            </Switch>
+                    <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
+                      <text fg={rgba(theme.primary)} attributes={1}>
+                        Output
+                      </text>
+                    </box>
+                    <box paddingLeft={2}>
+                      <text fg={rgba(theme.textMuted)}>No output yet</text>
+                    </box>
+                  </box>
+                }
+              >
+                {() => (
+                  <ScriptOutput
+                    stdoutLines={observer.state.stdoutLines}
+                    stderrLines={observer.state.stderrLines}
+                    exitCode={observer.state.exitCode}
+                    isRunning={isRunning()}
+                    scriptPath={observer.state.runningScript?.path}
+                  />
+                )}
+              </Show>
+            </Section>
           </Panel>
           <VerticalDivider />
         </Show>

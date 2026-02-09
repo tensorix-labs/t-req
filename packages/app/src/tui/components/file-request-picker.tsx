@@ -17,7 +17,6 @@ interface PickerItem {
 }
 
 export type FileRequestPickerProps = {
-  onSelect?: (filePath: string) => void;
   onExecute?: (filePath: string) => void;
 };
 
@@ -113,11 +112,6 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     setPendingSendId(undefined);
   }
 
-  function handleSelect(item: PickerItem) {
-    props.onSelect?.(item.filePath);
-    dialog.clear();
-  }
-
   function handleSend(item: PickerItem) {
     const pending = pendingSendId();
 
@@ -142,17 +136,6 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     const items = filteredItems();
     const currentIdx = clampedIndex();
 
-    // ctrl+enter for send
-    if (key.ctrl && key.name === 'return') {
-      evt.preventDefault();
-      evt.stopPropagation();
-      const selected = items[currentIdx];
-      if (selected) {
-        handleSend(selected);
-      }
-      return;
-    }
-
     switch (key.name) {
       case 'up':
         evt.preventDefault();
@@ -169,7 +152,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
         evt.stopPropagation();
         const selected = items[currentIdx];
         if (selected) {
-          handleSelect(selected);
+          handleSend(selected);
         }
         break;
       default:
@@ -269,7 +252,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
                   )}
                 >
                   {isPendingSend()
-                    ? 'Press ctrl+enter to confirm'
+                    ? 'Press enter to confirm'
                     : item.type === 'test'
                       ? `✓ ${item.filePath}`
                       : item.type === 'script'
@@ -289,7 +272,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
 
       {/* Action bar */}
       <box height={1} paddingLeft={1} paddingTop={1}>
-        <text fg={rgba(theme.textMuted)}>send ctrl+enter</text>
+        <text fg={rgba(theme.textMuted)}>enter send</text>
       </box>
     </box>
   );

@@ -152,16 +152,12 @@ export function StatusBar(props: StatusBarProps) {
       </box>
       <box flexDirection="row" gap={2}>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)}>tab</text>
-          <text fg={rgba(theme.textMuted)}>switch panel</text>
-        </box>
-        <box flexDirection="row">
           <text fg={rgba(theme.text)}>ctrl+h</text>
           <text fg={rgba(theme.textMuted)}>hide panel</text>
         </box>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>{keybind.print('file_picker')}</text>
-          <text fg={rgba(theme.textMuted)}> tree</text>
+          <text fg={rgba(theme.textMuted)}> files</text>
         </box>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>{keybind.print('command_list')}</text>
