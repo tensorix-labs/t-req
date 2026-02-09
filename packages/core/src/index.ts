@@ -21,7 +21,14 @@ export {
 // Interpolation
 export { createInterpolator, interpolate } from './interpolate';
 // Parsing
-export { parse, parseFile, parseFileWithIO } from './parser';
+export {
+  parse,
+  parseDocument,
+  parseDocumentFile,
+  parseDocumentFileWithIO,
+  parseFile,
+  parseFileWithIO
+} from './parser';
 // Plugin types
 export type {
   CombinedEvent,
@@ -108,6 +115,7 @@ export type {
   FormField,
   InterpolateOptions,
   Interpolator,
+  ParsedDocument,
   ParsedRequest,
   Protocol as ProtocolType,
   ProtocolOptions,

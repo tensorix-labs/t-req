@@ -12,7 +12,7 @@ import type {
   ExecutionSource
 } from '../schemas';
 import type { ConfigService } from './config-service';
-import { loadContent, parseContent, selectRequest } from './content-loader';
+import { loadContent, parseDocumentContent, selectRequest } from './content-loader';
 import type { FlowManager } from './flow-manager';
 import { createFlowTracker } from './flow-tracker';
 import { extractResponseHeaders, processResponseBody } from './response-processor';
@@ -58,7 +58,7 @@ export function createExecutionEngine(
 
     // Load + parse + select
     const { content, httpFilePath, basePath } = await loadContent(context.workspaceRoot, request);
-    const parsedRequests = parseContent(content);
+    const { requests: parsedRequests, fileVariables } = parseDocumentContent(content);
     const { selectedRequest, selectedIndex } = selectRequest(parsedRequests, {
       requestName: request.requestName,
       requestIndex: request.requestIndex
@@ -138,7 +138,7 @@ export function createExecutionEngine(
 
         try {
           const response = await engine.runString(selectedRequest.raw, {
-            variables: projectConfig.variables,
+            variables: { ...fileVariables, ...projectConfig.variables },
             basePath,
             timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
             followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
@@ -173,7 +173,7 @@ export function createExecutionEngine(
 
           try {
             const response = await engine.runString(selectedRequest.raw, {
-              variables: projectConfig.variables,
+              variables: { ...fileVariables, ...projectConfig.variables },
               basePath,
               timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
               followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
@@ -204,7 +204,7 @@ export function createExecutionEngine(
 
       try {
         const response = await engine.runString(selectedRequest.raw, {
-          variables: projectConfig.variables,
+          variables: { ...fileVariables, ...projectConfig.variables },
           basePath,
           timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
           followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
@@ -274,7 +274,7 @@ export function createExecutionEngine(
       let response: Response;
       try {
         response = await engine.runString(selectedRequest.raw, {
-          variables: projectConfig.variables,
+          variables: { ...fileVariables, ...projectConfig.variables },
           basePath,
           timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
           followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
@@ -400,7 +400,8 @@ export function createExecutionEngine(
   async function* executeSSE(request: ExecuteSSERequest): AsyncGenerator<SSEMessage> {
     // Load + parse + select (reusing content-loader)
     const { content, basePath } = await loadContent(context.workspaceRoot, request);
-    const parsedRequests = parseContent(content);
+    const { requests: parsedRequests, fileVariables: sseFileVariables } =
+      parseDocumentContent(content);
     const { selectedRequest } = selectRequest(parsedRequests, {
       requestName: request.requestName,
       requestIndex: request.requestIndex
@@ -441,7 +442,7 @@ export function createExecutionEngine(
 
     try {
       const stream = await engine.streamString(selectedRequest.raw, {
-        variables: projectConfig.variables,
+        variables: { ...sseFileVariables, ...projectConfig.variables },
         basePath,
         timeoutMs: request.timeout,
         lastEventId: request.lastEventId
