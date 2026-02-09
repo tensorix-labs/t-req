@@ -129,11 +129,26 @@ function checkFileReferences(
   return diagnostics;
 }
 
+/**
+ * Find the line containing a file reference by matching the marker+path pattern.
+ * Body file refs use `< ./path`, form file refs use `@./path`.
+ */
 function findFileReferenceLine(
   lines: string[],
   refPath: string,
-  _marker: string
+  marker: string
 ): { line: number; column: number } {
+  const pattern = `${marker}${refPath}`;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const patternIdx = line.indexOf(pattern);
+    if (patternIdx !== -1) {
+      // Point the diagnostic at the path, not the marker
+      const column = patternIdx + marker.length;
+      return { line: i, column };
+    }
+  }
+  // Fallback: match path alone (handles whitespace variations)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
     const idx = line.indexOf(refPath);
@@ -185,7 +200,8 @@ const ANSI = {
 };
 
 function useColor(): boolean {
-  return Bun.stdout.writer().toString() !== '' && process.stdout.isTTY === true;
+  if (process.env.NO_COLOR !== undefined) return false;
+  return process.stdout.isTTY === true;
 }
 
 function severityLabel(severity: Diagnostic['severity'], color: boolean): string {
