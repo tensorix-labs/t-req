@@ -75,6 +75,7 @@ export type PluginEvent =
       ctx: HookContext;
     }
   | { type: 'pluginResolverCalled'; name: string; resolver: string; durationMs: number }
+  | { type: 'pluginReport'; report: PluginReport }
   | {
       type: 'pluginError';
       name: string;
@@ -155,13 +156,23 @@ export interface SessionState {
 /**
  * A structured report emitted by a plugin via `ctx.report()`.
  * The `data` field is opaque — the plugin owns its shape.
- * The manager auto-stamps `pluginName` and `requestName`.
+ * The manager auto-stamps identity, scope, and ordering metadata.
  */
 export interface PluginReport {
   /** Auto-stamped: which plugin produced this report */
   pluginName: string;
+  /** Auto-stamped: execution run ID (always present) */
+  runId: string;
+  /** Auto-stamped: flow ID (when executing within a flow) */
+  flowId?: string;
+  /** Auto-stamped: request execution ID (when executing within a flow) */
+  reqExecId?: string;
   /** Auto-stamped: request name from CompiledRequest.name (if in request context) */
   requestName?: string;
+  /** Auto-stamped: report timestamp (ms since epoch) */
+  ts: number;
+  /** Auto-stamped: deterministic sequence number scoped to flow or run */
+  seq: number;
   /** Whatever the plugin provided — opaque to the framework */
   data: unknown;
 }

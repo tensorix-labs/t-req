@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "t-req Server API",
-    "version": "0.3.6",
+    "version": "0.3.7",
     "description": "HTTP API for parsing and executing .http files, managing sessions, and subscribing to real-time events.",
     "license": {
       "name": "MIT",
@@ -751,6 +751,39 @@
                         }
                       },
                       "required": ["startTime", "endTime", "durationMs"]
+                    },
+                    "pluginReports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pluginName": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "flowId": {
+                            "type": "string"
+                          },
+                          "reqExecId": {
+                            "type": "string"
+                          },
+                          "requestName": {
+                            "type": "string"
+                          },
+                          "ts": {
+                            "type": "number"
+                          },
+                          "seq": {
+                            "type": "number"
+                          },
+                          "data": {
+                            "nullable": true
+                          }
+                        },
+                        "required": ["pluginName", "runId", "ts", "seq"]
+                      }
                     }
                   },
                   "required": ["runId", "request", "resolved", "response", "limits", "timing"]
@@ -932,7 +965,9 @@
                     },
                     "payload": {
                       "type": "object",
-                      "additionalProperties": {}
+                      "additionalProperties": {
+                        "nullable": true
+                      }
                     }
                   },
                   "required": ["type", "ts", "runId", "seq", "payload"]
@@ -1612,6 +1647,39 @@
                           }
                         },
                         "required": ["pluginName", "hook", "durationMs", "modified"]
+                      }
+                    },
+                    "pluginReports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pluginName": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "flowId": {
+                            "type": "string"
+                          },
+                          "reqExecId": {
+                            "type": "string"
+                          },
+                          "requestName": {
+                            "type": "string"
+                          },
+                          "ts": {
+                            "type": "number"
+                          },
+                          "seq": {
+                            "type": "number"
+                          },
+                          "data": {
+                            "nullable": true
+                          }
+                        },
+                        "required": ["pluginName", "runId", "ts", "seq"]
                       }
                     },
                     "status": {
@@ -2926,7 +2994,9 @@
                     },
                     "payload": {
                       "type": "object",
-                      "additionalProperties": {}
+                      "additionalProperties": {
+                        "nullable": true
+                      }
                     }
                   },
                   "required": ["type", "ts", "runId", "seq", "payload"]

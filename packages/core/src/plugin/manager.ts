@@ -117,6 +117,15 @@ export class PluginManager {
   private enterprise?: EnterpriseContext;
   private secrets?: Record<string, string>;
   private session: SessionState;
+  private executionContext: {
+    runId: string;
+    flowId?: string;
+    reqExecId?: string;
+    now?: () => number;
+    nextSeq?: () => number;
+  };
+  private reportSeq = 0;
+  private reportScopeKey: string;
 
   constructor(private options: PluginManagerOptions) {
     this.config = {
@@ -141,6 +150,10 @@ export class PluginManager {
       variables: {},
       reports: []
     };
+    this.executionContext = {
+      runId: this.createRunId()
+    };
+    this.reportScopeKey = `run:${this.executionContext.runId}`;
   }
 
   // ==========================================================================
@@ -154,6 +167,34 @@ export class PluginManager {
    */
   setEventSink(sink: CombinedEventSink): void {
     this.onEvent = sink;
+  }
+
+  /**
+   * Set execution-scoped context for report stamping.
+   * Call this at the start of each execution run.
+   */
+  setExecutionContext(context: {
+    runId?: string;
+    flowId?: string;
+    reqExecId?: string;
+    now?: () => number;
+    nextSeq?: () => number;
+  }): void {
+    const runId = context.runId ?? this.executionContext.runId ?? this.createRunId();
+    const scopeKey = context.flowId ? `flow:${context.flowId}` : `run:${runId}`;
+
+    if (scopeKey !== this.reportScopeKey) {
+      this.reportScopeKey = scopeKey;
+      this.reportSeq = 0;
+    }
+
+    this.executionContext = {
+      runId,
+      ...(context.flowId !== undefined ? { flowId: context.flowId } : {}),
+      ...(context.reqExecId !== undefined ? { reqExecId: context.reqExecId } : {}),
+      ...(context.now !== undefined ? { now: context.now } : {}),
+      ...(context.nextSeq !== undefined ? { nextSeq: context.nextSeq } : {})
+    };
   }
 
   // ==========================================================================
@@ -364,13 +405,7 @@ export class PluginManager {
       projectRoot: this.options.projectRoot,
       ...(this.enterprise !== undefined ? { enterprise: this.enterprise } : {}),
       report: (data: unknown) => {
-        // Fail fast on non-serializable data
-        try {
-          JSON.stringify(data);
-        } catch {
-          throw new Error('Plugin report data must be JSON-serializable');
-        }
-        session.reports.push({
+        this.emitReport({
           pluginName: options.pluginName ?? 'unknown',
           ...(options.requestName !== undefined ? { requestName: options.requestName } : {}),
           data
@@ -384,6 +419,49 @@ export class PluginManager {
    */
   getReports(): import('./types').PluginReport[] {
     return this.session.reports;
+  }
+
+  private createRunId(): string {
+    return `run-${crypto.randomUUID()}`;
+  }
+
+  private nextSeq(): number {
+    if (this.executionContext.nextSeq) {
+      return this.executionContext.nextSeq();
+    }
+    this.reportSeq += 1;
+    return this.reportSeq;
+  }
+
+  private now(): number {
+    return this.executionContext.now ? this.executionContext.now() : Date.now();
+  }
+
+  private emitReport(params: { pluginName: string; requestName?: string; data: unknown }): void {
+    // Fail fast on non-serializable data
+    try {
+      JSON.stringify(params.data);
+    } catch {
+      throw new Error('Plugin report data must be JSON-serializable');
+    }
+
+    const report = {
+      pluginName: params.pluginName,
+      runId: this.executionContext.runId ?? this.createRunId(),
+      ...(this.executionContext.flowId !== undefined
+        ? { flowId: this.executionContext.flowId }
+        : {}),
+      ...(this.executionContext.reqExecId !== undefined
+        ? { reqExecId: this.executionContext.reqExecId }
+        : {}),
+      ...(params.requestName !== undefined ? { requestName: params.requestName } : {}),
+      ts: this.now(),
+      seq: this.nextSeq(),
+      data: params.data
+    };
+
+    this.session.reports.push(report);
+    this.emitPluginEvent({ type: 'pluginReport', report });
   }
 
   /**
@@ -494,14 +572,8 @@ export class PluginManager {
       if (!hook) continue;
 
       // Update ctx.report to stamp the current plugin's identity
-      const session = this.session;
       ctx.report = (data: unknown) => {
-        try {
-          JSON.stringify(data);
-        } catch {
-          throw new Error('Plugin report data must be JSON-serializable');
-        }
-        session.reports.push({
+        this.emitReport({
           pluginName: loaded.plugin.name,
           ...(requestName !== undefined ? { requestName } : {}),
           data
@@ -589,14 +661,8 @@ export class PluginManager {
       if (!hook) continue;
 
       // Update ctx.report to stamp the current plugin's identity
-      const session = this.session;
       ctx.report = (data: unknown) => {
-        try {
-          JSON.stringify(data);
-        } catch {
-          throw new Error('Plugin report data must be JSON-serializable');
-        }
-        session.reports.push({
+        this.emitReport({
           pluginName: loaded.plugin.name,
           ...(requestName !== undefined ? { requestName } : {}),
           data

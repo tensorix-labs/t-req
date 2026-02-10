@@ -1,6 +1,6 @@
 import type { CookieJar } from '@t-req/core/cookies';
 import type { CookieStore } from '@t-req/core/runtime';
-import type { ExecutionSource, ExecutionStatus, ResponseHeader } from '../schemas';
+import type { ExecutionSource, ExecutionStatus, PluginReport, ResponseHeader } from '../schemas';
 
 // ============================================================================
 // Configuration Types
@@ -111,6 +111,7 @@ export type StoredExecution = {
     bodyBytes: number;
   };
   pluginHooks?: PluginHookInfo[];
+  pluginReports?: PluginReport[];
   status: ExecutionStatus;
   error?: { stage: string; message: string };
 };

@@ -134,6 +134,17 @@ export const ResponseHeaderSchema = z.object({
   value: z.string()
 });
 
+export const PluginReportSchema = z.object({
+  pluginName: z.string(),
+  runId: z.string(),
+  flowId: z.string().optional(),
+  reqExecId: z.string().optional(),
+  requestName: z.string().optional(),
+  ts: z.number(),
+  seq: z.number(),
+  data: z.any()
+});
+
 export const ExecuteResponseSchema = z.object({
   runId: z.string(),
 
@@ -177,7 +188,9 @@ export const ExecuteResponseSchema = z.object({
     startTime: z.number(),
     endTime: z.number(),
     durationMs: z.number()
-  })
+  }),
+
+  pluginReports: z.array(PluginReportSchema).optional()
 });
 
 // ============================================================================
@@ -484,6 +497,7 @@ export const ExecutionDetailSchema = z.object({
 
   // Plugin hooks that ran for this execution
   pluginHooks: z.array(PluginHookInfoSchema).optional(),
+  pluginReports: z.array(PluginReportSchema).optional(),
 
   // Status
   status: ExecutionStatusSchema,
@@ -734,6 +748,7 @@ export type ExecutionTiming = z.infer<typeof ExecutionTimingSchema>;
 export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>;
 export type ExecutionError = z.infer<typeof ExecutionErrorSchema>;
 export type PluginHookInfo = z.infer<typeof PluginHookInfoSchema>;
+export type PluginReport = z.infer<typeof PluginReportSchema>;
 export type ExecutionDetail = z.infer<typeof ExecutionDetailSchema>;
 
 // Workspace types

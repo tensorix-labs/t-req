@@ -51,6 +51,16 @@ interface ExecuteResponse {
   runId: string;
   reqExecId?: string;
   flowId?: string;
+  pluginReports?: Array<{
+    pluginName: string;
+    runId: string;
+    flowId?: string;
+    reqExecId?: string;
+    requestName?: string;
+    ts: number;
+    seq: number;
+    data: unknown;
+  }>;
   request: {
     index: number;
     name?: string;

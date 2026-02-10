@@ -1,4 +1,4 @@
-import type { ExecutionStatus } from '../schemas';
+import type { ExecutionStatus, PluginReport } from '../schemas';
 import type { FlowManager } from './flow-manager';
 import type { Flow, PluginHookInfo, ServiceContext, StoredExecution } from './types';
 
@@ -122,6 +122,25 @@ export function createFlowTracker(
           exec.pluginHooks = exec.pluginHooks ?? [];
           exec.pluginHooks.push(hookInfo);
         }
+      }
+
+      // Capture plugin reports and emit event with flow-scoped seq/ts
+      if (event.type === 'pluginReport' && flow && reqExecId) {
+        const exec = flow.executions.get(reqExecId);
+        const report = (event as { report?: PluginReport }).report;
+
+        if (exec && report) {
+          exec.pluginReports = exec.pluginReports ?? [];
+          exec.pluginReports.push(report);
+        }
+
+        const { seq, ts } = flowManager.emitEvent(flow, runId, reqExecId, event);
+
+        if (report && typeof report === 'object') {
+          (report as { seq?: number; ts?: number }).seq = seq;
+          (report as { seq?: number; ts?: number }).ts = ts;
+        }
+        return;
       }
 
       // Emit to subscribers with flow context

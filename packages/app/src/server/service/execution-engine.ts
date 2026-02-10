@@ -94,6 +94,14 @@ export function createExecutionEngine(
 
     const { config: projectConfig } = resolvedConfig;
 
+    // Stamp execution context for plugin reports
+    projectConfig.pluginManager?.setExecutionContext({
+      runId,
+      flowId,
+      reqExecId,
+      now: context.now
+    });
+
     // Build execution source info
     const executionSource: ExecutionSource | undefined = request.path
       ? {
@@ -393,7 +401,8 @@ export function createExecutionEngine(
         startTime,
         endTime,
         durationMs: endTime - startTime
-      }
+      },
+      pluginReports: projectConfig.pluginManager?.getReports() ?? []
     };
   }
 

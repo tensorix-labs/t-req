@@ -75,6 +75,17 @@ export interface PluginHookInfo {
   modified: boolean;
 }
 
+export interface PluginReport {
+  pluginName: string;
+  runId: string;
+  flowId?: string;
+  reqExecId?: string;
+  requestName?: string;
+  ts: number;
+  seq: number;
+  data: unknown;
+}
+
 export interface ExecutionDetail {
   reqExecId: string;
   flowId: string;
@@ -102,6 +113,7 @@ export interface ExecutionDetail {
     bodyBytes: number;
   };
   pluginHooks?: PluginHookInfo[];
+  pluginReports?: PluginReport[];
   status: 'pending' | 'running' | 'success' | 'failed';
   error?: {
     stage: string;
@@ -208,6 +220,7 @@ export interface ExecuteResponse {
   runId: string;
   reqExecId?: string;
   flowId?: string;
+  pluginReports?: PluginReport[];
   request: {
     index: number;
     name?: string;

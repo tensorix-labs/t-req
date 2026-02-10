@@ -530,26 +530,11 @@ async function runRequest(argv: RunOptions): Promise<void> {
 
       // Render plugin reports using duck-typed conventions
       const reports = config.pluginManager?.getReports() ?? [];
-      for (const report of reports) {
-        if (!isReportObject(report.data)) continue;
-
-        const d = report.data;
-        const hasSummary = typeof d.summary === 'string';
-        const hasDetails = Array.isArray(d.details);
-
-        if (!hasSummary && !hasDetails) continue;
-
+      if (reports.length > 0) {
         console.log('');
-        console.log(`── ${report.pluginName} ──`);
-
-        if (hasSummary) {
-          console.log(d.summary as string);
-        }
-
-        if (hasDetails) {
-          for (const line of d.details as unknown[]) {
-            if (typeof line === 'string') console.log(line);
-          }
+        console.log('── Plugin Reports ──');
+        for (const report of reports) {
+          console.log(JSON.stringify(report, null, 2));
         }
       }
 

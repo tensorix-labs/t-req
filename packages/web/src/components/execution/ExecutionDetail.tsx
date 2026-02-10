@@ -2,9 +2,9 @@ import { createSignal, createResource, For, Show } from 'solid-js';
 import type { ExecutionSummary } from '../../stores/observer';
 import { ResponseViewer } from '../response';
 import { useSDK } from '../../context/sdk';
-import type { PluginHookInfo } from '../../sdk';
+import type { PluginHookInfo, PluginReport } from '../../sdk';
 
-type TabType = 'response' | 'headers' | 'plugins';
+type TabType = 'response' | 'headers' | 'plugins' | 'reports';
 
 interface ExecutionDetailProps {
   execution: ExecutionSummary;
@@ -14,9 +14,9 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
   const sdk = useSDK();
   const [activeTab, setActiveTab] = createSignal<TabType>('response');
 
-  // Fetch full execution details (includes pluginHooks) when plugins tab is active
+  // Fetch full execution details (includes plugin hooks/reports) when relevant tab is active
   const [executionDetail] = createResource(
-    () => (activeTab() === 'plugins' ? props.execution : null),
+    () => (activeTab() === 'plugins' || activeTab() === 'reports' ? props.execution : null),
     async (exec) => {
       const client = sdk();
       if (!exec || !client) return null;
@@ -30,6 +30,10 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
 
   const pluginHooks = (): PluginHookInfo[] => {
     return executionDetail()?.pluginHooks ?? [];
+  };
+
+  const pluginReports = (): PluginReport[] => {
+    return executionDetail()?.pluginReports ?? props.execution.pluginReports ?? [];
   };
 
   const timing = () => {
@@ -108,6 +112,13 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
           >
             Plugins
           </button>
+          <button
+            type="button"
+            class={tabClasses('reports')}
+            onClick={() => setActiveTab('reports')}
+          >
+            Reports
+          </button>
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-treq-dark-bg-card">
@@ -180,6 +191,32 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
                         <Show when={hookInfo.modified}>
                           <span class="text-http-get font-medium">(mod)</span>
                         </Show>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+          </Show>
+
+          <Show when={activeTab() === 'reports'}>
+            <div class="p-4">
+              <Show when={executionDetail.loading}>
+                <div class="text-center text-treq-text-muted dark:text-treq-dark-text-muted">
+                  Loading plugin reports...
+                </div>
+              </Show>
+              <Show when={!executionDetail.loading && pluginReports().length === 0}>
+                <div class="text-center text-treq-text-muted dark:text-treq-dark-text-muted">
+                  No plugin reports
+                </div>
+              </Show>
+              <Show when={!executionDetail.loading && pluginReports().length > 0}>
+                <div class="flex flex-col gap-3">
+                  <For each={pluginReports()}>
+                    {(report) => (
+                      <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-treq font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words">
+                        {JSON.stringify(report, null, 2)}
                       </div>
                     )}
                   </For>

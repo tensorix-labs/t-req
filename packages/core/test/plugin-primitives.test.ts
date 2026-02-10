@@ -134,6 +134,9 @@ describe('Primitive 3: ctx.report()', () => {
     const reports = manager.getReports();
     expect(reports).toHaveLength(1);
     expect(reports[0]?.pluginName).toBe('test-reporter');
+    expect(typeof reports[0]?.runId).toBe('string');
+    expect(typeof reports[0]?.ts).toBe('number');
+    expect(typeof reports[0]?.seq).toBe('number');
     expect(reports[0]?.data).toEqual({ summary: 'all good', passed: true });
   });
 
