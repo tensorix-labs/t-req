@@ -21,6 +21,10 @@
     "base64"
   ],
   "author": "tensorix labs",
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0.0"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
