@@ -152,12 +152,28 @@ export interface ParsedRequest {
   formData?: FormField[];
   /** Original raw content of the request block */
   raw: string;
-  /** Meta directives from comments like `# @directive value` */
+  /** Meta directives from comments like `# @directive value` (last-writer-wins) */
   meta: Record<string, string>;
+  /** All directives in declaration order (lossless, supports repeated directives) */
+  directives?: Directive[];
   /** Protocol type (defaults to 'http' if not specified) */
   protocol?: Protocol;
   /** Protocol-specific options */
   protocolOptions?: ProtocolOptions;
+}
+
+/**
+ * A single parsed directive from a comment like `# @name value`.
+ * Unlike `meta` (which is last-writer-wins), the `directives` array
+ * preserves all occurrences in declaration order.
+ */
+export interface Directive {
+  /** Directive name (without the `@` prefix) */
+  name: string;
+  /** Directive value (trimmed, may be empty string) */
+  value: string;
+  /** Zero-based line number within the request block */
+  line: number;
 }
 
 /**

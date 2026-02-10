@@ -28,6 +28,17 @@ export default definePlugin({
 
     async 'request.after'(input) {
       console.log('[test-plugin] request.after (read-only):', input.request.method);
+      input.ctx.report({
+        kind: 'sample',
+        summary: 'Report from treq-plugin-test',
+        status: 'ok',
+        timestampe: Date.now(),
+        meta: {
+          requestName: input.request?.name,
+          url: input.request?.url,
+          request: input.request
+        }
+      });
     },
 
     async 'response.after'(input, _output) {

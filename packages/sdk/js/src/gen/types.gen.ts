@@ -285,6 +285,16 @@ export type PostExecuteResponses = {
             endTime: number;
             durationMs: number;
         };
+        pluginReports?: Array<{
+            pluginName: string;
+            runId: string;
+            flowId?: string;
+            reqExecId?: string;
+            requestName?: string;
+            ts: number;
+            seq: number;
+            data?: unknown;
+        }>;
     };
 };
 
@@ -646,6 +656,16 @@ export type GetFlowsByFlowIdExecutionsByReqExecIdResponses = {
             hook: string;
             durationMs: number;
             modified: boolean;
+        }>;
+        pluginReports?: Array<{
+            pluginName: string;
+            runId: string;
+            flowId?: string;
+            reqExecId?: string;
+            requestName?: string;
+            ts: number;
+            seq: number;
+            data?: unknown;
         }>;
         status: 'pending' | 'running' | 'success' | 'failed';
         error?: {

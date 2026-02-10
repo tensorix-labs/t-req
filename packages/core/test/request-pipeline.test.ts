@@ -9,7 +9,7 @@ function makeHookCtx(overrides?: Partial<HookContext>): HookContext {
   return {
     retries: 0,
     maxRetries: 3,
-    session: { id: 'default', variables: {} },
+    session: { id: 'default', variables: {}, reports: [] },
     variables: {},
     config: {
       projectRoot: '.',
@@ -17,6 +17,7 @@ function makeHookCtx(overrides?: Partial<HookContext>): HookContext {
       security: { allowExternalFiles: false, allowPluginsOutsideProject: false }
     },
     projectRoot: '.',
+    report: () => {},
     ...overrides
   };
 }
@@ -159,7 +160,7 @@ describe('prepareRequest', () => {
   });
 
   test('no-plugin-manager case succeeds without hooks', async () => {
-    const config = makeConfig({ pluginManager: undefined });
+    const config = makeConfig({});
     const request = makeRequest();
 
     const result = await prepareRequest(config, request, {}, '/app', makeHookCtx());

@@ -149,6 +149,14 @@ function formatExecutionDetail(detail: ExecutionDetail): string {
     lines.push('');
   }
 
+  if (detail.pluginReports && detail.pluginReports.length > 0) {
+    lines.push('--- Plugin Reports ---');
+    for (const report of detail.pluginReports) {
+      lines.push(JSON.stringify(report, null, 2));
+      lines.push('');
+    }
+  }
+
   return lines.join('\n');
 }
 

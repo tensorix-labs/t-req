@@ -68,6 +68,8 @@ export type {
   PluginConfigRef,
   // Plugin context
   PluginContext,
+  // Diagnostics (validate hook)
+  PluginDiagnostic,
   // Events
   PluginEvent,
   PluginFactory,
@@ -76,6 +78,8 @@ export type {
   // Permissions
   PluginPermission,
   PluginPermissionsConfig,
+  // Reports
+  PluginReport,
   // Resolvers
   PluginResolver,
   RequestAfterInput,
@@ -107,5 +111,8 @@ export type {
   ToolDefinition,
   ToolSchema,
   // Core plugin interface
-  TreqPlugin
+  TreqPlugin,
+  // Validate hook types
+  ValidateInput,
+  ValidateOutput
 } from './types';

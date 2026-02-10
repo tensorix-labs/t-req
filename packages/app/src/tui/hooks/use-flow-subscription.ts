@@ -5,7 +5,7 @@
  * Manages the SSE connection lifecycle and updates observer state with execution events.
  */
 
-import type { EventEnvelope } from '@t-req/sdk/client';
+import type { EventEnvelope, ExecutionDetail } from '@t-req/sdk/client';
 import type { Accessor } from 'solid-js';
 import { useObserver, useSDK } from '../context';
 import type { ExecutionStatus, SSEStatus } from '../observer-store';
@@ -20,6 +20,7 @@ export interface FlowSubscriptionReturn {
 export function useFlowSubscription(): FlowSubscriptionReturn {
   const sdk = useSDK();
   const observer = useObserver();
+  type PluginReport = NonNullable<ExecutionDetail['pluginReports']>[number];
 
   // Keep track of abort controller for current subscription
   let currentController: AbortController | undefined;
@@ -39,7 +40,21 @@ export function useFlowSubscription(): FlowSubscriptionReturn {
     if (seq <= lastSeq) return;
     observer.setState('lastFlowSeq', seq);
 
-    switch (event.type) {
+    const eventType = event.type as string;
+
+    if (eventType === 'pluginReport') {
+      const reqExecId = event.reqExecId;
+      if (!reqExecId) return;
+      const payload = event.payload as { report?: PluginReport };
+      if (!payload.report) return;
+      const exec = observer.state.executionsById[reqExecId];
+      observer.updateExecution(reqExecId, {
+        pluginReports: [...(exec?.pluginReports ?? []), payload.report]
+      });
+      return;
+    }
+
+    switch (eventType) {
       case 'requestQueued': {
         // Create execution with pending status
         const reqExecId = event.reqExecId;

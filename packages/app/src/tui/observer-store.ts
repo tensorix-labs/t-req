@@ -7,6 +7,7 @@
  * - Executions (live updates from SSE, selection)
  */
 
+import type { ExecutionDetail } from '@t-req/sdk/client';
 import { type Accessor, createMemo } from 'solid-js';
 import { createStore, produce, reconcile, type SetStoreFunction } from 'solid-js/store';
 import type { StreamConnectionStatus, StreamProtocol, StreamState } from './stream';
@@ -34,6 +35,7 @@ export interface ExecutionSummary {
     stage: string;
     message: string;
   };
+  pluginReports?: ExecutionDetail['pluginReports'];
   // For display
   statusCode?: number;
 }

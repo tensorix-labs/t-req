@@ -27,7 +27,7 @@ export interface FlowManager {
     runId: string,
     reqExecId: string | undefined,
     event: { type: string } & Record<string, unknown>
-  ): void;
+  ): { seq: number; ts: number };
   dispose(): void;
   /** For testing - get the internal flows map */
   getFlows(): Map<string, Flow>;
@@ -78,15 +78,17 @@ export function createFlowManager(
     runId: string,
     reqExecId: string | undefined,
     event: { type: string } & Record<string, unknown>
-  ): void {
+  ): { seq: number; ts: number } {
     const seq = getFlowSeq(flow.id);
+    const ts = context.now();
     context.onEvent?.(flow.sessionId, runId, {
       ...event,
       flowId: flow.id,
       reqExecId,
       seq,
-      ts: context.now()
+      ts
     });
+    return { seq, ts };
   }
 
   function create(request: CreateFlowRequest): CreateFlowResponse {
@@ -212,6 +214,7 @@ export function createFlowManager(
           }
         : undefined,
       pluginHooks: exec.pluginHooks,
+      pluginReports: exec.pluginReports,
       status: exec.status,
       error: exec.error
     };

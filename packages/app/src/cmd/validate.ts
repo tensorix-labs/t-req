@@ -1,11 +1,12 @@
 import { statSync } from 'node:fs';
 import { relative } from 'node:path';
-import { parseDocument } from '@t-req/core';
+import { type PluginManager, parseDocument } from '@t-req/core';
+import { resolveProjectConfig } from '@t-req/core/config';
 import type { CommandModule } from 'yargs';
-import { analyzeParsedContent, DiagnosticCodes } from '../server/diagnostics';
+import { analyzeParsedContent, DiagnosticCodes, getLinePositions } from '../server/diagnostics';
 import type { Diagnostic } from '../server/schemas';
 import { DEFAULT_WORKSPACE_IGNORE_PATTERNS } from '../server/service/types';
-import { dirname, existsSync, isAbsolute, resolve } from '../utils';
+import { dirname, existsSync, isAbsolute, resolve, resolveWorkspaceRoot } from '../utils';
 
 interface ValidateOptions {
   path: string;
@@ -159,7 +160,11 @@ function findFileReferenceLine(
   return { line: 0, column: 0 };
 }
 
-async function validateFile(filePath: string, basePath: string): Promise<FileResult> {
+async function validateFile(
+  filePath: string,
+  basePath: string,
+  pluginManager?: PluginManager
+): Promise<FileResult> {
   const content = await Bun.file(filePath).text();
   const relPath = relative(basePath, filePath);
 
@@ -177,6 +182,18 @@ async function validateFile(filePath: string, basePath: string): Promise<FileRes
     diagnostics.push(...fileRefDiagnostics);
   } catch {
     // If parsing fails entirely, we still have the text-based diagnostics
+  }
+
+  // Run plugin validate hooks
+  if (pluginManager) {
+    const linePositions = getLinePositions(content);
+    const hookCtx = pluginManager.createHookContext({});
+    const validateOutput = { diagnostics: [] as Diagnostic[] };
+    await pluginManager.triggerValidate(
+      { content, path: filePath, linePositions, ctx: hookCtx },
+      validateOutput
+    );
+    diagnostics.push(...validateOutput.diagnostics);
   }
 
   // Sort all diagnostics by position
@@ -291,10 +308,18 @@ export async function runValidate(argv: ValidateOptions): Promise<void> {
     process.exit(0);
   }
 
+  // Load plugins for validate hooks
+  const workspaceRoot = resolveWorkspaceRoot();
+  const { config } = await resolveProjectConfig({
+    startDir: basePath,
+    stopDir: workspaceRoot
+  });
+  const pluginManager = config.pluginManager;
+
   // Validate all files
   const fileResults: FileResult[] = [];
   for (const fp of filePaths) {
-    fileResults.push(await validateFile(fp, basePath));
+    fileResults.push(await validateFile(fp, basePath, pluginManager));
   }
 
   // Aggregate summary

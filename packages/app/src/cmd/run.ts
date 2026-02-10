@@ -241,6 +241,14 @@ export function formatVerboseRequestLine(
   return `Request [${index}]: ${request.name ?? '(unnamed)'}\n${request.method} ${request.url}`;
 }
 
+function isReportObject(data: unknown): data is Record<string, unknown> {
+  return typeof data === 'object' && data !== null;
+}
+
+function reportsFailed(reports: Array<{ data: unknown }>): boolean {
+  return reports.some((r) => isReportObject(r.data) && r.data.passed === false);
+}
+
 async function runRequest(argv: RunOptions): Promise<void> {
   const workspaceRoot = resolveWorkspaceRoot(argv.workspace);
 
@@ -470,6 +478,9 @@ async function runRequest(argv: RunOptions): Promise<void> {
           }))
         : [];
 
+      // Collect plugin reports
+      const reports = config.pluginManager?.getReports() ?? [];
+
       // Build JSON output
       const jsonOutput = {
         request: {
@@ -497,10 +508,16 @@ async function runRequest(argv: RunOptions): Promise<void> {
           endTime,
           durationMs: endTime - startTime
         },
-        plugins
+        plugins,
+        ...(reports.length > 0 ? { reports } : {})
       };
 
       console.log(JSON.stringify(jsonOutput, null, 2));
+
+      // Exit 1 if any report signals failure
+      if (reportsFailed(reports)) {
+        process.exit(1);
+      }
     } else {
       // Standard text output
       console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
@@ -511,9 +528,24 @@ async function runRequest(argv: RunOptions): Promise<void> {
         console.log(formatResponseBody(contentType, body));
       }
 
+      // Render plugin reports using duck-typed conventions
+      const reports = config.pluginManager?.getReports() ?? [];
+      if (reports.length > 0) {
+        console.log('');
+        console.log('── Plugin Reports ──');
+        for (const report of reports) {
+          console.log(JSON.stringify(report, null, 2));
+        }
+      }
+
       if (argv.verbose) {
         console.error('---');
         console.error(`Duration: ${endTime - startTime}ms`);
+      }
+
+      // Exit 1 if any report signals failure
+      if (reportsFailed(reports)) {
+        process.exit(1);
       }
     }
   } catch (err) {

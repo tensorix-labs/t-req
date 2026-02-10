@@ -9,7 +9,7 @@
 
 import { type Accessor, createMemo } from 'solid-js';
 import { createStore, produce, reconcile, type SetStoreFunction } from 'solid-js/store';
-import type { EventEnvelope, ExecuteResponse, SDK } from '../sdk';
+import type { EventEnvelope, ExecuteResponse, PluginReport, SDK } from '../sdk';
 
 export type SSEStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
@@ -38,6 +38,7 @@ export interface ExecutionSummary {
     truncated: boolean;
     bodyBytes: number;
   };
+  pluginReports?: PluginReport[];
   error?: {
     stage: string;
     message: string;
@@ -256,6 +257,19 @@ export function createObserverStore(): ObserverStore {
         );
         break;
       }
+      case 'pluginReport': {
+        const report = (payload as { report?: PluginReport }).report;
+        if (!report) break;
+        setState(
+          produce((s) => {
+            const existing = s.executionsById[reqExecId];
+            if (!existing) return;
+            existing.pluginReports = existing.pluginReports ?? [];
+            existing.pluginReports.push(report);
+          })
+        );
+        break;
+      }
     }
   };
 
@@ -361,7 +375,8 @@ export function createObserverStore(): ObserverStore {
           reqLabel: response.request.name,
           status: 'success',
           timing: response.timing,
-          response: response.response
+          response: response.response,
+          pluginReports: response.pluginReports
         };
         setState('executionsById', response.reqExecId, exec);
         setState('executionOrder', (prev) => [...prev, response.reqExecId!]);

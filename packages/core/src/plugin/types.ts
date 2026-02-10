@@ -75,6 +75,7 @@ export type PluginEvent =
       ctx: HookContext;
     }
   | { type: 'pluginResolverCalled'; name: string; resolver: string; durationMs: number }
+  | { type: 'pluginReport'; report: PluginReport }
   | {
       type: 'pluginError';
       name: string;
@@ -132,6 +133,12 @@ export interface HookContext {
   projectRoot: string;
   /** Enterprise context (populated by @t-req/enterprise, undefined in OSS) */
   enterprise?: EnterpriseContext;
+  /**
+   * Emit a structured report from this hook.
+   * The data is opaque — the plugin owns the shape.
+   * The manager auto-stamps pluginName and requestName.
+   */
+  report: (data: unknown) => void;
 }
 
 /**
@@ -142,6 +149,32 @@ export interface SessionState {
   id: string;
   /** Session-scoped variables that persist across requests */
   variables: Record<string, unknown>;
+  /** Accumulated plugin reports from this session */
+  reports: PluginReport[];
+}
+
+/**
+ * A structured report emitted by a plugin via `ctx.report()`.
+ * The `data` field is opaque — the plugin owns its shape.
+ * The manager auto-stamps identity, scope, and ordering metadata.
+ */
+export interface PluginReport {
+  /** Auto-stamped: which plugin produced this report */
+  pluginName: string;
+  /** Auto-stamped: execution run ID (always present) */
+  runId: string;
+  /** Auto-stamped: flow ID (when executing within a flow) */
+  flowId?: string;
+  /** Auto-stamped: request execution ID (when executing within a flow) */
+  reqExecId?: string;
+  /** Auto-stamped: request name from CompiledRequest.name (if in request context) */
+  requestName?: string;
+  /** Auto-stamped: report timestamp (ms since epoch) */
+  ts: number;
+  /** Auto-stamped: deterministic sequence number scoped to flow or run */
+  seq: number;
+  /** Whatever the plugin provided — opaque to the framework */
+  data: unknown;
 }
 
 /**
@@ -257,6 +290,12 @@ export interface CompiledRequest {
   headers: Record<string, string>;
   /** Body with variables interpolated (can be any valid body type) */
   body?: string | Buffer | ArrayBuffer | FormData | URLSearchParams;
+  /** Request name (preserved through compilation for plugin observability) */
+  name?: string;
+  /** Meta directives (preserved through compilation, last-writer-wins) */
+  meta?: Record<string, string>;
+  /** All directives in declaration order (preserved through compilation, lossless) */
+  directives?: import('../types').Directive[];
 }
 
 /**
@@ -394,6 +433,52 @@ export interface PluginHooks {
    * Allows error handling and retry signaling.
    */
   error?: (input: ErrorInput, output: ErrorOutput) => Promise<void> | void;
+
+  /**
+   * Called during `treq validate` for static analysis.
+   * Plugins can contribute diagnostics for .http file content.
+   */
+  validate?: (input: ValidateInput, output: ValidateOutput) => Promise<void> | void;
+}
+
+// ============================================================================
+// Validate Hook Types
+// ============================================================================
+
+/**
+ * Input for the validate hook.
+ */
+export interface ValidateInput {
+  /** Raw .http file content */
+  content: string;
+  /** File path being validated */
+  path: string;
+  /** Precomputed line start offsets for position calculation */
+  linePositions: number[];
+  /** Hook context */
+  ctx: HookContext;
+}
+
+/**
+ * Output for the validate hook.
+ * Plugins push diagnostics here.
+ */
+export interface ValidateOutput {
+  /** Plugin-contributed diagnostics */
+  diagnostics: PluginDiagnostic[];
+}
+
+/**
+ * A diagnostic produced by a plugin's validate hook.
+ */
+export interface PluginDiagnostic {
+  severity: 'error' | 'warning' | 'info';
+  code: string;
+  message: string;
+  range: {
+    start: { line: number; column: number };
+    end: { line: number; column: number };
+  };
 }
 
 // ============================================================================
