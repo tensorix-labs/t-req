@@ -62,6 +62,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build core (workspace dependency)
+        run: bun run build
+        working-directory: packages/core
+
       - name: Build
         run: bun run build
         working-directory: packages/plugins/base
