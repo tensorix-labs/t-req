@@ -18,6 +18,7 @@ import { rgba, theme } from './theme';
 import {
   useExecutionDetail,
   useFlowSubscription,
+  usePlugins,
   useScriptRunner,
   useTestRunner,
   useWorkspace,
@@ -49,6 +50,7 @@ export function App() {
   const workspace = useWorkspace();
   const requestExecution = useRequestExecution();
   const flowSubscription = useFlowSubscription();
+  const { plugins: loadedPlugins } = usePlugins();
   const { detail: executionDetail, isLoading: loadingDetail } = useExecutionDetail();
 
   const scriptRunner = useScriptRunner({
@@ -310,6 +312,7 @@ export function App() {
                 <ExecutionDetailView
                   execution={executionDetail()}
                   isLoading={loadingDetail()}
+                  loadedPlugins={loadedPlugins()}
                 />
               )}
             </Show>

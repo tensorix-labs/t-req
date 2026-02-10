@@ -30,9 +30,13 @@ export function useExecutionDetail(): ExecutionDetailReturn {
       () => {
         const id = observer.state.selectedReqExecId;
         const exec = id ? observer.state.executionsById[id] : undefined;
-        return { id, status: exec?.status };
+        return {
+          id,
+          status: exec?.status,
+          pluginReportCount: exec?.pluginReports?.length ?? 0
+        };
       },
-      async ({ id, status: _status }) => {
+      async ({ id, status: _status, pluginReportCount: _pluginReportCount }) => {
         if (!id) {
           setExecutionDetail(undefined);
           return;

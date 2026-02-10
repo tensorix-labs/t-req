@@ -11,6 +11,7 @@ export {
   type UsePickerNavigationOptions,
   usePickerNavigation
 } from './use-picker-navigation';
+export { type PluginsReturn, usePlugins } from './use-plugins';
 export { type RequestExecutionReturn, useRequestExecution } from './use-request-execution';
 export {
   type ScriptRunnerOptions,
