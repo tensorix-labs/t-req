@@ -129,16 +129,13 @@ export function createFlowTracker(
         const exec = flow.executions.get(reqExecId);
         const report = (event as { report?: PluginReport }).report;
 
-        if (exec && report) {
-          exec.pluginReports = exec.pluginReports ?? [];
-          exec.pluginReports.push(report);
-        }
-
         const { seq, ts } = flowManager.emitEvent(flow, runId, reqExecId, event);
 
-        if (report && typeof report === 'object') {
-          (report as { seq?: number; ts?: number }).seq = seq;
-          (report as { seq?: number; ts?: number }).ts = ts;
+        const storedReport = report ? { ...report, seq, ts } : undefined;
+
+        if (exec && storedReport) {
+          exec.pluginReports = exec.pluginReports ?? [];
+          exec.pluginReports.push(storedReport);
         }
         return;
       }
