@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
-import type { ExecutionDetail, PluginHookInfo } from '@t-req/sdk/client';
+import type { ExecutionDetail, GetPluginsResponses, PluginHookInfo } from '@t-req/sdk/client';
 import { useDialog } from '../context';
 import { theme, rgba, getMethodColor, getHttpStatusColor } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
@@ -8,19 +8,20 @@ import { formatDuration, prettyPrintJson } from '../util/format';
 import { detectFiletype } from '../syntax';
 import { HighlightedContent } from './highlighted-content';
 
-type DetailTab = 'body' | 'headers' | 'plugins' | 'reports';
+type DetailTab = 'body' | 'headers' | 'plugins';
 type PluginReport = NonNullable<ExecutionDetail['pluginReports']>[number];
+type LoadedPlugin = GetPluginsResponses[200]['plugins'][number];
 
 const TABS = [
   { id: 'body', label: 'body', shortcut: '1' },
   { id: 'headers', label: 'headers', shortcut: '2' },
   { id: 'plugins', label: 'plugins', shortcut: '3' },
-  { id: 'reports', label: 'reports', shortcut: '4' },
 ] as const;
 
 export interface ExecutionDetailProps {
   execution: ExecutionDetail | undefined;
   isLoading: boolean;
+  loadedPlugins?: LoadedPlugin[];
 }
 
 /**
@@ -162,40 +163,98 @@ function HeadersTab(props: {
   );
 }
 
-function PluginsTab(props: { pluginHooks: PluginHookInfo[] | undefined }) {
+function PluginsTab(props: {
+  pluginHooks: PluginHookInfo[] | undefined;
+  pluginReports: ExecutionDetail['pluginReports'] | undefined;
+  loadedPlugins: LoadedPlugin[] | undefined;
+}) {
+  const rows = createMemo(() => {
+    const byName = new Map<
+      string,
+      { plugin: LoadedPlugin | undefined; hooks: PluginHookInfo[]; reports: PluginReport[] }
+    >();
+    const orderedNames: string[] = [];
+
+    const ensureRow = (name: string, plugin?: LoadedPlugin) => {
+      const existing = byName.get(name);
+      if (existing) {
+        if (plugin) existing.plugin = plugin;
+        return existing;
+      }
+      orderedNames.push(name);
+      const created = { plugin, hooks: [], reports: [] };
+      byName.set(name, created);
+      return created;
+    };
+
+    for (const plugin of props.loadedPlugins ?? []) {
+      ensureRow(plugin.name, plugin);
+    }
+
+    for (const hook of props.pluginHooks ?? []) {
+      ensureRow(hook.pluginName).hooks.push(hook);
+    }
+
+    for (const report of props.pluginReports ?? []) {
+      ensureRow(report.pluginName).reports.push(report);
+    }
+
+    return orderedNames.map((name) => ({ name, ...byName.get(name)! }));
+  });
+
   return (
     <box id="plugins" flexDirection="column">
-      <Show when={props.pluginHooks && props.pluginHooks.length > 0} fallback={
-        <text fg={rgba(theme.textMuted)}>No plugins executed</text>
+      <Show when={rows().length > 0} fallback={
+        <text fg={rgba(theme.textMuted)}>No plugins loaded</text>
       }>
-        <For each={props.pluginHooks}>
-          {(hookInfo: PluginHookInfo) => (
-            <box flexDirection="row">
-              <text fg={rgba(theme.info)}>{hookInfo.pluginName}</text>
-              <text fg={rgba(theme.textMuted)}> {hookInfo.hook} </text>
-              <text fg={rgba(theme.textMuted)}>+{hookInfo.durationMs}ms</text>
-              <Show when={hookInfo.modified}>
-                <text fg={rgba(theme.success)}> (mod)</text>
-              </Show>
-            </box>
-          )}
-        </For>
-      </Show>
-    </box>
-  );
-}
-
-function ReportsTab(props: { pluginReports: ExecutionDetail['pluginReports'] | undefined }) {
-  return (
-    <box id="reports" flexDirection="column">
-      <Show when={props.pluginReports && props.pluginReports.length > 0} fallback={
-        <text fg={rgba(theme.textMuted)}>No plugin reports</text>
-      }>
-        <For each={props.pluginReports}>
-          {(report: PluginReport) => (
+        <For each={rows()}>
+          {(row) => (
             <box flexDirection="column" marginBottom={1}>
-              <text fg={rgba(theme.info)}>{report.pluginName}</text>
-              <text fg={rgba(theme.textMuted)}>{prettyPrintJson(JSON.stringify(report))}</text>
+              <box flexDirection="row">
+                <text fg={rgba(theme.info)}>
+                  {row.name}
+                  <Show when={row.plugin?.version}>
+                    {' '}v{row.plugin!.version}
+                  </Show>
+                </text>
+                <text fg={rgba(theme.textMuted)}>
+                  {' '}{
+                    row.hooks.length > 0 || row.reports.length > 0
+                      ? `(executed, hooks: ${row.hooks.length}, reports: ${row.reports.length})`
+                      : '(loaded, no activity)'
+                  }
+                </text>
+              </box>
+
+              <Show when={row.hooks.length > 0}>
+                <For each={row.hooks}>
+                  {(hookInfo: PluginHookInfo) => (
+                    <box flexDirection="row">
+                      <text fg={rgba(theme.textMuted)}>  {hookInfo.hook} </text>
+                      <text fg={rgba(theme.textMuted)}>+{hookInfo.durationMs}ms</text>
+                      <Show when={hookInfo.modified}>
+                        <text fg={rgba(theme.success)}> (mod)</text>
+                      </Show>
+                    </box>
+                  )}
+                </For>
+              </Show>
+
+              <Show when={row.reports.length > 0}>
+                <For each={row.reports}>
+                  {(report: PluginReport) => (
+                    <box flexDirection="column">
+                      <text fg={rgba(theme.textMuted)}>
+                        {' '}report seq:{report.seq}
+                        <Show when={report.requestName}>
+                          {' '}req:{report.requestName}
+                        </Show>
+                      </text>
+                      <text fg={rgba(theme.textMuted)}>{prettyPrintJson(JSON.stringify(report.data))}</text>
+                    </box>
+                  )}
+                </For>
+              </Show>
             </box>
           )}
         </For>
@@ -232,7 +291,6 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
       '1': () => setActiveTab('body'),
       '2': () => setActiveTab('headers'),
       '3': () => setActiveTab('plugins'),
-      '4': () => setActiveTab('reports'),
       'h': () => cycleTab(-1),
       'l': () => cycleTab(1),
     };
@@ -342,10 +400,11 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   <HeadersTab cookies={cookies()} headers={nonCookieHeaders()} />
                 </Match>
                 <Match when={activeTab() === 'plugins'}>
-                  <PluginsTab pluginHooks={execution.pluginHooks} />
-                </Match>
-                <Match when={activeTab() === 'reports'}>
-                  <ReportsTab pluginReports={execution.pluginReports} />
+                  <PluginsTab
+                    pluginHooks={execution.pluginHooks}
+                    pluginReports={execution.pluginReports}
+                    loadedPlugins={props.loadedPlugins}
+                  />
                 </Match>
               </Switch>
             </scrollbox>
