@@ -62,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify publish manifest
+        run: bun run script/verify-publish-manifest.ts packages/plugins/base/package.json
+
       - name: Build core (workspace dependency)
         run: bun run build
         working-directory: packages/core

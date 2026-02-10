@@ -1,6 +1,6 @@
 {
   "name": "@t-req/plugin-base",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Base resolvers for t-req (uuid, timestamp, base64, etc.)",
   "license": "MIT",
   "repository": {
@@ -53,10 +53,11 @@
     "lint:fix": "biome check --write .",
     "prepublishOnly": "bun run build && bun run test"
   },
-  "dependencies": {
-    "@t-req/core": "workspace:*"
+  "peerDependencies": {
+    "@t-req/core": "^0.2.3"
   },
   "devDependencies": {
+    "@t-req/core": "workspace:*",
     "@types/bun": "latest"
   }
 }

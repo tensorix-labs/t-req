@@ -431,7 +431,8 @@ export function generatePackageJson(projectName: string, config: ProjectConfig):
     type: 'module',
     scripts,
     dependencies: {
-      '@t-req/core': 'latest'
+      '@t-req/core': 'latest',
+      '@t-req/plugin-base': 'latest'
     }
   };
 
