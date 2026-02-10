@@ -312,7 +312,10 @@ export function createEngine(config: EngineConfig = {}): Engine {
             method: request.method,
             url: request.url,
             headers: request.headers,
-            ...(request.body !== undefined ? { body: request.body } : {})
+            ...(request.body !== undefined ? { body: request.body } : {}),
+            ...(request.name !== undefined ? { name: request.name } : {}),
+            ...(request.meta !== undefined ? { meta: request.meta } : {}),
+            ...(request.directives !== undefined ? { directives: request.directives } : {})
           };
 
           const errorOutput: ErrorOutput = {

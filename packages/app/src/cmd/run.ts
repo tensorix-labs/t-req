@@ -241,6 +241,14 @@ export function formatVerboseRequestLine(
   return `Request [${index}]: ${request.name ?? '(unnamed)'}\n${request.method} ${request.url}`;
 }
 
+function isReportObject(data: unknown): data is Record<string, unknown> {
+  return typeof data === 'object' && data !== null;
+}
+
+function reportsFailed(reports: Array<{ data: unknown }>): boolean {
+  return reports.some((r) => isReportObject(r.data) && r.data.passed === false);
+}
+
 async function runRequest(argv: RunOptions): Promise<void> {
   const workspaceRoot = resolveWorkspaceRoot(argv.workspace);
 
@@ -507,7 +515,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
       console.log(JSON.stringify(jsonOutput, null, 2));
 
       // Exit 1 if any report signals failure
-      if (reports.some((r) => (r.data as Record<string, unknown>).passed === false)) {
+      if (reportsFailed(reports)) {
         process.exit(1);
       }
     } else {
@@ -523,7 +531,9 @@ async function runRequest(argv: RunOptions): Promise<void> {
       // Render plugin reports using duck-typed conventions
       const reports = config.pluginManager?.getReports() ?? [];
       for (const report of reports) {
-        const d = report.data as Record<string, unknown>;
+        if (!isReportObject(report.data)) continue;
+
+        const d = report.data;
         const hasSummary = typeof d.summary === 'string';
         const hasDetails = Array.isArray(d.details);
 
@@ -549,7 +559,7 @@ async function runRequest(argv: RunOptions): Promise<void> {
       }
 
       // Exit 1 if any report signals failure
-      if (reports.some((r) => (r.data as Record<string, unknown>).passed === false)) {
+      if (reportsFailed(reports)) {
         process.exit(1);
       }
     }
