@@ -54,7 +54,7 @@ const METHOD_TYPOS: Record<string, string> = {
 
 type Position = { line: number; column: number };
 
-function getLinePositions(content: string): number[] {
+export function getLinePositions(content: string): number[] {
   const positions: number[] = [0];
   for (let i = 0; i < content.length; i++) {
     if (content[i] === '\n') {

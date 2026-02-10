@@ -29,7 +29,9 @@ import type {
   RetrySignal,
   SessionState,
   SubprocessPluginConfig,
-  ToolDefinition
+  ToolDefinition,
+  ValidateInput,
+  ValidateOutput
 } from './types';
 
 // ============================================================================
@@ -136,7 +138,8 @@ export class PluginManager {
     }
     this.session = {
       id: crypto.randomUUID(),
-      variables: {}
+      variables: {},
+      reports: []
     };
   }
 
@@ -348,16 +351,39 @@ export class PluginManager {
     retries?: number;
     maxRetries?: number;
     variables?: Record<string, unknown>;
+    pluginName?: string;
+    requestName?: string;
   }): HookContext {
+    const session = this.session;
     return {
       retries: options.retries ?? 0,
       maxRetries: options.maxRetries ?? 3,
-      session: this.session,
+      session,
       variables: options.variables ?? {},
       config: this.config,
       projectRoot: this.options.projectRoot,
-      ...(this.enterprise !== undefined ? { enterprise: this.enterprise } : {})
+      ...(this.enterprise !== undefined ? { enterprise: this.enterprise } : {}),
+      report: (data: unknown) => {
+        // Fail fast on non-serializable data
+        try {
+          JSON.stringify(data);
+        } catch {
+          throw new Error('Plugin report data must be JSON-serializable');
+        }
+        session.reports.push({
+          pluginName: options.pluginName ?? 'unknown',
+          ...(options.requestName !== undefined ? { requestName: options.requestName } : {}),
+          data
+        });
+      }
     };
+  }
+
+  /**
+   * Get all plugin reports accumulated during this session.
+   */
+  getReports(): import('./types').PluginReport[] {
+    return this.session.reports;
   }
 
   /**
@@ -368,6 +394,16 @@ export class PluginManager {
     output: ParseOutput
   ): Promise<HookExecutionResult<ParseOutput>> {
     return await this.executeHook('parse.after', input, output);
+  }
+
+  /**
+   * Execute validate hooks (static analysis for treq validate).
+   */
+  async triggerValidate(
+    input: ValidateInput,
+    output: ValidateOutput
+  ): Promise<HookExecutionResult<ValidateOutput>> {
+    return await this.executeHook('validate', input, output);
   }
 
   /**
@@ -443,9 +479,34 @@ export class PluginManager {
         ? (input as { ctx: HookContext }).ctx
         : this.createHookContext({});
 
+    // Extract requestName from input if available (e.g., response.after has input.request.name)
+    const inputRecord = input as Record<string, unknown>;
+    const requestName =
+      inputRecord['request'] &&
+      typeof inputRecord['request'] === 'object' &&
+      inputRecord['request'] !== null &&
+      'name' in (inputRecord['request'] as object)
+        ? ((inputRecord['request'] as { name?: string }).name ?? undefined)
+        : undefined;
+
     for (const loaded of this.plugins) {
       const hook = loaded.plugin.hooks?.[hookName];
       if (!hook) continue;
+
+      // Update ctx.report to stamp the current plugin's identity
+      const session = this.session;
+      ctx.report = (data: unknown) => {
+        try {
+          JSON.stringify(data);
+        } catch {
+          throw new Error('Plugin report data must be JSON-serializable');
+        }
+        session.reports.push({
+          pluginName: loaded.plugin.name,
+          ...(requestName !== undefined ? { requestName } : {}),
+          data
+        });
+      };
 
       const startTime = Date.now();
       const outputBefore = JSON.stringify(output);
@@ -513,9 +574,34 @@ export class PluginManager {
         ? (input as { ctx: HookContext }).ctx
         : this.createHookContext({});
 
+    // Extract requestName from input if available
+    const inputRecord = input as Record<string, unknown>;
+    const requestName =
+      inputRecord['request'] &&
+      typeof inputRecord['request'] === 'object' &&
+      inputRecord['request'] !== null &&
+      'name' in (inputRecord['request'] as object)
+        ? ((inputRecord['request'] as { name?: string }).name ?? undefined)
+        : undefined;
+
     for (const loaded of this.plugins) {
       const hook = loaded.plugin.hooks?.[hookName];
       if (!hook) continue;
+
+      // Update ctx.report to stamp the current plugin's identity
+      const session = this.session;
+      ctx.report = (data: unknown) => {
+        try {
+          JSON.stringify(data);
+        } catch {
+          throw new Error('Plugin report data must be JSON-serializable');
+        }
+        session.reports.push({
+          pluginName: loaded.plugin.name,
+          ...(requestName !== undefined ? { requestName } : {}),
+          data
+        });
+      };
 
       const startTime = Date.now();
 

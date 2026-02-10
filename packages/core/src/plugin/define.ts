@@ -90,7 +90,8 @@ export function definePlugin<T extends TreqPlugin>(plugin: T): T & { instanceId:
       'request.compiled',
       'request.after',
       'response.after',
-      'error'
+      'error',
+      'validate'
     ];
     for (const [name, hook] of Object.entries(plugin.hooks)) {
       if (!validHooks.includes(name)) {

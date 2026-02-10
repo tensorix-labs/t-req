@@ -49,11 +49,13 @@ export type {
   ParseInput,
   ParseOutput,
   PluginConfigRef,
+  PluginDiagnostic,
   PluginEvent,
   PluginFactory,
   PluginHooks,
   PluginPermission,
   PluginPermissionsConfig,
+  PluginReport,
   RequestAfterInput,
   RequestInput,
   RequestOutput,
@@ -64,7 +66,9 @@ export type {
   TimingInfo,
   ToolDefinition,
   ToolSchema,
-  TreqPlugin
+  TreqPlugin,
+  ValidateInput,
+  ValidateOutput
 } from './plugin';
 // Plugin system
 export {
@@ -109,6 +113,7 @@ export { getServerMetadata, type ServerMetadata } from './server-metadata';
 export type {
   Client,
   ClientConfig,
+  Directive,
   ExecuteOptions,
   ExecuteRequest,
   FileReference,

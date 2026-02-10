@@ -98,14 +98,15 @@ export function createEngine(config: EngineConfig = {}): Engine {
       }) ?? {
         retries,
         maxRetries,
-        session: { id: 'default', variables: {} },
+        session: { id: 'default', variables: {}, reports: [] },
         variables,
         config: {
           projectRoot: '.',
           variables: {},
           security: { allowExternalFiles: false, allowPluginsOutsideProject: false }
         },
-        projectRoot: '.'
+        projectRoot: '.',
+        report: () => {}
       }
     );
   }

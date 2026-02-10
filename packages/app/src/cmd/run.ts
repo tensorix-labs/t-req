@@ -470,6 +470,9 @@ async function runRequest(argv: RunOptions): Promise<void> {
           }))
         : [];
 
+      // Collect plugin reports
+      const reports = config.pluginManager?.getReports() ?? [];
+
       // Build JSON output
       const jsonOutput = {
         request: {
@@ -497,10 +500,16 @@ async function runRequest(argv: RunOptions): Promise<void> {
           endTime,
           durationMs: endTime - startTime
         },
-        plugins
+        plugins,
+        ...(reports.length > 0 ? { reports } : {})
       };
 
       console.log(JSON.stringify(jsonOutput, null, 2));
+
+      // Exit 1 if any report signals failure
+      if (reports.some((r) => (r.data as Record<string, unknown>).passed === false)) {
+        process.exit(1);
+      }
     } else {
       // Standard text output
       console.log(`HTTP/${fetchResponse.status} ${fetchResponse.statusText}`);
@@ -511,9 +520,37 @@ async function runRequest(argv: RunOptions): Promise<void> {
         console.log(formatResponseBody(contentType, body));
       }
 
+      // Render plugin reports using duck-typed conventions
+      const reports = config.pluginManager?.getReports() ?? [];
+      for (const report of reports) {
+        const d = report.data as Record<string, unknown>;
+        const hasSummary = typeof d.summary === 'string';
+        const hasDetails = Array.isArray(d.details);
+
+        if (!hasSummary && !hasDetails) continue;
+
+        console.log('');
+        console.log(`── ${report.pluginName} ──`);
+
+        if (hasSummary) {
+          console.log(d.summary as string);
+        }
+
+        if (hasDetails) {
+          for (const line of d.details as unknown[]) {
+            if (typeof line === 'string') console.log(line);
+          }
+        }
+      }
+
       if (argv.verbose) {
         console.error('---');
         console.error(`Duration: ${endTime - startTime}ms`);
+      }
+
+      // Exit 1 if any report signals failure
+      if (reports.some((r) => (r.data as Record<string, unknown>).passed === false)) {
+        process.exit(1);
       }
     }
   } catch (err) {

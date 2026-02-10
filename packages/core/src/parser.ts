@@ -1,5 +1,6 @@
 import type { IO } from './runtime/types';
 import type {
+  Directive,
   FileReference,
   FormField,
   ParsedDocument,
@@ -197,6 +198,7 @@ export function parse(content: string): ParsedRequest[] {
 function parseRequestBlock(block: string, defaultName?: string): ParsedRequest | null {
   const lines = block.split(/\r?\n/);
   const meta: Record<string, string> = {};
+  const directives: Directive[] = [];
   let name = defaultName;
   let method = '';
   let url = '';
@@ -230,6 +232,9 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
           name = value?.trim() || name;
         } else if (directive) {
           meta[directive] = value?.trim() || '';
+        }
+        if (directive) {
+          directives.push({ name: directive, value: value?.trim() || '', line: i });
         }
       }
       continue;
@@ -348,6 +353,7 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
     .ifDefined('body', body)
     .ifDefined('bodyFile', bodyFile)
     .ifDefined('formData', formData)
+    .ifDefined('directives', directives.length > 0 ? directives : undefined)
     .ifDefined('protocol', protocol !== 'http' ? protocol : undefined)
     .ifDefined('protocolOptions', protocolOptions?.type !== undefined ? protocolOptions : undefined)
     .build();

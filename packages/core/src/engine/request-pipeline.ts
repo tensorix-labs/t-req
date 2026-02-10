@@ -87,7 +87,8 @@ export async function prepareRequest(
     raw: request.raw,
     meta: request.meta,
     ...(request.bodyFile !== undefined ? { bodyFile: request.bodyFile } : {}),
-    ...(request.formData !== undefined ? { formData: request.formData } : {})
+    ...(request.formData !== undefined ? { formData: request.formData } : {}),
+    ...(request.directives !== undefined ? { directives: request.directives } : {})
   };
   const interpolated = await interpolator.interpolate(toInterpolate, mergedVars);
   emitEvent({ type: 'interpolateFinished' });
@@ -110,7 +111,10 @@ export async function prepareRequest(
     method: compiledExecReq.method,
     url: compiledExecReq.url,
     headers: compiledExecReq.headers ?? {},
-    ...(compiledExecReq.body !== undefined ? { body: compiledExecReq.body } : {})
+    ...(compiledExecReq.body !== undefined ? { body: compiledExecReq.body } : {}),
+    ...(interpolated.name !== undefined ? { name: interpolated.name } : {}),
+    ...(interpolated.meta !== undefined ? { meta: interpolated.meta } : {}),
+    ...(interpolated.directives !== undefined ? { directives: interpolated.directives } : {})
   };
 
   if (pluginManager) {
