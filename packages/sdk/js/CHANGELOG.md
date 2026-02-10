@@ -1,5 +1,11 @@
 # @t-req/sdk
 
+## 0.1.1
+
+### Patch Changes
+
+- bfc6f68: New API (pluginsReports) in server resposnes + SDK types. Adds plugin report fields to display in TUI/Web
+
 ## 0.1.0
 
 ### Minor Changes

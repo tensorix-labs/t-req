@@ -1,5 +1,17 @@
 # @t-req/app
 
+## 0.3.8
+
+### Patch Changes
+
+- ff3ca97: Add @t-req/plugin base
+- bfc6f68: New API (pluginsReports) in server resposnes + SDK types. Adds plugin report fields to display in TUI/Web
+- Updated dependencies [ff3ca97]
+- Updated dependencies [bfc6f68]
+  - @t-req/plugin-base@0.1.0
+  - @t-req/core@0.2.3
+  - @t-req/sdk@0.1.1
+
 ## 0.3.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@t-req/plugin-base",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Base resolvers for t-req (uuid, timestamp, base64, etc.)",
   "license": "MIT",
   "repository": {
