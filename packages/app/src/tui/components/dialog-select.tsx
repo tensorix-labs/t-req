@@ -87,21 +87,21 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
   });
 
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" gap={1} paddingBottom={1}>
       {/* Title bar with escape hint */}
       <box
         height={1}
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={2}
+        paddingRight={2}
         flexDirection="row"
         justifyContent="space-between"
       >
-        <text fg={rgba(theme.text)}>{props.title}</text>
+        <text fg={rgba(theme.text)} attributes={1}>{props.title}</text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       {/* Search input */}
-      <box paddingLeft={1} paddingRight={1} paddingBottom={1}>
+      <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
         <input
           ref={(el) => (inputRef = el)}
           width="100%"
@@ -123,8 +123,8 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
             return (
               <box
                 height={1}
-                paddingLeft={1}
-                paddingRight={1}
+                paddingLeft={2}
+                paddingRight={2}
                 flexDirection="row"
                 justifyContent="space-between"
                 backgroundColor={isSelected() ? rgba(theme.backgroundMenu) : undefined}
@@ -146,7 +146,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
           }}
         </For>
         {filteredOptions().length === 0 && (
-          <box height={1} paddingLeft={1}>
+          <box height={1} paddingLeft={2}>
             <text fg={rgba(theme.textMuted)}>No matches</text>
           </box>
         )}

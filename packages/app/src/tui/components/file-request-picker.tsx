@@ -201,21 +201,21 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
   }
 
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" gap={1} paddingBottom={1}>
       {/* Title bar with escape hint */}
       <box
         height={1}
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={2}
+        paddingRight={2}
         flexDirection="row"
         justifyContent="space-between"
       >
-        <text fg={rgba(theme.text)}>Go to File</text>
+        <text fg={rgba(theme.text)} attributes={1}>Go to File</text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       {/* Search input */}
-      <box paddingLeft={1} paddingRight={1} paddingBottom={1}>
+      <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
         <input
           ref={(el) => (inputRef = el)}
           width="100%"
@@ -241,8 +241,8 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
             return (
               <box
                 height={1}
-                paddingLeft={1}
-                paddingRight={1}
+                paddingLeft={2}
+                paddingRight={2}
                 flexDirection="row"
                 justifyContent="space-between"
                 backgroundColor={
@@ -275,15 +275,22 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
           }}
         </For>
         <Show when={filteredItems().length === 0}>
-          <box height={1} paddingLeft={1}>
+          <box height={1} paddingLeft={2}>
             <text fg={rgba(theme.textMuted)}>No matches</text>
           </box>
         </Show>
       </box>
 
       {/* Action bar */}
-      <box height={1} paddingLeft={1} paddingTop={1}>
-        <text fg={rgba(theme.textMuted)}>enter send · ctrl+a run all</text>
+      <box height={1} paddingLeft={2} flexDirection="row" gap={2}>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)} attributes={1}>send </text>
+          <text fg={rgba(theme.textMuted)}>enter</text>
+        </box>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)} attributes={1}>run all </text>
+          <text fg={rgba(theme.textMuted)}>ctrl+a</text>
+        </box>
       </box>
     </box>
   );

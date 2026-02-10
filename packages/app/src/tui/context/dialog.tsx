@@ -117,6 +117,7 @@ export function DialogProvider(props: { children: JSX.Element }) {
                 backgroundColor={rgba(theme.backgroundPanel)}
                 borderStyle="rounded"
                 borderColor={rgba(theme.border)}
+                paddingTop={1}
               >
                 {dialog().Component()}
               </box>

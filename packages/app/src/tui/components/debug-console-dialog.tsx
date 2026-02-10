@@ -42,19 +42,19 @@ export function DebugConsoleDialog(): JSX.Element {
   });
 
   return (
-    <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingBottom={1}>
+    <box flexDirection="column" gap={1} paddingLeft={2} paddingRight={2} paddingBottom={1}>
       <box height={1} flexDirection="row" justifyContent="space-between">
-        <text fg={rgba(theme.text)}>Debug Console</text>
+        <text fg={rgba(theme.text)} attributes={1}>Debug Console</text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
-      <box paddingTop={1} paddingBottom={1}>
+      <box>
         <text fg={rgba(theme.textMuted)}>
           Showing {log.entries().length} log entries
         </text>
       </box>
 
-      <scrollbox height={12} paddingLeft={1} paddingRight={1}>
+      <scrollbox height={12} paddingLeft={2} paddingRight={2}>
         <For each={log.entries()}>
           {(e) => (
             <box height={1} flexDirection="row" gap={2}>
