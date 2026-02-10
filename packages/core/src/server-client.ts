@@ -97,6 +97,22 @@ export function getEnvVar(name: string): string | undefined {
   return undefined;
 }
 
+function decodeBase64(input: string): ArrayBuffer {
+  if (typeof Buffer !== 'undefined') {
+    const buf = Buffer.from(input, 'base64');
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  }
+  if (typeof atob !== 'undefined') {
+    const binaryStr = atob(input);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+  throw new Error('No base64 decoder available in this runtime');
+}
+
 /**
  * Create a server-backed client (internal use).
  *
@@ -286,13 +302,7 @@ export function createServerClient(config: ServerClientConfig): Client {
     let body: BodyInit | undefined;
     if (serverRes.body !== undefined) {
       if (serverRes.encoding === 'base64') {
-        // Decode base64 to binary
-        const binaryStr = atob(serverRes.body);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        body = bytes;
+        body = decodeBase64(serverRes.body);
       } else {
         body = serverRes.body;
       }
