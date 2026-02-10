@@ -1,2 +1,7 @@
+# @name simple-get
+# @timeout 5000
+# @env ci 
+# @note "sample directive plugin reports"
+
 GET {{baseUrl}}/get
 Accept: application/json
