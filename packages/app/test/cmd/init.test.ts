@@ -133,7 +133,7 @@ describe('generated file contents', () => {
     expect(nodePkg.devDependencies?.['@types/node']).toBe('^22.0.0');
   });
 
-  test('should use latest for @t-req/core dependency', () => {
+  test('should use latest for @t-req dependencies', () => {
     const pkg = JSON.parse(
       generatePackageJson('test', {
         name: 'test',
@@ -143,6 +143,7 @@ describe('generated file contents', () => {
       })
     ) as { dependencies: Record<string, string> };
     expect(pkg.dependencies['@t-req/core']).toBe('latest');
+    expect(pkg.dependencies['@t-req/plugin-base']).toBe('latest');
   });
 
   test('should generate .gitignore with common patterns', () => {

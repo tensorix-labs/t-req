@@ -18,6 +18,7 @@
     "release:core": "bun run script/release.ts --package core",
     "release:sdk": "bun run script/release.ts --package sdk",
     "release:plugin-base": "bun run script/release.ts --package plugin-base",
+    "release:plugin-assert": "bun run script/release.ts --package plugin-assert",
     "sst:dev": "sst dev",
     "sst:deploy": "sst deploy",
     "sst:deploy:prod": "sst deploy --stage production"

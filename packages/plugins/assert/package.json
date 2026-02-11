@@ -1,12 +1,12 @@
 {
-  "name": "@t-req/plugin-base",
-  "version": "0.1.1",
-  "description": "Base resolvers for t-req (uuid, timestamp, base64, etc.)",
+  "name": "@t-req/plugin-assert",
+  "version": "0.1.0",
+  "description": "Inline assertion plugin for t-req (@assert directives in .http files)",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/tensorix-labs/t-req",
-    "directory": "packages/plugins/base"
+    "directory": "packages/plugins/assert"
   },
   "homepage": "https://github.com/tensorix-labs/t-req#readme",
   "bugs": {
@@ -15,10 +15,9 @@
   "keywords": [
     "t-req",
     "plugin",
-    "resolvers",
-    "uuid",
-    "timestamp",
-    "base64"
+    "assertions",
+    "jsonpath",
+    "http-testing"
   ],
   "author": "tensorix labs",
   "engines": {
@@ -55,6 +54,10 @@
   },
   "peerDependencies": {
     "@t-req/core": "^0.2.3"
+  },
+  "dependencies": {
+    "fast-deep-equal": "^3.1.3",
+    "jsonpath-plus": "^10.3.0"
   },
   "devDependencies": {
     "@t-req/core": "workspace:*",

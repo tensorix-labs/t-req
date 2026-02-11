@@ -1,9 +1,9 @@
-name: Release Plugin Base
+name: Release Plugin Assert
 
 on:
   push:
     tags:
-      - "plugin-base-v*.*.*"
+      - "plugin-assert-v*.*.*"
   workflow_dispatch:
     inputs:
       dry-run:
@@ -14,7 +14,7 @@ on:
 
 jobs:
   release:
-    name: Build and Publish Plugin Base
+    name: Build and Publish Plugin Assert
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,18 +28,18 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Extract version from tag (plugin-base-v1.2.3 -> 1.2.3)
-            VERSION="${GITHUB_REF#refs/tags/plugin-base-v}"
+            # Extract version from tag (plugin-assert-v1.2.3 -> 1.2.3)
+            VERSION="${GITHUB_REF#refs/tags/plugin-assert-v}"
           else
             # For manual trigger, read from package.json
-            VERSION=$(jq -r .version packages/plugins/base/package.json)
+            VERSION=$(jq -r .version packages/plugins/assert/package.json)
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
       - name: Verify version matches package.json
         run: |
-          PKG_VERSION=$(jq -r .version packages/plugins/base/package.json)
+          PKG_VERSION=$(jq -r .version packages/plugins/assert/package.json)
           TAG_VERSION="${{ steps.version.outputs.version }}"
           if [[ "$PKG_VERSION" != "$TAG_VERSION" ]]; then
             echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
@@ -63,7 +63,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Verify publish manifest
-        run: bun run script/verify-publish-manifest.ts packages/plugins/base/package.json
+        run: bun run script/verify-publish-manifest.ts packages/plugins/assert/package.json
 
       - name: Build core (workspace dependency)
         run: bun run build
@@ -71,16 +71,20 @@ jobs:
 
       - name: Build
         run: bun run build
-        working-directory: packages/plugins/base
+        working-directory: packages/plugins/assert
 
       - name: Check types
         run: bun run check-types
-        working-directory: packages/plugins/base
+        working-directory: packages/plugins/assert
+
+      - name: Run tests
+        run: bun run test
+        working-directory: packages/plugins/assert
 
       - name: Publish to npm
         if: ${{ github.event_name == 'push' || !inputs.dry-run }}
         run: npm publish --access public
-        working-directory: packages/plugins/base
+        working-directory: packages/plugins/assert
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -88,5 +92,5 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
         run: |
           npm pack
-          echo "[dry-run] Would publish @t-req/plugin-base@${{ steps.version.outputs.version }}"
-        working-directory: packages/plugins/base
+          echo "[dry-run] Would publish @t-req/plugin-assert@${{ steps.version.outputs.version }}"
+        working-directory: packages/plugins/assert
