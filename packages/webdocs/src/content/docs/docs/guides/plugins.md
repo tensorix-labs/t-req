@@ -42,6 +42,28 @@ Add to your config:
 }
 ```
 
+## First-party assertion plugin
+
+For inline assertions directly in `.http` files, install and load `@t-req/plugin-assert`:
+
+```jsonc
+// treq.jsonc
+{
+  "plugins": ["@t-req/plugin-assert"]
+}
+```
+
+Then use `@assert` directives:
+
+```http
+# @assert status == 200
+# @assert jsonpath $.token exists
+GET {{baseUrl}}/auth/login
+Accept: application/json
+```
+
+`treq run` exits with code `1` if any assertion fails (or is malformed), making this a zero-test-runner CI path.
+
 ## Plugin configuration
 
 Plugins are configured in `treq.jsonc` (or legacy `treq.config.ts`):

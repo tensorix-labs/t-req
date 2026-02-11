@@ -202,10 +202,35 @@ Content-Type: application/json
 | `@name` | Request name (alternative to `### Name` syntax) |
 | `@description` | Human-readable description |
 | `@timeout` | Request timeout in milliseconds |
+| `@assert` | Inline assertion expression (via `@t-req/plugin-assert`) |
 | `@sse` | Mark request as Server-Sent Events stream |
 | `@lastEventId` | Resume from a specific event ID |
 
 Meta directives must appear before the request line.
+
+## Inline Assertions (`@t-req/plugin-assert`)
+
+With the assertion plugin enabled, add one or more `@assert` directives before the request line:
+
+```http
+# @assert status == 200
+# @assert header Content-Type contains application/json
+# @assert body contains "token"
+# @assert jsonpath $.token exists
+GET https://api.example.com/auth/login
+Accept: application/json
+```
+
+Supported assertion targets:
+
+| Target | Operators | Example |
+|-----------|-------------|-------------|
+| `status` | `== != > >= < <=` | `# @assert status == 200` |
+| `header <name>` | `exists == != contains` | `# @assert header X-Trace-Id exists` |
+| `body` | `contains not-contains` | `# @assert body not-contains "error"` |
+| `jsonpath <expr>` | `exists == !=` | `# @assert jsonpath $.count == 2` |
+
+Invalid or failing assertions cause `treq run` to exit with code `1`.
 
 ## Server-Sent Events (SSE)
 
