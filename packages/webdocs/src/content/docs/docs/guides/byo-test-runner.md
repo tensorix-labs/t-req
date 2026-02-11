@@ -22,6 +22,30 @@ t-req provides:
 - Profile-based configuration
 - Observer mode for TUI observability
 
+## Alternative: inline assertions plugin
+
+If you want a runner-less path for simple CI checks, use [`@t-req/plugin-assert`](https://www.npmjs.com/package/@t-req/plugin-assert):
+
+```jsonc
+{
+  "plugins": ["@t-req/plugin-assert"]
+}
+```
+
+```http
+# @assert status == 200
+# @assert jsonpath $.token exists
+GET {{baseUrl}}/auth/login
+```
+
+Then run:
+
+```bash
+treq run ./requests/auth/login.http
+```
+
+Any failed assertion exits with code `1`. This complements BYO test runner; it does not replace advanced test-suite workflows.
+
 ## Vitest example
 
 ```typescript

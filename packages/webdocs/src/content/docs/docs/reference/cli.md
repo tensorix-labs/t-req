@@ -53,6 +53,9 @@ treq run <file>
 | `--timeout` | `-t` | number | — | Request timeout in milliseconds |
 | `--workspace` | `-w` | string | — | Workspace root directory |
 | `--verbose` | — | boolean | false | Show detailed output |
+| `--json` | — | boolean | false | Output response as JSON (includes plugin info/reports) |
+| `--no-plugins` | — | boolean | false | Disable plugin loading |
+| `--plugin` | `-P` | string[] | — | Load additional plugins (npm package or `file://` path) |
 
 ## treq serve
 
