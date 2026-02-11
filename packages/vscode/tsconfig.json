@@ -1,0 +1,24 @@
+{
+  "extends": "@tsconfig/bun/tsconfig.json",
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node", "vscode"],
+    "skipLibCheck": true,
+    "declaration": false,
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": "dist-ts"
+  }
+}

@@ -60,3 +60,6 @@ tmp
 
 # Editor backup files
 *~
+
+# VS Code extension integration test artifacts
+packages/vscode/.vscode-test/

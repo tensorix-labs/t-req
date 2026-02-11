@@ -1,0 +1,128 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "t-req HTTP",
+  "scopeName": "source.http",
+  "patterns": [
+    {
+      "include": "#separator"
+    },
+    {
+      "include": "#directiveComment"
+    },
+    {
+      "include": "#lineComment"
+    },
+    {
+      "include": "#fileVariable"
+    },
+    {
+      "include": "#requestLine"
+    },
+    {
+      "include": "#header"
+    },
+    {
+      "include": "#resolver"
+    },
+    {
+      "include": "#templateVariable"
+    },
+    {
+      "include": "#jsonBody"
+    }
+  ],
+  "repository": {
+    "separator": {
+      "name": "comment.line.separator.http",
+      "match": "^###(.*)$",
+      "captures": {
+        "1": {
+          "name": "entity.name.section.http"
+        }
+      }
+    },
+    "directiveComment": {
+      "match": "^(#|//)\\s*(@[\\w-]+)(?:\\s+(.*))?$",
+      "captures": {
+        "1": { "name": "comment.line.http" },
+        "2": { "name": "keyword.other.directive.http" },
+        "3": { "name": "string.unquoted.directive-value.http" }
+      }
+    },
+    "lineComment": {
+      "name": "comment.line.http",
+      "match": "^(#|//).*$"
+    },
+    "fileVariable": {
+      "match": "^(@[A-Za-z_][\\w.]*)(\\s*=\\s*)(.+)$",
+      "captures": {
+        "1": { "name": "variable.other.file-variable.http" },
+        "2": { "name": "keyword.operator.assignment.http" },
+        "3": { "name": "string.unquoted.file-variable-value.http" }
+      }
+    },
+    "requestLine": {
+      "begin": "^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.method.http" }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "name": "constant.language.http-version.http",
+          "match": "\\bHTTP\\/[\\d.]+$"
+        },
+        {
+          "name": "string.other.url.http",
+          "match": "\\bhttps?:\\/\\/[^\\s]+|\\/[^\\s]+"
+        },
+        {
+          "include": "#resolver"
+        },
+        {
+          "include": "#templateVariable"
+        }
+      ]
+    },
+    "header": {
+      "begin": "^([\\w-]+)(\\s*:\\s*)",
+      "beginCaptures": {
+        "1": { "name": "variable.other.property.header.http" },
+        "2": { "name": "punctuation.separator.key-value.http" }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#resolver"
+        },
+        {
+          "include": "#templateVariable"
+        }
+      ]
+    },
+    "resolver": {
+      "name": "variable.other.resolver.http",
+      "match": "\\{\\{\\s*\\$[A-Za-z_][\\w]*\\s*(?:\\([^)]*\\)\\s*)?\\}\\}"
+    },
+    "templateVariable": {
+      "name": "variable.other.template.http",
+      "match": "\\{\\{[^{}$][^{}]*\\}\\}"
+    },
+    "jsonBody": {
+      "begin": "^(?=\\s*[\\[{])",
+      "end": "^(?=###\\s|\\s*(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\\b)",
+      "contentName": "meta.embedded.block.json",
+      "patterns": [
+        {
+          "include": "source.json"
+        },
+        {
+          "include": "#resolver"
+        },
+        {
+          "include": "#templateVariable"
+        }
+      ]
+    }
+  }
+}

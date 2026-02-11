@@ -1,0 +1,4 @@
+{
+  "t-req.executionMode": "local",
+  "t-req.timeout": 10000
+}
