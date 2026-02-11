@@ -2,9 +2,9 @@
   "name": "t-req-vscode",
   "displayName": "t-req",
   "description": "Run t-req .http files in VS Code with local and server execution.",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "publisher": "tensorix-labs",
+  "icon": "logo.png",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -172,6 +172,7 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "bun run build",
     "build": "node esbuild.mjs",
     "build:watch": "node esbuild.mjs --watch",
     "check-types": "tsc -p tsconfig.json --noEmit",

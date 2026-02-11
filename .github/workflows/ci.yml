@@ -49,3 +49,13 @@ jobs:
 
       - name: Run VS Code integration tests
         run: xvfb-run -a bun run --cwd packages/vscode test:integration
+
+      - name: Package VSIX
+        run: bunx @vscode/vsce package --no-dependencies
+        working-directory: packages/vscode
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: t-req-vscode-vsix
+          path: packages/vscode/*.vsix

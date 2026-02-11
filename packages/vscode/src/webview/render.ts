@@ -29,6 +29,21 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+const JSON_TOKEN =
+  /("(?:[^\\"]|\\.)*")\s*(?=:)|("(?:[^\\"]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|\b(true|false)\b|\b(null)\b/g;
+
+export function highlightJson(json: string): string {
+  return json.replace(JSON_TOKEN, (match, key, str, num, bool, nil) => {
+    const escaped = escapeHtml(match);
+    if (key !== undefined) return `<span class="json-key">${escaped}</span>`;
+    if (str !== undefined) return `<span class="json-string">${escaped}</span>`;
+    if (num !== undefined) return `<span class="json-number">${escaped}</span>`;
+    if (bool !== undefined) return `<span class="json-bool">${escaped}</span>`;
+    if (nil !== undefined) return `<span class="json-null">${escaped}</span>`;
+    return escaped;
+  });
+}
+
 function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms.toFixed(1)}ms`;
@@ -58,34 +73,39 @@ function formatBodyContent(result: ExecutionResult): {
   content: string;
   badge: string;
   binary: boolean;
+  highlighted: boolean;
 } {
   const body = result.response.body;
   const contentType = result.response.contentType ?? '';
 
   if (!body) {
-    return { content: '', badge: contentType || 'none', binary: false };
+    return { content: '', badge: contentType || 'none', binary: false, highlighted: false };
   }
 
   if (result.response.encoding === 'base64') {
     return {
       content: body,
       badge: contentType || 'binary',
-      binary: true
+      binary: true,
+      highlighted: false
     };
   }
 
   if (detectJson(contentType, body)) {
     try {
+      const formatted = JSON.stringify(JSON.parse(body), null, 2);
       return {
-        content: JSON.stringify(JSON.parse(body), null, 2),
+        content: highlightJson(formatted),
         badge: contentType || 'json',
-        binary: false
+        binary: false,
+        highlighted: true
       };
     } catch {
       return {
         content: body,
         badge: contentType || 'json',
-        binary: false
+        binary: false,
+        highlighted: false
       };
     }
   }
@@ -93,7 +113,8 @@ function formatBodyContent(result: ExecutionResult): {
   return {
     content: body,
     badge: contentType || 'text/plain',
-    binary: false
+    binary: false,
+    highlighted: false
   };
 }
 
@@ -266,13 +287,13 @@ export function renderResponseHtml(
       ? `${result.warnings.length} warning${result.warnings.length === 1 ? '' : 's'}`
       : '';
 
-  const { content: bodyContent, badge: bodyBadge, binary } = formatBodyContent(result);
+  const { content: bodyContent, badge: bodyBadge, binary, highlighted } = formatBodyContent(result);
   const bodyNotice = binary ? '<div class="notice">Binary payload shown as base64.</div>' : '';
   const bodyTruncated = result.response.truncated
     ? '<div class="notice">Body truncated by t-req.maxBodyBytes.</div>'
     : '';
   const bodyHtml = bodyContent
-    ? `<pre>${escapeHtml(bodyContent)}</pre>`
+    ? `<pre>${highlighted ? bodyContent : escapeHtml(bodyContent)}</pre>`
     : '<div class="empty">No response body</div>';
 
   const setCookies = result.response.headers.filter(
@@ -445,6 +466,18 @@ export function renderResponseHtml(
       font: 12px/1.45 var(--vscode-editor-font-family);
       white-space: pre-wrap;
       word-break: break-word;
+    }
+    .json-key { color: var(--vscode-symbolIcon-fieldForeground, #0451a5); }
+    .json-string { color: var(--vscode-symbolIcon-stringForeground, #a31515); }
+    .json-number { color: var(--vscode-symbolIcon-numberForeground, #098658); }
+    .json-bool { color: var(--vscode-symbolIcon-booleanForeground, #0000ff); }
+    .json-null { color: var(--vscode-symbolIcon-nullForeground, #808080); }
+    @media (prefers-color-scheme: dark) {
+      .json-key { color: var(--vscode-symbolIcon-fieldForeground, #9cdcfe); }
+      .json-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
+      .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
+      .json-bool { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
+      .json-null { color: var(--vscode-symbolIcon-nullForeground, #808080); }
     }
     table {
       width: 100%;

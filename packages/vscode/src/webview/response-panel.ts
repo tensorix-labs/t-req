@@ -32,6 +32,7 @@ export class ResponsePanel implements vscode.Disposable {
           localResourceRoots: [this.extensionUri]
         }
       );
+      this.panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'logo.png');
       this.panel.onDidDispose(() => {
         this.panel = undefined;
       });

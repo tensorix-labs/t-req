@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ExecutionResult } from '../../src/execution/types';
-import { isAssertSummaryReport, renderResponseHtml } from '../../src/webview/render';
+import { highlightJson, isAssertSummaryReport, renderResponseHtml } from '../../src/webview/render';
 
 function makeResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
   return {
@@ -33,13 +33,14 @@ function makeResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
 }
 
 describe('webview render', () => {
-  test('renders pretty JSON body', () => {
+  test('renders pretty JSON body with syntax highlighting', () => {
     const html = renderResponseHtml(makeResult(), {
       nonce: 'nonce',
       cspSource: 'vscode-webview://test'
     });
 
-    expect(html).toContain('&quot;ok&quot;: true');
+    expect(html).toContain('<span class="json-key">&quot;ok&quot;</span>');
+    expect(html).toContain('<span class="json-bool">true</span>');
     expect(html).toContain('Body');
     expect(html).toContain('Headers');
     expect(html).toContain('Plugins');
@@ -146,6 +147,30 @@ describe('webview render', () => {
     expect(html).toContain('1 warning');
     expect(html).toContain('Failed to enrich execution details: HTTP 500');
     expect(html).toContain('(no plugin activity)');
+  });
+
+  test('highlightJson wraps each token type', () => {
+    const input = JSON.stringify(
+      { name: 'alice', age: 30, active: true, deleted: false, note: null },
+      null,
+      2
+    );
+    const result = highlightJson(input);
+
+    expect(result).toContain('<span class="json-key">&quot;name&quot;</span>');
+    expect(result).toContain('<span class="json-string">&quot;alice&quot;</span>');
+    expect(result).toContain('<span class="json-number">30</span>');
+    expect(result).toContain('<span class="json-bool">true</span>');
+    expect(result).toContain('<span class="json-bool">false</span>');
+    expect(result).toContain('<span class="json-null">null</span>');
+  });
+
+  test('highlightJson escapes HTML in string values', () => {
+    const input = JSON.stringify({ html: '<b>bold</b>' }, null, 2);
+    const result = highlightJson(input);
+
+    expect(result).toContain('&lt;b&gt;bold&lt;/b&gt;');
+    expect(result).not.toContain('<b>bold</b>');
   });
 
   test('assert report type guard detects valid shape', () => {
