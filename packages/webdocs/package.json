@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.12",
-    "@astrojs/starlight": "^0.37.4",
+    "@astrojs/starlight": "0.37.6",
     "@astrojs/starlight-tailwind": "^4.0.2",
     "@t-req/ui": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
-    "astro": "^5.16.15",
+    "astro": "5.17.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
