@@ -25,7 +25,8 @@ export default defineConfig({
           items: [
             { label: 'BYO Test Runner', slug: 'docs/guides/byo-test-runner' },
             { label: 'Plugins', slug: 'docs/guides/plugins' },
-            { label: 'Observer Mode', slug: 'docs/guides/observer-mode' }
+            { label: 'Observer Mode', slug: 'docs/guides/observer-mode' },
+            { label: 'VS Code Extension', slug: 'docs/guides/vscode-extension' }
           ]
         },
         {

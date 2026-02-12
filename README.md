@@ -6,7 +6,7 @@
 
 <p align="center">
 Tired of API tools that lock your requests in proprietary formats and GUI-only workflows?<br/>
-t-req keeps standard <code>.http</code> files as the source of truth and lets you run them from anywhere — terminal, server, or your own code.
+t-req keeps standard <code>.http</code> files as the source of truth and lets you run them from anywhere — terminal, server, IDE, or your own code.
 </p>
 
 <p align="center">
@@ -50,6 +50,12 @@ treq init my-api && cd my-api
 treq open                           # interactive TUI
 treq run requests/users/list.http   # single request from CLI
 ```
+
+## Run from VS Code
+
+Install the [t-req extension](./packages/vscode) for syntax highlighting, inline execution, and assertion results (@t-req/plugins-assert) directly in the editor.
+
+![VS Code assertions](./docs/assets/vscode-assertions.png)
 
 ## Run from TypeScript
 
@@ -151,6 +157,7 @@ curl -X POST http://localhost:4097/execute \
 | [@t-req/sdk](./packages/sdk/js) | TypeScript SDK for the server |
 | [@t-req/plugin-base](./packages/plugins/base) | Built-in resolvers (uuid, timestamp, base64, etc.) |
 | [@t-req/plugin-assert](./packages/plugins/assert) | Assertion directives for `.http` files |
+| [t-req for VS Code](./packages/vscode) | VS Code extension with inline execution and assertions |
 
 ## Contributing
 
