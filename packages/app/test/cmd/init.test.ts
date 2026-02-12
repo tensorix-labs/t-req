@@ -3,8 +3,12 @@ import {
   generateClientFile,
   generateConfig,
   generateCreatePostRequest,
+  generateEmptyConfig,
+  generateEmptyReadme,
+  generateEmptyTestFile,
   generateGetUserRequest,
   generateGitignore,
+  generateHelloRequest,
   generateListUsersRequest,
   generatePackageJson,
   generateReadme,
@@ -13,8 +17,23 @@ import {
   generateTsconfig,
   getInstallCommand,
   getNextSteps,
+  TEMPLATE_CAPABILITIES,
   validateProjectName
 } from '../../src/cmd/init';
+
+// Helper: basic template config
+function basicConfig(
+  overrides: Partial<import('../../src/cmd/init').ProjectConfig> = {}
+): import('../../src/cmd/init').ProjectConfig {
+  return {
+    name: 'my-project',
+    template: 'basic',
+    runtime: 'bun',
+    packageManager: 'bun',
+    testRunner: 'bun',
+    ...overrides
+  };
+}
 
 describe('project name validation', () => {
   test('should accept valid project names', () => {
@@ -85,6 +104,12 @@ describe('generated file contents', () => {
     expect(config).toContain('"prod"');
   });
 
+  test('should generate config with both plugins', () => {
+    const config = generateConfig();
+    expect(config).toContain('"@t-req/plugin-base"');
+    expect(config).toContain('"@t-req/plugin-assert"');
+  });
+
   test('should generate run script with correct shebang for bun', () => {
     const script = generateRunScript('bun');
     expect(script).toContain('#!/usr/bin/env bun');
@@ -98,12 +123,7 @@ describe('generated file contents', () => {
   });
 
   test('should generate package.json with correct name', () => {
-    const pkgText = generatePackageJson('my-api-tests', {
-      name: 'my-api-tests',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const pkgText = generatePackageJson('my-api-tests', basicConfig({ name: 'my-api-tests' }));
     const pkg = JSON.parse(pkgText) as { name: string; version: string; private: boolean };
     expect(pkg.name).toBe('my-api-tests');
     expect(pkg.version).toBe('0.0.1');
@@ -112,22 +132,20 @@ describe('generated file contents', () => {
 
   test('should add type devDependencies per runtime', () => {
     const bunPkg = JSON.parse(
-      generatePackageJson('test', {
-        name: 'test',
-        runtime: 'bun',
-        packageManager: 'bun',
-        testRunner: 'bun'
-      })
+      generatePackageJson('test-proj', basicConfig({ name: 'test-proj' }))
     ) as { devDependencies?: Record<string, string> };
     expect(bunPkg.devDependencies?.['@types/bun']).toBe('latest');
 
     const nodePkg = JSON.parse(
-      generatePackageJson('test', {
-        name: 'test',
-        runtime: 'node',
-        packageManager: 'npm',
-        testRunner: 'vitest'
-      })
+      generatePackageJson(
+        'test-proj',
+        basicConfig({
+          name: 'test-proj',
+          runtime: 'node',
+          packageManager: 'npm',
+          testRunner: 'vitest'
+        })
+      )
     ) as { devDependencies?: Record<string, string> };
     expect(nodePkg.devDependencies?.tsx).toBe('^4.0.0');
     expect(nodePkg.devDependencies?.['@types/node']).toBe('^22.0.0');
@@ -135,15 +153,11 @@ describe('generated file contents', () => {
 
   test('should use latest for @t-req dependencies', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test', {
-        name: 'test',
-        runtime: 'bun',
-        packageManager: 'bun',
-        testRunner: 'bun'
-      })
+      generatePackageJson('test-proj', basicConfig({ name: 'test-proj' }))
     ) as { dependencies: Record<string, string> };
     expect(pkg.dependencies['@t-req/core']).toBe('latest');
     expect(pkg.dependencies['@t-req/plugin-base']).toBe('latest');
+    expect(pkg.dependencies['@t-req/plugin-assert']).toBe('latest');
   });
 
   test('should generate .gitignore with common patterns', () => {
@@ -155,21 +169,25 @@ describe('generated file contents', () => {
 
   test('should generate config with profiles for dev and prod', () => {
     const config = generateConfig();
-    // Dev profile should have localhost
     expect(config).toContain('localhost:3000');
-    // Prod profile should have api.example.com
     expect(config).toContain('api.example.com');
-    // Should have commented cookie persistence example
     expect(config).toContain('Uncomment to persist cookies');
   });
 
-  test('should generate sample HTTP request files', () => {
+  test('should generate sample HTTP request files with assert directives', () => {
     const createPost = generateCreatePostRequest();
     expect(createPost).toContain('POST');
     expect(createPost).toContain('{{baseUrl}}/posts');
     expect(createPost).toContain('"title"');
+    expect(createPost).toContain('# @assert status == 201');
     expect(createPost).not.toContain('{{email}}');
     expect(createPost).not.toContain('{{password}}');
+
+    const listUsers = generateListUsersRequest();
+    expect(listUsers).toContain('# @assert status == 200');
+
+    const getUser = generateGetUserRequest();
+    expect(getUser).toContain('# @assert status == 200');
   });
 
   test('should generate run script that imports from client', () => {
@@ -217,54 +235,49 @@ describe('install command generation', () => {
 
 describe('next steps generation', () => {
   test('should generate correct next steps without tests', () => {
-    const steps = getNextSteps({
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'none'
-    });
+    const steps = getNextSteps(basicConfig({ testRunner: 'none' }));
     expect(steps).toBe('cd my-project\nbun install\nbun run.ts');
 
-    const nodeSteps = getNextSteps({
-      name: 'api-tests',
-      runtime: 'node',
-      packageManager: 'npm',
-      testRunner: 'none'
-    });
+    const nodeSteps = getNextSteps(
+      basicConfig({
+        name: 'api-tests',
+        runtime: 'node',
+        packageManager: 'npm',
+        testRunner: 'none'
+      })
+    );
     expect(nodeSteps).toBe('cd api-tests\nnpm install\nnpx tsx run.ts');
 
-    const yarnSteps = getNextSteps({
-      name: 'my-app',
-      runtime: 'bun',
-      packageManager: 'yarn',
-      testRunner: 'none'
-    });
+    const yarnSteps = getNextSteps(
+      basicConfig({
+        name: 'my-app',
+        packageManager: 'yarn',
+        testRunner: 'none'
+      })
+    );
     expect(yarnSteps).toBe('cd my-app\nyarn\nbun run.ts');
   });
 
   test('should include test command when tests enabled', () => {
-    const bunSteps = getNextSteps({
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const bunSteps = getNextSteps(basicConfig());
     expect(bunSteps).toBe('cd my-project\nbun install\nbun run.ts\nbun test');
 
-    const vitestSteps = getNextSteps({
-      name: 'my-project',
-      runtime: 'node',
-      packageManager: 'npm',
-      testRunner: 'vitest'
-    });
+    const vitestSteps = getNextSteps(
+      basicConfig({
+        runtime: 'node',
+        packageManager: 'npm',
+        testRunner: 'vitest'
+      })
+    );
     expect(vitestSteps).toBe('cd my-project\nnpm install\nnpx tsx run.ts\nnpm test');
 
-    const jestPnpmSteps = getNextSteps({
-      name: 'my-project',
-      runtime: 'node',
-      packageManager: 'pnpm',
-      testRunner: 'jest'
-    });
+    const jestPnpmSteps = getNextSteps(
+      basicConfig({
+        runtime: 'node',
+        packageManager: 'pnpm',
+        testRunner: 'jest'
+      })
+    );
     expect(jestPnpmSteps).toBe('cd my-project\npnpm install\nnpx tsx run.ts\npnpm test');
   });
 });
@@ -331,72 +344,80 @@ describe('generateClientFile', () => {
 describe('generatePackageJson with test runners', () => {
   test('should include test script for bun runner', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'bun',
-        packageManager: 'bun',
-        testRunner: 'bun'
-      })
+      generatePackageJson('test-project', basicConfig({ name: 'test-project' }))
     ) as { scripts: Record<string, string> };
     expect(pkg.scripts.test).toBe('bun test');
   });
 
   test('should include test script for vitest runner', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'node',
-        packageManager: 'npm',
-        testRunner: 'vitest'
-      })
+      generatePackageJson(
+        'test-project',
+        basicConfig({
+          name: 'test-project',
+          runtime: 'node',
+          packageManager: 'npm',
+          testRunner: 'vitest'
+        })
+      )
     ) as { scripts: Record<string, string> };
     expect(pkg.scripts.test).toBe('vitest');
   });
 
   test('should include test script for jest runner', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'node',
-        packageManager: 'npm',
-        testRunner: 'jest'
-      })
+      generatePackageJson(
+        'test-project',
+        basicConfig({
+          name: 'test-project',
+          runtime: 'node',
+          packageManager: 'npm',
+          testRunner: 'jest'
+        })
+      )
     ) as { scripts: Record<string, string> };
     expect(pkg.scripts.test).toBe('jest');
   });
 
   test('should omit test script when testRunner is none', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'bun',
-        packageManager: 'bun',
-        testRunner: 'none'
-      })
+      generatePackageJson(
+        'test-project',
+        basicConfig({
+          name: 'test-project',
+          testRunner: 'none'
+        })
+      )
     ) as { scripts: Record<string, string> };
     expect(pkg.scripts.test).toBeUndefined();
   });
 
   test('should include vitest devDependency', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'node',
-        packageManager: 'npm',
-        testRunner: 'vitest'
-      })
+      generatePackageJson(
+        'test-project',
+        basicConfig({
+          name: 'test-project',
+          runtime: 'node',
+          packageManager: 'npm',
+          testRunner: 'vitest'
+        })
+      )
     ) as { devDependencies: Record<string, string> };
     expect(pkg.devDependencies.vitest).toBe('^3.0.0');
   });
 
   test('should include jest devDependencies', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'node',
-        packageManager: 'npm',
-        testRunner: 'jest'
-      })
+      generatePackageJson(
+        'test-project',
+        basicConfig({
+          name: 'test-project',
+          runtime: 'node',
+          packageManager: 'npm',
+          testRunner: 'jest'
+        })
+      )
     ) as { devDependencies: Record<string, string> };
     expect(pkg.devDependencies.jest).toBe('^29.0.0');
     expect(pkg.devDependencies['@types/jest']).toBe('^29.0.0');
@@ -405,12 +426,7 @@ describe('generatePackageJson with test runners', () => {
 
   test('should not add test runner deps for bun', () => {
     const pkg = JSON.parse(
-      generatePackageJson('test-project', {
-        name: 'test-project',
-        runtime: 'bun',
-        packageManager: 'bun',
-        testRunner: 'bun'
-      })
+      generatePackageJson('test-project', basicConfig({ name: 'test-project' }))
     ) as { devDependencies: Record<string, string> };
     expect(pkg.devDependencies.vitest).toBeUndefined();
     expect(pkg.devDependencies.jest).toBeUndefined();
@@ -419,92 +435,141 @@ describe('generatePackageJson with test runners', () => {
 
 describe('generateReadme', () => {
   test('should include project name', () => {
-    const readme = generateReadme('my-api-tests', {
-      name: 'my-api-tests',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const readme = generateReadme('my-api-tests', basicConfig({ name: 'my-api-tests' }));
     expect(readme).toContain('# my-api-tests');
   });
 
   test('should include test section when tests enabled', () => {
-    const readme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const readme = generateReadme('my-project', basicConfig());
     expect(readme).toContain('## Running Tests');
     expect(readme).toContain('bun test');
     expect(readme).toContain('tests/');
   });
 
   test('should omit test section when tests disabled', () => {
-    const readme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'none'
-    });
+    const readme = generateReadme('my-project', basicConfig({ testRunner: 'none' }));
     expect(readme).not.toContain('## Running Tests');
     expect(readme).not.toContain('tests/');
   });
 
   test('should include correct install command', () => {
-    const npmReadme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'node',
-      packageManager: 'npm',
-      testRunner: 'vitest'
-    });
+    const npmReadme = generateReadme(
+      'my-project',
+      basicConfig({
+        runtime: 'node',
+        packageManager: 'npm',
+        testRunner: 'vitest'
+      })
+    );
     expect(npmReadme).toContain('npm install');
 
-    const pnpmReadme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'node',
-      packageManager: 'pnpm',
-      testRunner: 'vitest'
-    });
+    const pnpmReadme = generateReadme(
+      'my-project',
+      basicConfig({
+        runtime: 'node',
+        packageManager: 'pnpm',
+        testRunner: 'vitest'
+      })
+    );
     expect(pnpmReadme).toContain('pnpm install');
   });
 
   test('should include correct test command for each runner', () => {
-    const bunReadme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const bunReadme = generateReadme('my-project', basicConfig());
     expect(bunReadme).toContain('bun test');
 
-    const vitestReadme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'node',
-      packageManager: 'npm',
-      testRunner: 'vitest'
-    });
+    const vitestReadme = generateReadme(
+      'my-project',
+      basicConfig({
+        runtime: 'node',
+        packageManager: 'npm',
+        testRunner: 'vitest'
+      })
+    );
     expect(vitestReadme).toContain('npm test');
   });
 
   test('should include documentation link', () => {
-    const readme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const readme = generateReadme('my-project', basicConfig());
     expect(readme).toContain('https://t-req.io');
   });
 
   test('should include client.ts in project structure', () => {
-    const readme = generateReadme('my-project', {
-      name: 'my-project',
-      runtime: 'bun',
-      packageManager: 'bun',
-      testRunner: 'bun'
-    });
+    const readme = generateReadme('my-project', basicConfig());
     expect(readme).toContain('client.ts');
     expect(readme).toContain('Shared t-req client');
+  });
+});
+
+describe('empty template', () => {
+  test('should generate minimal config with both plugins', () => {
+    const config = generateEmptyConfig();
+    expect(config).toContain('"@t-req/plugin-base"');
+    expect(config).toContain('"@t-req/plugin-assert"');
+    expect(config).toContain('"baseUrl"');
+    expect(config).not.toContain('"profiles"');
+  });
+
+  test('should generate hello request with assert directive', () => {
+    const request = generateHelloRequest();
+    expect(request).toContain('GET {{baseUrl}}/users/1');
+    expect(request).toContain('# @assert status == 200');
+  });
+
+  test('all empty template variables should be defined in config', () => {
+    const config = generateEmptyConfig();
+    const vars = [...generateHelloRequest().matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
+    for (const v of vars) {
+      expect(config).toContain(`"${v}"`);
+    }
+  });
+
+  test('should generate empty test file with correct imports', () => {
+    const bunTest = generateEmptyTestFile('bun');
+    expect(bunTest).toContain("import { describe, expect, test } from 'bun:test'");
+    expect(bunTest).toContain('collection/hello.http');
+
+    const vitestTest = generateEmptyTestFile('vitest');
+    expect(vitestTest).toContain("import { describe, expect, test } from 'vitest'");
+
+    const jestTest = generateEmptyTestFile('jest');
+    expect(jestTest).toContain('// Jest globals are available');
+
+    expect(generateEmptyTestFile('none')).toBe('');
+  });
+
+  test('should generate empty readme with project name', () => {
+    const readme = generateEmptyReadme(
+      'my-empty',
+      basicConfig({ name: 'my-empty', template: 'empty' })
+    );
+    expect(readme).toContain('# my-empty');
+    expect(readme).toContain('https://t-req.io');
+  });
+});
+
+describe('template capabilities', () => {
+  test('should define capabilities for both templates', () => {
+    expect(TEMPLATE_CAPABILITIES.basic).toBeDefined();
+    expect(TEMPLATE_CAPABILITIES.empty).toBeDefined();
+  });
+
+  test('both templates should support bun and node runtimes', () => {
+    expect(TEMPLATE_CAPABILITIES.basic.runtimes).toContain('bun');
+    expect(TEMPLATE_CAPABILITIES.basic.runtimes).toContain('node');
+    expect(TEMPLATE_CAPABILITIES.empty.runtimes).toContain('bun');
+    expect(TEMPLATE_CAPABILITIES.empty.runtimes).toContain('node');
+  });
+
+  test('both templates should support all package managers', () => {
+    for (const pm of ['bun', 'npm', 'pnpm', 'yarn'] as const) {
+      expect(TEMPLATE_CAPABILITIES.basic.packageManagers).toContain(pm);
+      expect(TEMPLATE_CAPABILITIES.empty.packageManagers).toContain(pm);
+    }
+  });
+
+  test('both templates should have descriptions', () => {
+    expect(TEMPLATE_CAPABILITIES.basic.description).toBeTruthy();
+    expect(TEMPLATE_CAPABILITIES.empty.description).toBeTruthy();
   });
 });
