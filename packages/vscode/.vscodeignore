@@ -1,0 +1,8 @@
+src/**
+test/**
+.vscode/**
+tsconfig.json
+esbuild.mjs
+bun.lock
+**/*.ts
+**/*.map

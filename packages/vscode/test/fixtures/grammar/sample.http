@@ -1,0 +1,11 @@
+@host = https://api.example.test
+### Get users
+# @name listUsers
+GET https://api.example.test/users HTTP/1.1
+Authorization: Bearer {{token}}
+X-Trace: {{$uuid()}}
+
+{
+  "ok": true,
+  "name": "{{userName}}"
+}

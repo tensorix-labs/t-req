@@ -32,3 +32,30 @@ jobs:
 
       - name: Run E2E tests
         run: bun run test:e2e
+
+  vscode-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build VS Code extension
+        run: bunx turbo run build --filter=t-req-vscode...
+
+      - name: Run VS Code integration tests
+        run: xvfb-run -a bun run --cwd packages/vscode test:integration
+
+      - name: Package VSIX
+        run: bunx @vscode/vsce package --no-dependencies
+        working-directory: packages/vscode
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: t-req-vscode-vsix
+          path: packages/vscode/*.vsix

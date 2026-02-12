@@ -1,0 +1,12 @@
+@base = https://dummyjson.com/test
+
+### Health
+GET {{base}}
+Accept: application/json
+
+### ip
+POST https://dummyjson.com/ip
+Accept: application/json
+
+
+

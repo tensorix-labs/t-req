@@ -1,0 +1,200 @@
+{
+  "name": "t-req-vscode",
+  "displayName": "t-req",
+  "description": "Run t-req .http files in VS Code with local and server execution.",
+  "version": "0.1.0",
+  "publisher": "tensorix-labs",
+  "icon": "logo.png",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tensorix-labs/t-req",
+    "directory": "packages/vscode"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Testing"
+  ],
+  "keywords": [
+    "http",
+    "rest",
+    "api",
+    "t-req",
+    "request",
+    "rest-client"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:http",
+    "onCommand:t-req.runRequest",
+    "onCommand:t-req.runAllRequests",
+    "onCommand:t-req.selectProfile",
+    "onCommand:t-req.cancelRequest",
+    "onCommand:t-req.setServerToken",
+    "onCommand:t-req.clearServerToken"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "http",
+        "aliases": [
+          "HTTP",
+          "http"
+        ],
+        "extensions": [
+          ".http",
+          ".rest"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "http",
+        "scopeName": "source.http",
+        "path": "./syntaxes/http.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.json": "json"
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "t-req.runRequest",
+        "title": "Run Request",
+        "category": "t-req",
+        "icon": "$(play)"
+      },
+      {
+        "command": "t-req.runAllRequests",
+        "title": "Run All Requests",
+        "category": "t-req"
+      },
+      {
+        "command": "t-req.selectProfile",
+        "title": "Select Profile",
+        "category": "t-req"
+      },
+      {
+        "command": "t-req.cancelRequest",
+        "title": "Cancel Request",
+        "category": "t-req"
+      },
+      {
+        "command": "t-req.setServerToken",
+        "title": "Set Server Token",
+        "category": "t-req"
+      },
+      {
+        "command": "t-req.clearServerToken",
+        "title": "Clear Server Token",
+        "category": "t-req"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "t-req.runRequest",
+          "group": "navigation@20",
+          "when": "editorLangId == http"
+        },
+        {
+          "command": "t-req.runAllRequests",
+          "group": "navigation@21",
+          "when": "editorLangId == http"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "t-req.runRequest"
+        },
+        {
+          "command": "t-req.runAllRequests"
+        },
+        {
+          "command": "t-req.selectProfile"
+        },
+        {
+          "command": "t-req.cancelRequest"
+        },
+        {
+          "command": "t-req.setServerToken"
+        },
+        {
+          "command": "t-req.clearServerToken"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "t-req",
+      "properties": {
+        "t-req.executionMode": {
+          "type": "string",
+          "enum": [
+            "local",
+            "server"
+          ],
+          "default": "local",
+          "description": "Execution mode for t-req commands."
+        },
+        "t-req.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for t-req server mode. Manage credentials with the Set/Clear Server Token commands."
+        },
+        "t-req.defaultProfile": {
+          "type": "string",
+          "default": "",
+          "description": "Default profile for request execution."
+        },
+        "t-req.timeout": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 100,
+          "description": "Default request timeout in milliseconds."
+        },
+        "t-req.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable static and plugin diagnostics for .http files."
+        },
+        "t-req.maxBodyBytes": {
+          "type": "number",
+          "default": 1048576,
+          "minimum": 1024,
+          "description": "Maximum response body bytes to render in the response panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "bunx turbo run build --filter=t-req-vscode...",
+    "build": "node esbuild.mjs",
+    "build:watch": "node esbuild.mjs --watch",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "test": "bun run test:unit",
+    "test:all": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun test test/unit test/grammar",
+    "test:grammar": "bun test test/grammar",
+    "test:integration": "node ./test/integration/run-tests.mjs",
+    "clean:test-artifacts": "rm -rf .vscode-test"
+  },
+  "dependencies": {
+    "@t-req/core": "workspace:*",
+    "@t-req/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-electron": "^2.5.0",
+    "esbuild": "^0.25.11",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}
