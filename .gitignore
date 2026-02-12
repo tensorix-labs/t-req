@@ -63,3 +63,5 @@ tmp
 
 # VS Code extension integration test artifacts
 packages/vscode/.vscode-test/
+
+*.vsix

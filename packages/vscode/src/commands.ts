@@ -433,7 +433,7 @@ export class TreqCommandController implements vscode.Disposable {
             output: this.output
           });
 
-          this.panel.show(result, profile);
+          this.panel.show(result, profile, document.uri);
           if (result.warnings.length > 0) {
             warningCount += result.warnings.length;
             for (const warning of result.warnings) {

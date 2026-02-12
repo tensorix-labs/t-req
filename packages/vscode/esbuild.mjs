@@ -1,10 +1,11 @@
 import esbuild from 'esbuild';
+import { solidPlugin } from 'esbuild-plugin-solid';
 
 const watch = process.argv.includes('--watch');
 const production = process.argv.includes('--production') || !watch;
 
 /** @type {import('esbuild').BuildOptions} */
-const buildOptions = {
+const extensionBuildOptions = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   platform: 'node',
@@ -17,10 +18,30 @@ const buildOptions = {
   logLevel: 'info'
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const webviewBuildOptions = {
+  entryPoints: ['src/webview-solid/entry.tsx'],
+  bundle: true,
+  platform: 'browser',
+  target: 'es2022',
+  format: 'iife',
+  outfile: 'dist/webview/entry.js',
+  sourcemap: production ? false : 'inline',
+  minify: production,
+  plugins: [solidPlugin({ solid: { generate: 'dom' } })],
+  loader: {
+    '.css': 'css'
+  },
+  logLevel: 'info'
+};
+
 if (watch) {
-  const ctx = await esbuild.context(buildOptions);
-  await ctx.watch();
-  console.log('[t-req-vscode] watching for changes...');
+  const [extensionContext, webviewContext] = await Promise.all([
+    esbuild.context(extensionBuildOptions),
+    esbuild.context(webviewBuildOptions)
+  ]);
+  await Promise.all([extensionContext.watch(), webviewContext.watch()]);
+  console.log('[t-req-vscode] watching extension and webview bundles for changes...');
 } else {
-  await esbuild.build(buildOptions);
+  await Promise.all([esbuild.build(extensionBuildOptions), esbuild.build(webviewBuildOptions)]);
 }

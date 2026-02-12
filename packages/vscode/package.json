@@ -167,6 +167,11 @@
           "default": 1048576,
           "minimum": 1024,
           "description": "Maximum response body bytes to render in the response panel."
+        },
+        "t-req.experimental.useSolidRenderer": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use the experimental SolidJS-based response renderer."
         }
       }
     }
@@ -186,13 +191,15 @@
   },
   "dependencies": {
     "@t-req/core": "workspace:*",
-    "@t-req/sdk": "workspace:*"
+    "@t-req/sdk": "workspace:*",
+    "solid-js": "^1.9.10"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/vscode": "^1.96.0",
     "@vscode/test-electron": "^2.5.0",
     "esbuild": "^0.25.11",
+    "esbuild-plugin-solid": "^0.6.0",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.1",
     "typescript": "^5.9.3"
