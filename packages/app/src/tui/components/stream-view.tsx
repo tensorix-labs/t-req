@@ -1,11 +1,11 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
 import { useKeyboard } from '@opentui/solid';
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js';
 import { useDialog } from '../context';
 import type { StreamMessage, StreamState } from '../stream';
-import { theme, rgba, getMethodColor } from '../theme';
+import { getMethodColor, rgba, theme } from '../theme';
+import { formatElapsed, formatTime, prettyPrintJson } from '../util/format';
 import { normalizeKey } from '../util/normalize-key';
-import { formatTime, formatElapsed, prettyPrintJson } from '../util/format';
 import { getStreamStatusDisplay } from '../util/status-display';
 import { HighlightedContent } from './highlighted-content';
 
@@ -41,10 +41,7 @@ function StreamStatusBar(props: { stream: StreamState }) {
     <box flexDirection="column" paddingLeft={2} paddingRight={1} flexShrink={0}>
       <box flexDirection="row" marginBottom={0}>
         <Show when={props.stream.requestMethod}>
-          <text
-            fg={rgba(getMethodColor(props.stream.requestMethod!))}
-            attributes={1}
-          >
+          <text fg={rgba(getMethodColor(props.stream.requestMethod as string))} attributes={1}>
             {props.stream.requestMethod}
           </text>
           <text fg={rgba(theme.text)}> </text>
@@ -74,9 +71,7 @@ function StreamStatusBar(props: { stream: StreamState }) {
       </Show>
 
       <Show
-        when={
-          props.stream.connectionStatus === 'disconnected' && props.stream.messageCount === 0
-        }
+        when={props.stream.connectionStatus === 'disconnected' && props.stream.messageCount === 0}
       >
         <box marginBottom={1}>
           <text fg={rgba(theme.textMuted)}>Stream ended — 0 messages</text>
@@ -98,10 +93,10 @@ function MessageMetaLine(props: { msg: StreamMessage }) {
   return (
     <box flexDirection="row" flexShrink={0}>
       <text fg={rgba(theme.textMuted)}>
-        #{props.msg.index + 1}  {formatTime(props.msg.receivedAt)}
+        #{props.msg.index + 1} {formatTime(props.msg.receivedAt)}
       </text>
       <Show when={metaParts()}>
-        <text fg={rgba(theme.info)}>  {metaParts()}</text>
+        <text fg={rgba(theme.info)}> {metaParts()}</text>
       </Show>
     </box>
   );
@@ -121,7 +116,14 @@ function StreamMessageList(props: { stream: StreamState }) {
   });
 
   return (
-    <scrollbox ref={(r) => (scrollRef = r)} flexGrow={1} paddingLeft={2} paddingRight={1}>
+    <scrollbox
+      ref={(r) => {
+        scrollRef = r;
+      }}
+      flexGrow={1}
+      paddingLeft={2}
+      paddingRight={1}
+    >
       <Show when={props.stream.messageCount > props.stream.messages.length}>
         <box flexShrink={0} marginBottom={1}>
           <text fg={rgba(theme.warning)}>

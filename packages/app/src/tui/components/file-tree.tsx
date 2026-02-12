@@ -1,7 +1,7 @@
-import { For, Show, createEffect } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
+import { createEffect, For, Show } from 'solid-js';
 import type { FlatNode } from '../store';
-import { theme, rgba } from '../theme';
+import { rgba, theme } from '../theme';
 
 export interface FileTreeProps {
   nodes: FlatNode[];
@@ -34,13 +34,25 @@ export function FileTree(props: FileTreeProps) {
   });
 
   return (
-    <box flexGrow={1} flexShrink={0} flexDirection="column" backgroundColor={rgba(theme.backgroundPanel)}>
+    <box
+      flexGrow={1}
+      flexShrink={0}
+      flexDirection="column"
+      backgroundColor={rgba(theme.backgroundPanel)}
+    >
       <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
         <text fg={rgba(theme.primary)} attributes={1}>
           Files
         </text>
       </box>
-      <scrollbox ref={(r) => (scrollRef = r)} flexGrow={1} paddingLeft={1} paddingRight={1}>
+      <scrollbox
+        ref={(r) => {
+          scrollRef = r;
+        }}
+        flexGrow={1}
+        paddingLeft={1}
+        paddingRight={1}
+      >
         <Show
           when={props.nodes.length > 0}
           fallback={
@@ -96,14 +108,19 @@ function FileTreeRow(props: FileTreeRowProps) {
   // Display name with trailing / for directories
   const displayName = () => {
     if (node.isDir) {
-      return node.name + '/';
+      return `${node.name}/`;
     }
     return node.name;
   };
 
   // Badge for files - request count for HTTP files, nothing for scripts
   const badge = () => {
-    if (!node.isDir && node.fileType === 'http' && node.requestCount !== undefined && node.requestCount > 0) {
+    if (
+      !node.isDir &&
+      node.fileType === 'http' &&
+      node.requestCount !== undefined &&
+      node.requestCount > 0
+    ) {
       return ` (${node.requestCount})`;
     }
     return '';

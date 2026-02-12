@@ -1,6 +1,6 @@
-import { createEffect, createMemo, For, Show } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
-import { theme, rgba } from '../theme';
+import { createEffect, createMemo, For, Show } from 'solid-js';
+import { rgba, theme } from '../theme';
 import { extractFilename } from '../util/path';
 
 export interface ScriptOutputProps {
@@ -63,8 +63,19 @@ export function ScriptOutput(props: ScriptOutputProps) {
   });
 
   return (
-    <box flexGrow={1} flexDirection="column" overflow="hidden" backgroundColor={rgba(theme.backgroundPanel)}>
-      <box paddingLeft={2} paddingTop={1} paddingBottom={1} flexDirection="row" justifyContent="space-between">
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      overflow="hidden"
+      backgroundColor={rgba(theme.backgroundPanel)}
+    >
+      <box
+        paddingLeft={2}
+        paddingTop={1}
+        paddingBottom={1}
+        flexDirection="row"
+        justifyContent="space-between"
+      >
         <box flexDirection="row">
           <text fg={rgba(theme.primary)} attributes={1}>
             Output
@@ -78,11 +89,20 @@ export function ScriptOutput(props: ScriptOutputProps) {
             <text fg={rgba(theme.warning)}> Running</text>
           </Show>
           <Show when={exitStatus()}>
-            <text fg={rgba(exitStatus()!.color)}> {exitStatus()!.text}</text>
+            {(status: () => { text: string; color: string }) => (
+              <text fg={rgba(status().color)}> {status().text}</text>
+            )}
           </Show>
         </box>
       </box>
-      <scrollbox ref={(r) => (scrollRef = r)} flexGrow={1} paddingLeft={1} paddingRight={1}>
+      <scrollbox
+        ref={(r) => {
+          scrollRef = r;
+        }}
+        flexGrow={1}
+        paddingLeft={1}
+        paddingRight={1}
+      >
         <Show
           when={combinedLines().length > 0 || props.isRunning}
           fallback={

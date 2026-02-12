@@ -1,13 +1,6 @@
 import { RGBA } from '@opentui/core';
 import { useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/solid';
-import {
-  createContext,
-  createSignal,
-  Show,
-  useContext,
-  type Accessor,
-  type JSX
-} from 'solid-js';
+import { type Accessor, createContext, createSignal, type JSX, Show, useContext } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { rgba, theme } from '../theme';
 
@@ -46,7 +39,8 @@ export function DialogProvider(props: { children: JSX.Element }) {
   // Handle escape key to close dialogs
   useKeyboard((evt) => {
     if (evt.name === 'escape' && store.stack.length > 0) {
-      const current = store.stack.at(-1)!;
+      const current = store.stack[store.stack.length - 1];
+      if (!current) return;
       current.onClose?.();
       const nextStack = store.stack.slice(0, -1);
       setStore('stack', nextStack);
@@ -64,10 +58,7 @@ export function DialogProvider(props: { children: JSX.Element }) {
     const currentFocused = (renderer as { currentFocusedRenderable?: unknown })
       .currentFocusedRenderable;
     setSavedFocus(currentFocused);
-    if (
-      currentFocused &&
-      typeof (currentFocused as { blur?: () => void }).blur === 'function'
-    ) {
+    if (currentFocused && typeof (currentFocused as { blur?: () => void }).blur === 'function') {
       (currentFocused as { blur: () => void }).blur();
     }
   };

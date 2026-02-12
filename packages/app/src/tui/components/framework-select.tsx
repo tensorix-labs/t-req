@@ -1,8 +1,8 @@
+import type { TestFrameworkOption } from '@t-req/sdk/client';
 import type { JSX } from 'solid-js';
 import { useDialog } from '../context/dialog';
-import { DialogSelect, type DialogSelectOption } from './dialog-select';
-import type { TestFrameworkOption } from '@t-req/sdk/client';
 import { extractFilename } from '../util/path';
+import { DialogSelect, type DialogSelectOption } from './dialog-select';
 
 export interface FrameworkSelectProps {
   testPath: string;

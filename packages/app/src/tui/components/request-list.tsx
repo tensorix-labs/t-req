@@ -1,6 +1,6 @@
-import { createMemo } from 'solid-js';
 import type { WorkspaceRequest } from '@t-req/sdk/client';
-import { theme, rgba, getMethodColor } from '../theme';
+import { createMemo } from 'solid-js';
+import { getMethodColor, rgba, theme } from '../theme';
 
 export interface RequestListProps {
   requests: WorkspaceRequest[];
@@ -21,23 +21,33 @@ export function RequestList(props: RequestListProps) {
   });
 
   return (
-    <box flexGrow={1} flexShrink={0} flexDirection="column" backgroundColor={rgba(theme.backgroundPanel)}>
+    <box
+      flexGrow={1}
+      flexShrink={0}
+      flexDirection="column"
+      backgroundColor={rgba(theme.backgroundPanel)}
+    >
       <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
         <text fg={rgba(theme.primary)} attributes={1}>
           Requests
         </text>
       </box>
       <scrollbox flexGrow={1} paddingLeft={1} paddingRight={1}>
-        <box id="content" height={1} flexShrink={0} flexDirection="row" paddingLeft={1} paddingRight={1}>
+        <box
+          id="content"
+          height={1}
+          flexShrink={0}
+          flexDirection="row"
+          paddingLeft={1}
+          paddingRight={1}
+        >
           <text
             fg={rgba(message() ? theme.textMuted : getMethodColor(request()?.method ?? 'GET'))}
             attributes={message() ? 0 : 1}
           >
             {message() ?? request()?.method.toUpperCase().padEnd(6)}
           </text>
-          <text fg={rgba(theme.text)}>
-            {message() ? '' : (request()?.name || request()?.url)}
-          </text>
+          <text fg={rgba(theme.text)}>{message() ? '' : request()?.name || request()?.url}</text>
         </box>
       </scrollbox>
     </box>

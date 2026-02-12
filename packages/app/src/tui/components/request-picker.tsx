@@ -1,9 +1,18 @@
 import type { WorkspaceRequest } from '@t-req/sdk/client';
 import fuzzysort from 'fuzzysort';
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show
+} from 'solid-js';
 import { useDialog } from '../context';
 import { usePickerNavigation } from '../hooks';
-import { rgba, theme, getMethodColor } from '../theme';
+import { getMethodColor, rgba, theme } from '../theme';
 
 interface RequestItem {
   id: string;
@@ -123,14 +132,18 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
         flexDirection="row"
         justifyContent="space-between"
       >
-        <text fg={rgba(theme.text)} attributes={1}>{props.fileName}</text>
+        <text fg={rgba(theme.text)} attributes={1}>
+          {props.fileName}
+        </text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       {/* Search input */}
       <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
         <input
-          ref={(el) => (inputRef = el)}
+          ref={(el) => {
+            inputRef = el;
+          }}
           width="100%"
           placeholder="Search requests..."
           placeholderColor={rgba(theme.textMuted)}
@@ -165,9 +178,7 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
               >
                 <Show
                   when={!isPendingSend()}
-                  fallback={
-                    <text fg={rgba(theme.background)}>Press enter to confirm</text>
-                  }
+                  fallback={<text fg={rgba(theme.background)}>Press enter to confirm</text>}
                 >
                   <box flexDirection="row">
                     <text fg={rgba(getMethodColor(item.method))}>{item.method.padEnd(7)}</text>
@@ -190,15 +201,21 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
       {/* Action bar */}
       <box height={1} paddingLeft={2} flexDirection="row" gap={2}>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)} attributes={1}>send </text>
+          <text fg={rgba(theme.text)} attributes={1}>
+            send{' '}
+          </text>
           <text fg={rgba(theme.textMuted)}>enter</text>
         </box>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)} attributes={1}>run all </text>
+          <text fg={rgba(theme.text)} attributes={1}>
+            run all{' '}
+          </text>
           <text fg={rgba(theme.textMuted)}>ctrl+a</text>
         </box>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)} attributes={1}>back </text>
+          <text fg={rgba(theme.text)} attributes={1}>
+            back{' '}
+          </text>
           <text fg={rgba(theme.textMuted)}>esc</text>
         </box>
       </box>

@@ -8,8 +8,8 @@
 
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
-import { theme, rgba } from '../theme';
 import { useKeybind, useStore } from '../context';
+import { rgba, theme } from '../theme';
 import { getStatusDisplay } from '../util/status-display';
 
 // ============================================================================
@@ -25,12 +25,7 @@ export interface FullScreenLayoutProps {
  */
 export function FullScreenLayout(props: FullScreenLayoutProps) {
   return (
-    <box
-      flexDirection="column"
-      width="100%"
-      height="100%"
-      backgroundColor={rgba(theme.background)}
-    >
+    <box flexDirection="column" width="100%" height="100%" backgroundColor={rgba(theme.background)}>
       {props.children}
     </box>
   );
@@ -101,18 +96,14 @@ export function Section(props: SectionProps) {
  * Horizontal divider line.
  */
 export function HorizontalDivider() {
-  return (
-    <box height={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />
-  );
+  return <box height={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />;
 }
 
 /**
  * Vertical divider line.
  */
 export function VerticalDivider() {
-  return (
-    <box width={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />
-  );
+  return <box width={1} flexShrink={0} backgroundColor={rgba(theme.borderSubtle)} />;
 }
 
 // ============================================================================

@@ -1,10 +1,10 @@
 import { render } from '@opentui/solid';
-import { App } from './app';
-import { createObserverStore } from './observer-store';
 import { createTreqClient } from '@t-req/sdk/client';
-import { createStore } from './store';
+import { App } from './app';
+import { ToastProvider } from './components/toast';
 import {
   DialogProvider,
+  type ExitFn,
   ExitProvider,
   KeybindProvider,
   LogProvider,
@@ -12,10 +12,10 @@ import {
   SDKProvider,
   StoreProvider,
   UpdateProvider,
-  unwrap,
-  type ExitFn
+  unwrap
 } from './context';
-import { ToastProvider } from './components/toast';
+import { createObserverStore } from './observer-store';
+import { createStore } from './store';
 
 export interface TuiConfig {
   serverUrl: string;
@@ -68,7 +68,12 @@ export async function startTui(config: TuiConfig): Promise<void> {
       <SDKProvider sdk={sdk}>
         <StoreProvider store={store}>
           <ObserverProvider store={observerStore}>
-            <ExitProvider register={(fn) => (exitFn = fn)} onExit={config.onExit}>
+            <ExitProvider
+              register={(fn) => {
+                exitFn = fn;
+              }}
+              onExit={config.onExit}
+            >
               <KeybindProvider>
                 <LogProvider>
                   <ToastProvider>
@@ -96,5 +101,5 @@ export async function startTui(config: TuiConfig): Promise<void> {
 
   // Keep process alive (ExitProvider exits the process).
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  return new Promise(() => { });
+  return new Promise(() => {});
 }

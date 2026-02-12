@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, type JSX } from 'solid-js';
+import { createContext, createSignal, type JSX, useContext } from 'solid-js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

@@ -1,5 +1,5 @@
 import { Installation } from '../../installation';
-import { theme, rgba } from '../theme';
+import { rgba, theme } from '../theme';
 
 export interface FooterProps {
   workspacePath: string;
@@ -10,7 +10,7 @@ export function Footer(props: FooterProps) {
   const displayPath = () => {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     if (home && props.workspacePath.startsWith(home)) {
-      return '~' + props.workspacePath.slice(home.length);
+      return `~${props.workspacePath.slice(home.length)}`;
     }
     return props.workspacePath || '(no workspace)';
   };

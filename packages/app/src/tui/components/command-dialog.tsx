@@ -1,10 +1,10 @@
 import type { JSX } from 'solid-js';
-import { useDialog, type DialogContextValue } from '../context/dialog';
+import { Installation } from '../../installation';
+import { type DialogContextValue, useDialog } from '../context/dialog';
 import { useExit } from '../context/exit';
 import { useKeybind } from '../context/keybind';
 import type { UpdateContextValue } from '../context/update';
-import { Installation } from '../../installation';
-import { theme, rgba } from '../theme';
+import { rgba, theme } from '../theme';
 import { DebugConsoleDialog } from './debug-console-dialog';
 import { DialogSelect, type DialogSelectOption } from './dialog-select';
 import { FileRequestPicker } from './file-request-picker';

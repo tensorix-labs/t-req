@@ -1,7 +1,7 @@
-import { createEffect, For, Show } from 'solid-js';
 import type { ScrollBoxRenderable } from '@opentui/core';
-import type { ExecutionSummary, ExecutionStatus } from '../observer-store';
-import { theme, rgba, getMethodColor } from '../theme';
+import { createEffect, For, Show } from 'solid-js';
+import type { ExecutionStatus, ExecutionSummary } from '../observer-store';
+import { getMethodColor, rgba, theme } from '../theme';
 import { formatDuration } from '../util/format';
 
 export interface ExecutionListProps {
@@ -59,8 +59,19 @@ export function ExecutionList(props: ExecutionListProps) {
   });
 
   return (
-    <box flexGrow={1} flexDirection="column" overflow="hidden" backgroundColor={rgba(theme.backgroundPanel)}>
-      <box paddingLeft={2} paddingTop={1} paddingBottom={1} flexDirection="row" justifyContent="space-between">
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      overflow="hidden"
+      backgroundColor={rgba(theme.backgroundPanel)}
+    >
+      <box
+        paddingLeft={2}
+        paddingTop={1}
+        paddingBottom={1}
+        flexDirection="row"
+        justifyContent="space-between"
+      >
         <text fg={rgba(theme.primary)} attributes={1}>
           Executions
         </text>
@@ -68,7 +79,14 @@ export function ExecutionList(props: ExecutionListProps) {
           <text fg={rgba(theme.warning)}> Running...</text>
         </Show>
       </box>
-      <scrollbox ref={(r) => (scrollRef = r)} flexGrow={1} paddingLeft={1} paddingRight={1}>
+      <scrollbox
+        ref={(r) => {
+          scrollRef = r;
+        }}
+        flexGrow={1}
+        paddingLeft={1}
+        paddingRight={1}
+      >
         <Show
           when={props.executions.length > 0}
           keyed
@@ -121,9 +139,12 @@ function ExecutionRow(props: ExecutionRowProps) {
   const bgColor = () => (props.isSelected ? rgba(theme.secondary) : undefined);
   const textColor = () => (props.isSelected ? rgba(theme.background) : rgba(theme.text));
   const mutedColor = () => (props.isSelected ? rgba(theme.background) : rgba(theme.textMuted));
-  const statusColor = () => (props.isSelected ? rgba(theme.background) : rgba(statusDisplay().color));
+  const statusColor = () =>
+    props.isSelected ? rgba(theme.background) : rgba(statusDisplay().color);
   const methodColor = () =>
-    props.isSelected ? rgba(theme.background) : rgba(getMethodColor(props.execution.method ?? 'GET'));
+    props.isSelected
+      ? rgba(theme.background)
+      : rgba(getMethodColor(props.execution.method ?? 'GET'));
 
   return (
     <box

@@ -1,5 +1,5 @@
 import type { ConnectionStatus } from '../store';
-import { theme, rgba } from '../theme';
+import { rgba, theme } from '../theme';
 import { getStatusDisplay } from '../util/status-display';
 
 export interface HeaderProps {

@@ -1,10 +1,17 @@
-import { useKeyboard } from '@opentui/solid';
 import type { ParsedKey } from '@opentui/core';
-import { createContext, createMemo, onCleanup, useContext, type JSX } from 'solid-js';
+import { useKeyboard } from '@opentui/solid';
+import { createContext, createMemo, type JSX, onCleanup, useContext } from 'solid-js';
 import { Keybind } from '../util/keybind';
 import { normalizeKey } from '../util/normalize-key';
 
-export type KeybindAction = 'command_list' | 'debug_console' | 'file_picker' | 'quit' | 'open_in_editor' | 'profile_select' | 'run_all';
+export type KeybindAction =
+  | 'command_list'
+  | 'debug_console'
+  | 'file_picker'
+  | 'quit'
+  | 'open_in_editor'
+  | 'profile_select'
+  | 'run_all';
 
 export type KeyEventSnapshot = {
   at: number;
@@ -119,7 +126,7 @@ export function KeybindProvider(props: { children: JSX.Element }) {
   };
 
   // No resources to cleanup; keep placeholder for future overrides.
-  onCleanup(() => { });
+  onCleanup(() => {});
 
   return <KeybindContext.Provider value={value}>{props.children}</KeybindContext.Provider>;
 }
@@ -131,4 +138,3 @@ export function useKeybind(): KeybindContextValue {
   }
   return ctx;
 }
-

@@ -1,7 +1,7 @@
-import { createContext, useContext, Show, type Accessor, type ParentProps } from 'solid-js';
-import { createStore } from 'solid-js/store';
 import { useTerminalDimensions } from '@opentui/solid';
-import { theme, rgba } from '../theme';
+import { type Accessor, createContext, type ParentProps, Show, useContext } from 'solid-js';
+import { createStore } from 'solid-js/store';
+import { rgba, theme } from '../theme';
 
 export type ToastVariant = 'info' | 'error' | 'success' | 'warning';
 

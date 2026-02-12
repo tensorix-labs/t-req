@@ -1,11 +1,11 @@
-import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
 import type { ExecutionDetail, GetPluginsResponses, PluginHookInfo } from '@t-req/sdk/client';
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from 'solid-js';
 import { useDialog } from '../context';
-import { theme, rgba, getMethodColor, getHttpStatusColor } from '../theme';
-import { normalizeKey } from '../util/normalize-key';
-import { formatDuration, prettyPrintJson } from '../util/format';
 import { detectFiletype } from '../syntax';
+import { getHttpStatusColor, getMethodColor, rgba, theme } from '../theme';
+import { formatDuration, prettyPrintJson } from '../util/format';
+import { normalizeKey } from '../util/normalize-key';
 import { HighlightedContent } from './highlighted-content';
 
 type DetailTab = 'body' | 'headers' | 'plugins';
@@ -15,7 +15,7 @@ type LoadedPlugin = GetPluginsResponses[200]['plugins'][number];
 const TABS = [
   { id: 'body', label: 'body', shortcut: '1' },
   { id: 'headers', label: 'headers', shortcut: '2' },
-  { id: 'plugins', label: 'plugins', shortcut: '3' },
+  { id: 'plugins', label: 'plugins', shortcut: '3' }
 ] as const;
 
 export interface ExecutionDetailProps {
@@ -55,16 +55,14 @@ function useExecutionData(execution: () => ExecutionDetail | undefined) {
   const response = createMemo(() => execution()?.response);
   const headers = createMemo(() => response()?.headers ?? []);
 
-  const cookies = createMemo(() =>
-    headers().filter(h => h.name.toLowerCase() === 'set-cookie')
-  );
+  const cookies = createMemo(() => headers().filter((h) => h.name.toLowerCase() === 'set-cookie'));
 
   const nonCookieHeaders = createMemo(() =>
-    headers().filter(h => h.name.toLowerCase() !== 'set-cookie')
+    headers().filter((h) => h.name.toLowerCase() !== 'set-cookie')
   );
 
-  const contentType = createMemo(() =>
-    headers().find(h => h.name.toLowerCase() === 'content-type')?.value
+  const contentType = createMemo(
+    () => headers().find((h) => h.name.toLowerCase() === 'content-type')?.value
   );
 
   const body = createMemo(() => {
@@ -91,7 +89,7 @@ function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => 
         {(tab, index) => (
           <>
             <Show when={index() > 0}>
-              <text fg={rgba(theme.textMuted)}>  </text>
+              <text fg={rgba(theme.textMuted)}> </text>
             </Show>
             <text
               fg={rgba(props.activeTab === tab.id ? theme.primary : theme.textMuted)}
@@ -106,13 +104,10 @@ function TabBar(props: { activeTab: DetailTab; onTabChange: (tab: DetailTab) => 
   );
 }
 
-
 function BodyTab(props: { body: string; filetype?: string }) {
   return (
     <box id="body" flexDirection="column">
-      <Show when={props.body} fallback={
-        <text fg={rgba(theme.textMuted)}>No body content</text>
-      }>
+      <Show when={props.body} fallback={<text fg={rgba(theme.textMuted)}>No body content</text>}>
         <HighlightedContent content={props.body} filetype={props.filetype} />
       </Show>
     </box>
@@ -133,18 +128,23 @@ function HeadersTab(props: {
           <For each={props.cookies}>
             {(cookie) => (
               <box flexDirection="row">
-                <text fg={rgba(theme.text)}>{cookie.name}: {cookie.value}</text>
+                <text fg={rgba(theme.text)}>
+                  {cookie.name}: {cookie.value}
+                </text>
               </box>
             )}
           </For>
         </box>
       </Show>
 
-      <Show when={props.headers.length > 0} fallback={
-        <Show when={props.cookies.length === 0}>
-          <text fg={rgba(theme.textMuted)}>No headers</text>
-        </Show>
-      }>
+      <Show
+        when={props.headers.length > 0}
+        fallback={
+          <Show when={props.cookies.length === 0}>
+            <text fg={rgba(theme.textMuted)}>No headers</text>
+          </Show>
+        }
+      >
         <box id="headers" flexDirection="column">
           <text fg={rgba(theme.primary)} attributes={1}>
             Headers
@@ -199,30 +199,38 @@ function PluginsTab(props: {
       ensureRow(report.pluginName).reports.push(report);
     }
 
-    return orderedNames.map((name) => ({ name, ...byName.get(name)! }));
+    return orderedNames.map((name) => {
+      const entry = byName.get(name);
+      if (!entry)
+        return {
+          name,
+          hooks: [] as PluginHookInfo[],
+          reports: [] as PluginReport[],
+          plugin: undefined
+        };
+      return { name, ...entry };
+    });
   });
 
   return (
     <box id="plugins" flexDirection="column">
-      <Show when={rows().length > 0} fallback={
-        <text fg={rgba(theme.textMuted)}>No plugins loaded</text>
-      }>
+      <Show
+        when={rows().length > 0}
+        fallback={<text fg={rgba(theme.textMuted)}>No plugins loaded</text>}
+      >
         <For each={rows()}>
           {(row) => (
             <box flexDirection="column" marginBottom={1}>
               <box flexDirection="row">
                 <text fg={rgba(theme.info)}>
                   {row.name}
-                  <Show when={row.plugin?.version}>
-                    {' '}v{row.plugin!.version}
-                  </Show>
+                  <Show when={row.plugin?.version}> v{row.plugin?.version}</Show>
                 </text>
                 <text fg={rgba(theme.textMuted)}>
-                  {' '}{
-                    row.hooks.length > 0 || row.reports.length > 0
-                      ? `(executed, hooks: ${row.hooks.length}, reports: ${row.reports.length})`
-                      : '(loaded, no activity)'
-                  }
+                  {' '}
+                  {row.hooks.length > 0 || row.reports.length > 0
+                    ? `(executed, hooks: ${row.hooks.length}, reports: ${row.reports.length})`
+                    : '(loaded, no activity)'}
                 </text>
               </box>
 
@@ -230,7 +238,7 @@ function PluginsTab(props: {
                 <For each={row.hooks}>
                   {(hookInfo: PluginHookInfo) => (
                     <box flexDirection="row">
-                      <text fg={rgba(theme.textMuted)}>  {hookInfo.hook} </text>
+                      <text fg={rgba(theme.textMuted)}> {hookInfo.hook} </text>
                       <text fg={rgba(theme.textMuted)}>+{hookInfo.durationMs}ms</text>
                       <Show when={hookInfo.modified}>
                         <text fg={rgba(theme.success)}> (mod)</text>
@@ -245,12 +253,13 @@ function PluginsTab(props: {
                   {(report: PluginReport) => (
                     <box flexDirection="column">
                       <text fg={rgba(theme.textMuted)}>
-                        {' '}report seq:{report.seq}
-                        <Show when={report.requestName}>
-                          {' '}req:{report.requestName}
-                        </Show>
+                        {' '}
+                        report seq:{report.seq}
+                        <Show when={report.requestName}> req:{report.requestName}</Show>
                       </text>
-                      <text fg={rgba(theme.textMuted)}>{prettyPrintJson(JSON.stringify(report.data))}</text>
+                      <text fg={rgba(theme.textMuted)}>
+                        {prettyPrintJson(JSON.stringify(report.data))}
+                      </text>
                     </box>
                   )}
                 </For>
@@ -266,17 +275,21 @@ function PluginsTab(props: {
 export function ExecutionDetailView(props: ExecutionDetailProps) {
   const dialog = useDialog();
   const [activeTab, setActiveTab] = createSignal<DetailTab>('body');
-  const { response, cookies, nonCookieHeaders, body, filetype } = useExecutionData(() => props.execution);
+  const { response, cookies, nonCookieHeaders, body, filetype } = useExecutionData(
+    () => props.execution
+  );
 
   // Reset tab when execution changes
-  createEffect(on(
-    () => props.execution?.reqExecId,
-    () => setActiveTab('body'),
-    { defer: true }
-  ));
+  createEffect(
+    on(
+      () => props.execution?.reqExecId,
+      () => setActiveTab('body'),
+      { defer: true }
+    )
+  );
 
   const cycleTab = (direction: number) => {
-    const tabIds = TABS.map(t => t.id);
+    const tabIds = TABS.map((t) => t.id);
     const currentIndex = tabIds.indexOf(activeTab());
     const newIndex = (currentIndex + direction + tabIds.length) % tabIds.length;
     setActiveTab(tabIds[newIndex] as DetailTab);
@@ -291,8 +304,8 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
       '1': () => setActiveTab('body'),
       '2': () => setActiveTab('headers'),
       '3': () => setActiveTab('plugins'),
-      'h': () => cycleTab(-1),
-      'l': () => cycleTab(1),
+      h: () => cycleTab(-1),
+      l: () => cycleTab(1)
     };
 
     const action = actions[key.name];
@@ -303,7 +316,12 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
   });
 
   return (
-    <box flexGrow={1} flexDirection="column" overflow="hidden" backgroundColor={rgba(theme.backgroundPanel)}>
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      overflow="hidden"
+      backgroundColor={rgba(theme.backgroundPanel)}
+    >
       <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
         <text fg={rgba(theme.primary)} attributes={1}>
           Details
@@ -329,7 +347,10 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   <text fg={rgba(getMethodColor(execution.method ?? 'GET'))} attributes={1}>
                     {execution.method ?? 'GET'}
                   </text>
-                  <text fg={rgba(theme.text)}> {execution.urlResolved ?? execution.urlTemplate ?? ''}</text>
+                  <text fg={rgba(theme.text)}>
+                    {' '}
+                    {execution.urlResolved ?? execution.urlTemplate ?? ''}
+                  </text>
                 </box>
                 {/* Line 2: Label */}
                 <Show when={execution.reqLabel}>
@@ -337,19 +358,32 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                 </Show>
               </box>
 
-              <Show when={execution.timing.ttfb !== undefined || execution.timing.durationMs !== undefined}>
+              <Show
+                when={
+                  execution.timing.ttfb !== undefined || execution.timing.durationMs !== undefined
+                }
+              >
                 <box flexDirection="column" marginBottom={1}>
-                  <text fg={rgba(theme.primary)} attributes={1}>Timing</text>
+                  <text fg={rgba(theme.primary)} attributes={1}>
+                    Timing
+                  </text>
                   <Show when={execution.timing.ttfb !== undefined}>
                     <box flexDirection="row">
-                      <text fg={rgba(theme.textMuted)}>TTFB:  </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.ttfb, { precision: 2, emptyValue: 'N/A' })}</text>
+                      <text fg={rgba(theme.textMuted)}>TTFB: </text>
+                      <text fg={rgba(theme.text)}>
+                        {formatDuration(execution.timing.ttfb, { precision: 2, emptyValue: 'N/A' })}
+                      </text>
                     </box>
                   </Show>
                   <Show when={execution.timing.durationMs !== undefined}>
                     <box flexDirection="row">
                       <text fg={rgba(theme.textMuted)}>Total: </text>
-                      <text fg={rgba(theme.text)}>{formatDuration(execution.timing.durationMs, { precision: 2, emptyValue: 'N/A' })}</text>
+                      <text fg={rgba(theme.text)}>
+                        {formatDuration(execution.timing.durationMs, {
+                          precision: 2,
+                          emptyValue: 'N/A'
+                        })}
+                      </text>
                     </box>
                   </Show>
                 </box>
@@ -362,14 +396,14 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   </text>
                   <box flexDirection="row">
                     <text fg={rgba(theme.textMuted)}>Status: </text>
-                    <text fg={rgba(getHttpStatusColor(response()!.status))}>
-                      {response()!.status} {response()!.statusText}
+                    <text fg={rgba(getHttpStatusColor(response()?.status))}>
+                      {response()?.status} {response()?.statusText}
                     </text>
                   </box>
                   <box flexDirection="row">
                     <text fg={rgba(theme.textMuted)}>Size: </text>
                     <text fg={rgba(theme.text)}>
-                      {response()!.bodyBytes} bytes{response()!.truncated ? ' (truncated)' : ''}
+                      {response()?.bodyBytes} bytes{response()?.truncated ? ' (truncated)' : ''}
                     </text>
                   </box>
                 </box>
@@ -382,9 +416,9 @@ export function ExecutionDetailView(props: ExecutionDetailProps) {
                   </text>
                   <box flexDirection="row">
                     <text fg={rgba(theme.textMuted)}>Stage: </text>
-                    <text fg={rgba(theme.error)}>{execution.error!.stage}</text>
+                    <text fg={rgba(theme.error)}>{execution.error?.stage}</text>
                   </box>
-                  <text fg={rgba(theme.error)}>{execution.error!.message}</text>
+                  <text fg={rgba(theme.error)}>{execution.error?.message}</text>
                 </box>
               </Show>
             </box>

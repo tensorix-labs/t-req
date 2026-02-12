@@ -1,5 +1,5 @@
-import { createContext, useContext, type JSX } from 'solid-js';
 import type { TreqClient } from '@t-req/sdk/client';
+import { createContext, type JSX, useContext } from 'solid-js';
 
 const SdkContext = createContext<TreqClient>();
 
@@ -17,7 +17,7 @@ export function useSDK(): TreqClient {
 
 /** Unwrap a TreqClient response, throwing on error. */
 export async function unwrap<T>(
-  result: Promise<{ data?: T; error?: unknown; response: Response }>,
+  result: Promise<{ data?: T; error?: unknown; response: Response }>
 ): Promise<T> {
   const { data, error, response } = await result;
   if (error !== undefined) {

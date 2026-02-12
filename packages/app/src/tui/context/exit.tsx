@@ -1,5 +1,5 @@
 import { useRenderer } from '@opentui/solid';
-import { createContext, onMount, useContext, type JSX } from 'solid-js';
+import { createContext, type JSX, onMount, useContext } from 'solid-js';
 
 export type ExitFn = (reason?: unknown) => Promise<void>;
 
@@ -21,7 +21,9 @@ export function ExitProvider(props: {
   const exit: ExitFn = async (reason?: unknown) => {
     // Best-effort cleanup. OpenTUI needs destroy() to restore terminal state.
     try {
-      (renderer as unknown as { setTerminalTitle?: (title: string) => void }).setTerminalTitle?.('');
+      (renderer as unknown as { setTerminalTitle?: (title: string) => void }).setTerminalTitle?.(
+        ''
+      );
     } catch {
       // ignore
     }
@@ -65,4 +67,3 @@ export function useExit(): ExitFn {
   }
   return ctx;
 }
-

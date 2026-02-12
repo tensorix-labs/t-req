@@ -1,6 +1,6 @@
 import { useKeyboard } from '@opentui/solid';
 import fuzzysort from 'fuzzysort';
-import { createMemo, createSignal, For, onMount, type JSX } from 'solid-js';
+import { createMemo, createSignal, For, type JSX, onMount } from 'solid-js';
 import type { DialogContextValue } from '../context/dialog';
 import { rgba, theme } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
@@ -59,7 +59,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
         evt.stopPropagation();
         setSelectedIndex(Math.min(opts.length - 1, currentIdx + 1));
         break;
-      case 'return':
+      case 'return': {
         evt.preventDefault();
         evt.stopPropagation();
         const selected = opts[currentIdx];
@@ -67,6 +67,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
           props.onSelect?.(selected);
         }
         break;
+      }
       default:
         // ctrl+p = up, ctrl+n = down
         if (key.ctrl && key.name === 'p') {
@@ -96,14 +97,18 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
         flexDirection="row"
         justifyContent="space-between"
       >
-        <text fg={rgba(theme.text)} attributes={1}>{props.title}</text>
+        <text fg={rgba(theme.text)} attributes={1}>
+          {props.title}
+        </text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       {/* Search input */}
       <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
         <input
-          ref={(el) => (inputRef = el)}
+          ref={(el) => {
+            inputRef = el;
+          }}
           width="100%"
           placeholder={props.placeholder ?? 'Search...'}
           placeholderColor={rgba(theme.textMuted)}
@@ -131,11 +136,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
               >
                 <text
                   fg={rgba(
-                    opt.disabled
-                      ? theme.textMuted
-                      : isSelected()
-                        ? theme.primary
-                        : theme.text
+                    opt.disabled ? theme.textMuted : isSelected() ? theme.primary : theme.text
                   )}
                 >
                   {opt.title}

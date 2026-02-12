@@ -1,4 +1,4 @@
-import { createContext, useContext, type JSX } from 'solid-js';
+import { createContext, type JSX, useContext } from 'solid-js';
 import type { TuiStore } from '../store';
 
 const StoreContext = createContext<TuiStore>();
@@ -14,4 +14,3 @@ export function useStore(): TuiStore {
   }
   return ctx;
 }
-

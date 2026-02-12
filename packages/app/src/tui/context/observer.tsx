@@ -1,4 +1,4 @@
-import { createContext, useContext, type JSX } from 'solid-js';
+import { createContext, type JSX, useContext } from 'solid-js';
 import type { ObserverStore } from '../observer-store';
 
 const ObserverContext = createContext<ObserverStore>();

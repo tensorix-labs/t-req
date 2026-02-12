@@ -3,39 +3,39 @@ import { useRenderer } from '@opentui/solid';
 import { createMemo, createSignal, onCleanup, Show } from 'solid-js';
 import { CommandDialog } from './components/command-dialog';
 import { DebugConsoleDialog } from './components/debug-console-dialog';
+import { ExecutionDetailView } from './components/execution-detail';
 import { ExecutionList } from './components/execution-list';
 import { FileRequestPicker } from './components/file-request-picker';
-import { ExecutionDetailView } from './components/execution-detail';
 import { FrameworkSelectDialog } from './components/framework-select';
 import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { ScriptOutput } from './components/script-output';
 import { StreamView } from './components/stream-view';
-import type { StreamState } from './stream';
-import { useDialog, useExit, useObserver, useSDK, useStore, useUpdate, unwrap } from './context';
-import { isRunnableScript, isHttpFile, isTestFile } from './store';
-import { rgba, theme } from './theme';
+import { Toast } from './components/toast';
+import { unwrap, useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
+import { openInEditor } from './editor';
 import {
   useExecutionDetail,
   useFlowSubscription,
+  useKeyboardCommands,
   usePlugins,
+  useRequestExecution,
   useScriptRunner,
   useTestRunner,
-  useWorkspace,
-  useRequestExecution,
-  useKeyboardCommands
+  useWorkspace
 } from './hooks';
 import {
   FullScreenLayout,
-  SplitPanel,
+  HorizontalDivider,
   Panel,
   Section,
-  HorizontalDivider,
-  VerticalDivider,
-  StatusBar
+  SplitPanel,
+  StatusBar,
+  VerticalDivider
 } from './layouts';
-import { openInEditor } from './editor';
-import { Toast } from './components/toast';
+import { isHttpFile, isRunnableScript, isTestFile } from './store';
+import type { StreamState } from './stream';
+import { rgba, theme } from './theme';
 
 export function App() {
   const sdk = useSDK();
@@ -109,9 +109,18 @@ export function App() {
   }
 
   // Execute a specific request by index
-  function handleRequestExecute(filePath: string, requestIndex: number, request: { protocol?: string; method: string; url: string }) {
+  function handleRequestExecute(
+    filePath: string,
+    requestIndex: number,
+    request: { protocol?: string; method: string; url: string }
+  ) {
     if (request.protocol === 'sse') {
-      void requestExecution.executeStreamRequest(filePath, requestIndex, request.method, request.url);
+      void requestExecution.executeStreamRequest(
+        filePath,
+        requestIndex,
+        request.method,
+        request.url
+      );
     } else {
       void requestExecution.executeRequest(filePath, requestIndex);
     }
@@ -153,14 +162,15 @@ export function App() {
         action: () => dialog.replace(() => <CommandDialog update={update} />)
       },
       file_picker: {
-        action: () => dialog.replace(() => (
-          <FileRequestPicker
-            onExecute={handleFileExecute}
-            onExecuteAll={handleFileExecuteAll}
-            onExecuteRequest={handleRequestExecute}
-            loadRequests={(filePath) => workspace.loadRequests(filePath)}
-          />
-        ))
+        action: () =>
+          dialog.replace(() => (
+            <FileRequestPicker
+              onExecute={handleFileExecute}
+              onExecuteAll={handleFileExecuteAll}
+              onExecuteRequest={handleRequestExecute}
+              loadRequests={(filePath) => workspace.loadRequests(filePath)}
+            />
+          ))
       },
       profile_select: {
         action: () => dialog.replace(() => <ProfileSelectDialog />)

@@ -1,10 +1,19 @@
 import type { WorkspaceRequest } from '@t-req/sdk/client';
 import fuzzysort from 'fuzzysort';
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show
+} from 'solid-js';
 import { useDialog, useStore } from '../context';
 import { usePickerNavigation } from '../hooks';
+import { isHttpFile, isRunnableScript, isTestFile } from '../store';
 import { rgba, theme } from '../theme';
-import { isRunnableScript, isHttpFile, isTestFile } from '../store';
 import { RequestPicker } from './request-picker';
 
 type PickerItemType = 'test' | 'script' | 'http';
@@ -210,14 +219,18 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
         flexDirection="row"
         justifyContent="space-between"
       >
-        <text fg={rgba(theme.text)} attributes={1}>Go to File</text>
+        <text fg={rgba(theme.text)} attributes={1}>
+          Go to File
+        </text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       {/* Search input */}
       <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
         <input
-          ref={(el) => (inputRef = el)}
+          ref={(el) => {
+            inputRef = el;
+          }}
           width="100%"
           placeholder="Search..."
           placeholderColor={rgba(theme.textMuted)}
@@ -255,14 +268,10 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
               >
                 <Show
                   when={!isPendingSend()}
-                  fallback={
-                    <text fg={rgba(theme.background)}>Press enter to confirm</text>
-                  }
+                  fallback={<text fg={rgba(theme.background)}>Press enter to confirm</text>}
                 >
                   <box flexDirection="row">
-                    <text
-                      fg={rgba(isSelected() ? theme.primary : theme.text)}
-                    >
+                    <text fg={rgba(isSelected() ? theme.primary : theme.text)}>
                       {itemLabel(item)}
                     </text>
                     <Show when={showBadge()}>
@@ -284,11 +293,15 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
       {/* Action bar */}
       <box height={1} paddingLeft={2} flexDirection="row" gap={2}>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)} attributes={1}>send </text>
+          <text fg={rgba(theme.text)} attributes={1}>
+            send{' '}
+          </text>
           <text fg={rgba(theme.textMuted)}>enter</text>
         </box>
         <box flexDirection="row">
-          <text fg={rgba(theme.text)} attributes={1}>run all </text>
+          <text fg={rgba(theme.text)} attributes={1}>
+            run all{' '}
+          </text>
           <text fg={rgba(theme.textMuted)}>ctrl+a</text>
         </box>
       </box>

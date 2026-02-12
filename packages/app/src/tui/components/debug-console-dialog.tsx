@@ -2,7 +2,7 @@ import { useKeyboard } from '@opentui/solid';
 import { For, type JSX } from 'solid-js';
 import { useDialog } from '../context/dialog';
 import { useKeybind } from '../context/keybind';
-import { useLog, type LogLevel } from '../context/log';
+import { type LogLevel, useLog } from '../context/log';
 import { rgba, theme } from '../theme';
 
 function getLogLevelColor(level: LogLevel): string {
@@ -44,26 +44,22 @@ export function DebugConsoleDialog(): JSX.Element {
   return (
     <box flexDirection="column" gap={1} paddingLeft={2} paddingRight={2} paddingBottom={1}>
       <box height={1} flexDirection="row" justifyContent="space-between">
-        <text fg={rgba(theme.text)} attributes={1}>Debug Console</text>
+        <text fg={rgba(theme.text)} attributes={1}>
+          Debug Console
+        </text>
         <text fg={rgba(theme.textMuted)}>esc</text>
       </box>
 
       <box>
-        <text fg={rgba(theme.textMuted)}>
-          Showing {log.entries().length} log entries
-        </text>
+        <text fg={rgba(theme.textMuted)}>Showing {log.entries().length} log entries</text>
       </box>
 
       <scrollbox height={12} paddingLeft={2} paddingRight={2}>
         <For each={log.entries()}>
           {(e) => (
             <box height={1} flexDirection="row" gap={2}>
-              <text fg={rgba(theme.textMuted)}>
-                {new Date(e.at).toLocaleTimeString()}
-              </text>
-              <text fg={rgba(getLogLevelColor(e.level))}>
-                [{e.level.toUpperCase().padEnd(5)}]
-              </text>
+              <text fg={rgba(theme.textMuted)}>{new Date(e.at).toLocaleTimeString()}</text>
+              <text fg={rgba(getLogLevelColor(e.level))}>[{e.level.toUpperCase().padEnd(5)}]</text>
               <text fg={rgba(theme.text)}>
                 {e.message}
                 {e.data !== undefined ? ` ${formatLogData(e.data)}` : ''}
