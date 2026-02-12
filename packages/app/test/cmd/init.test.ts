@@ -111,13 +111,13 @@ describe('generated file contents', () => {
   });
 
   test('should generate run script with correct shebang for bun', () => {
-    const script = generateRunScript('bun');
+    const script = generateRunScript('bun', './collection/users/get.http');
     expect(script).toContain('#!/usr/bin/env bun');
     expect(script).toContain("import { client } from './client'");
   });
 
   test('should generate run script with correct shebang for node', () => {
-    const script = generateRunScript('node');
+    const script = generateRunScript('node', './collection/users/get.http');
     expect(script).toContain('#!/usr/bin/env npx tsx');
     expect(script).toContain("import { client } from './client'");
   });
@@ -191,7 +191,7 @@ describe('generated file contents', () => {
   });
 
   test('should generate run script that imports from client', () => {
-    const script = generateRunScript('bun');
+    const script = generateRunScript('bun', './collection/users/get.http');
     expect(script).toContain("import { client } from './client'");
     expect(script).toContain('client.run');
     expect(script).not.toContain('createClient');

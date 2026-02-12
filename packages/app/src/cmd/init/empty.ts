@@ -29,7 +29,10 @@ export async function createEmptyProject(
   // Write root files
   await Bun.write(join(projectPath, 'treq.jsonc'), generateEmptyConfig());
   await Bun.write(join(projectPath, 'client.ts'), generateClientFile(config.runtime));
-  await Bun.write(join(projectPath, 'run.ts'), generateRunScript(config.runtime));
+  await Bun.write(
+    join(projectPath, 'run.ts'),
+    generateRunScript(config.runtime, './collection/hello.http')
+  );
   await Bun.write(join(projectPath, 'package.json'), generatePackageJson(projectName, config));
   await Bun.write(join(projectPath, 'tsconfig.json'), generateTsconfig(config.runtime));
   await Bun.write(join(projectPath, '.gitignore'), generateGitignore());

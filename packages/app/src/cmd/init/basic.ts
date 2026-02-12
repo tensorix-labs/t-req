@@ -30,7 +30,10 @@ export async function createBasicProject(
   // Write root files
   await Bun.write(join(projectPath, 'treq.jsonc'), generateBasicConfig());
   await Bun.write(join(projectPath, 'client.ts'), generateClientFile(config.runtime));
-  await Bun.write(join(projectPath, 'run.ts'), generateRunScript(config.runtime));
+  await Bun.write(
+    join(projectPath, 'run.ts'),
+    generateRunScript(config.runtime, './collection/users/get.http')
+  );
   await Bun.write(join(projectPath, 'package.json'), generatePackageJson(projectName, config));
   await Bun.write(join(projectPath, 'tsconfig.json'), generateTsconfig(config.runtime));
   await Bun.write(join(projectPath, '.gitignore'), generateGitignore());

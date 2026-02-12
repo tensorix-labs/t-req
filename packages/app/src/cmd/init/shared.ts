@@ -104,13 +104,13 @@ export const client = createClient({${ioOption}
 `;
 }
 
-export function generateRunScript(runtime: Runtime): string {
+export function generateRunScript(runtime: Runtime, requestPath: string): string {
   const shebang = runtime === 'bun' ? '#!/usr/bin/env bun' : '#!/usr/bin/env npx tsx';
 
   return `${shebang}
 import { client } from './client';
 
-const response = await client.run('./collection/users/get.http');
+const response = await client.run('${requestPath}');
 console.log(response.status, await response.json());
 `;
 }
