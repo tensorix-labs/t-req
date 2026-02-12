@@ -43,7 +43,6 @@ Configure via `Settings > Extensions > t-req` or in `settings.json`:
 | `t-req.timeout` | `number` | `30000` | Request timeout in milliseconds (min: 100) |
 | `t-req.enableDiagnostics` | `boolean` | `true` | Enable inline diagnostics for `.http` files |
 | `t-req.maxBodyBytes` | `number` | `1048576` | Maximum response body size to render (min: 1024) |
-| `t-req.experimental.useSolidRenderer` | `boolean` | `false` | Enable the experimental SolidJS response renderer |
 
 ## Token Management
 

@@ -13,7 +13,6 @@ export type ExtensionSettings = {
   timeout: number;
   enableDiagnostics: boolean;
   maxBodyBytes: number;
-  experimentalUseSolidRenderer: boolean;
 };
 
 export function readSettings(scope?: vscode.ConfigurationScope): ExtensionSettings {
@@ -24,8 +23,7 @@ export function readSettings(scope?: vscode.ConfigurationScope): ExtensionSettin
     defaultProfile: config.get<string>('defaultProfile', '').trim(),
     timeout: config.get<number>('timeout', 30000),
     enableDiagnostics: config.get<boolean>('enableDiagnostics', true),
-    maxBodyBytes: config.get<number>('maxBodyBytes', 1048576),
-    experimentalUseSolidRenderer: config.get<boolean>('experimental.useSolidRenderer', false)
+    maxBodyBytes: config.get<number>('maxBodyBytes', 1048576)
   };
 }
 

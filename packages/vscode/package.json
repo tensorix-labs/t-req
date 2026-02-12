@@ -167,11 +167,6 @@
           "default": 1048576,
           "minimum": 1024,
           "description": "Maximum response body bytes to render in the response panel."
-        },
-        "t-req.experimental.useSolidRenderer": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use the experimental SolidJS-based response renderer."
         }
       }
     }

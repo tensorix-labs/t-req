@@ -1,5 +1,4 @@
 {
   "t-req.executionMode": "local",
-  "t-req.timeout": 10000,
-  "t-req.experimental.useSolidRenderer": true
+  "t-req.timeout": 10000
 }
