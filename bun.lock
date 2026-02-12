@@ -120,7 +120,7 @@
     },
     "packages/vscode": {
       "name": "t-req-vscode",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@t-req/core": "workspace:*",
         "@t-req/sdk": "workspace:*",
