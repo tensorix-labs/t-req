@@ -24,7 +24,7 @@
     "sst:deploy:prod": "sst deploy --stage production"
   },
   "lint-staged": {
-    "*.{ts,js,json}": [
+    "*.{ts,tsx,js,json}": [
       "biome check --write --no-errors-on-unmatched"
     ]
   },
