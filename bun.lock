@@ -24,7 +24,7 @@
     },
     "packages/app": {
       "name": "@t-req/app",
-      "version": "0.3.9",
+      "version": "0.3.10",
       "bin": {
         "treq": "./bin/treq",
       },
