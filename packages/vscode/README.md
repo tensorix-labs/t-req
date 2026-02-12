@@ -13,10 +13,10 @@ Run and manage HTTP requests directly from `.http` files in VS Code — powered 
 - **Response panel** — view status, headers, and body with syntax highlighting
 - **Plugin support** — run plugins with hook timing, assert reports, and a dedicated Plugins tab in the response panel
 
-![Plugins](images/plugins.png)
+![Plugins](https://raw.githubusercontent.com/tensorix-labs/t-req/main/packages/vscode/images/plugins.png)
 - **Diagnostics** — inline warnings and errors from static analysis and plugins
 
-![Run Request](images/run-request.png)
+![Run Request](https://raw.githubusercontent.com/tensorix-labs/t-req/main/packages/vscode/images/run-request.png)
 
 ## Commands
 
