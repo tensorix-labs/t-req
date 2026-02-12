@@ -172,7 +172,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "bun run build",
+    "vscode:prepublish": "bunx turbo run build --filter=t-req-vscode...",
     "build": "node esbuild.mjs",
     "build:watch": "node esbuild.mjs --watch",
     "check-types": "tsc -p tsconfig.json --noEmit",
