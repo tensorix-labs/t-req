@@ -1,0 +1,41 @@
+{
+  "info": {
+    "name": "Disabled Items"
+  },
+  "item": [
+    {
+      "name": "Active Request",
+      "request": {
+        "method": "GET",
+        "url": {
+          "protocol": "https",
+          "host": ["api", "example", "com"],
+          "path": ["users"],
+          "query": [
+            { "key": "enabled", "value": "1" },
+            { "key": "disabled", "value": "0", "disabled": true }
+          ]
+        },
+        "header": [
+          { "key": "X-Enabled", "value": "true" },
+          { "key": "X-Disabled", "value": "false", "disabled": true }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "active", "value": "yes" },
+            { "key": "disabledField", "value": "no", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Disabled Request",
+      "disabled": true,
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/should-not-exist"
+      }
+    }
+  ]
+}

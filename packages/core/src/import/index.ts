@@ -8,6 +8,12 @@ export {
   type UrlParts,
   type UrlQueryParam
 } from './normalize';
+export {
+  convertPostmanCollection,
+  createPostmanImporter,
+  type PostmanConvertOptions,
+  PostmanConvertOptionsSchema
+} from './postman';
 export { createImporterRegistry } from './registry';
 export type {
   ImportDiagnostic,

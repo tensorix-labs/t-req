@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "Body Modes"
+  },
+  "item": [
+    {
+      "name": "Raw JSON",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/raw",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"hello\":\"world\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Urlencoded Form",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/form-urlencoded",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "username", "value": "john" },
+            { "key": "password", "value": "secret" },
+            { "key": "ignored", "value": "x", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Multipart Form",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/form-data",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "title", "value": "Quarterly Report", "type": "text" },
+            { "key": "document", "type": "file", "src": "./uploads/report.pdf" },
+            { "key": "skip-file", "type": "file", "src": "./uploads/ignored.pdf", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GraphQL Query",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/graphql",
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query Users($limit: Int!) { users(limit: $limit) { id name } }",
+            "variables": "{\"limit\":10}"
+          }
+        }
+      }
+    },
+    {
+      "name": "File Upload",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/upload",
+        "body": {
+          "mode": "file",
+          "file": {
+            "src": "payload.bin"
+          }
+        }
+      }
+    },
+    {
+      "name": "File Missing",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/upload-missing",
+        "body": {
+          "mode": "file",
+          "file": {}
+        }
+      }
+    }
+  ]
+}

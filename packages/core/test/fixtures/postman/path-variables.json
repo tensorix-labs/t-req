@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "Path Variables"
+  },
+  "item": [
+    {
+      "name": "Object Path Variables",
+      "request": {
+        "method": "GET",
+        "url": {
+          "protocol": "https",
+          "host": ["api", "example", "com"],
+          "path": ["users", ":userId", "posts", ":postId"],
+          "query": [{ "key": "expand", "value": "comments" }]
+        }
+      }
+    },
+    {
+      "name": "Raw Path Variables",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/orgs/:orgId/members/:memberId"
+      }
+    }
+  ]
+}
