@@ -1,60 +1,54 @@
-/**
- * Web SDK - HTTP client for t-req workspace and observer APIs.
- * Adapted from TUI SDK for browser environment.
- *
- * Architecture:
- * - When using local proxy mode (treq open --web), SDK uses relative URLs
- *   and browser cookies for auth (same-origin, no CORS needed)
- * - When using external server, SDK uses absolute URLs and bearer token
- * - All workspace data stays local on the user's machine
- */
+import {
+  type ClientOptions,
+  createConfig,
+  createClient as createGeneratedClient,
+  type ConfigResponse as GeneratedConfigResponse,
+  type EventEnvelope as GeneratedEventEnvelope,
+  type ExecuteResponse as GeneratedExecuteResponse,
+  type ExecutionDetail as GeneratedExecutionDetail,
+  type FlowSummary as GeneratedFlowSummary,
+  type PluginInfo as GeneratedPluginInfo,
+  type PluginReport as GeneratedPluginReport,
+  type PluginsResponse as GeneratedPluginsResponse,
+  type ResolvedCookies as GeneratedResolvedCookies,
+  type ResolvedDefaults as GeneratedResolvedDefaults,
+  type RunnerOption as GeneratedRunnerOption,
+  type SecuritySettings as GeneratedSecuritySettings,
+  type TestFrameworkOption as GeneratedTestFrameworkOption,
+  type WorkspaceFile as GeneratedWorkspaceFile,
+  type WorkspaceRequest as GeneratedWorkspaceRequest,
+  type GetHealthResponses,
+  type GetScriptRunnersResponses,
+  type GetTestFrameworksResponses,
+  type GetWorkspaceFileResponses,
+  type GetWorkspaceFilesResponses,
+  type GetWorkspaceRequestsResponses,
+  type PostFlowsByFlowIdFinishResponses,
+  type PostFlowsResponses,
+  type PostScriptResponses,
+  type PostTestResponses,
+  type PostWorkspaceFileData,
+  type PutWorkspaceFileData,
+  SDKError,
+  TreqClient,
+  unwrap
+} from '@t-req/sdk/client';
 
-// Types matching server schemas exactly
-export interface WorkspaceFile {
-  path: string;
-  name: string;
-  requestCount: number;
-  lastModified: number;
-}
+export type WorkspaceFile = GeneratedWorkspaceFile;
 
-export interface ListWorkspaceFilesResponse {
-  files: WorkspaceFile[];
-  workspaceRoot: string;
-}
+export type ListWorkspaceFilesResponse = GetWorkspaceFilesResponses[200];
 
-export interface WorkspaceRequest {
-  index: number;
-  name?: string;
-  method: string;
-  url: string;
-}
+export type WorkspaceRequest = GeneratedWorkspaceRequest;
 
-export interface ListWorkspaceRequestsResponse {
-  path: string;
-  requests: WorkspaceRequest[];
-}
+export type ListWorkspaceRequestsResponse = GetWorkspaceRequestsResponses[200];
 
-export interface HealthResponse {
-  healthy: boolean;
-  version: string;
-}
+export type HealthResponse = Omit<GetHealthResponses[200], 'healthy'> & { healthy: boolean };
 
-// Flow types
-export interface CreateFlowResponse {
-  flowId: string;
-}
+export type CreateFlowResponse = PostFlowsResponses[201];
 
-export interface FlowSummary {
-  total: number;
-  succeeded: number;
-  failed: number;
-  durationMs: number;
-}
+export type FlowSummary = GeneratedFlowSummary;
 
-export interface FinishFlowResponse {
-  flowId: string;
-  summary: FlowSummary;
-}
+export type FinishFlowResponse = PostFlowsByFlowIdFinishResponses[200];
 
 export interface ResponseHeader {
   name: string;
@@ -68,69 +62,14 @@ export interface ExecutionSource {
   requestName?: string;
 }
 
-export interface PluginHookInfo {
-  pluginName: string;
-  hook: string;
-  durationMs: number;
-  modified: boolean;
-}
+export type PluginHookInfo = NonNullable<ExecutionDetail['pluginHooks']>[number];
 
-export interface PluginReport {
-  pluginName: string;
-  runId: string;
-  flowId?: string;
-  reqExecId?: string;
-  requestName?: string;
-  ts: number;
-  seq: number;
-  data: unknown;
-}
+export type PluginReport = GeneratedPluginReport;
 
-export interface ExecutionDetail {
-  reqExecId: string;
-  flowId: string;
-  sessionId?: string;
-  reqLabel?: string;
-  source?: ExecutionSource;
-  rawHttpBlock?: string;
-  method?: string;
-  urlTemplate?: string;
-  urlResolved?: string;
-  headers?: ResponseHeader[];
-  bodyPreview?: string;
-  timing: {
-    startTime: number;
-    endTime?: number;
-    durationMs?: number;
-  };
-  response?: {
-    status: number;
-    statusText: string;
-    headers: ResponseHeader[];
-    body?: string;
-    encoding: 'utf-8' | 'base64';
-    truncated: boolean;
-    bodyBytes: number;
-  };
-  pluginHooks?: PluginHookInfo[];
-  pluginReports?: PluginReport[];
-  status: 'pending' | 'running' | 'success' | 'failed';
-  error?: {
-    stage: string;
-    message: string;
-  };
-}
+export type ExecutionDetail = GeneratedExecutionDetail;
 
-// SSE Event types
-export interface EventEnvelope {
+export interface EventEnvelope extends Omit<GeneratedEventEnvelope, 'type'> {
   type: string;
-  ts: number;
-  runId: string;
-  sessionId?: string;
-  flowId?: string;
-  reqExecId?: string;
-  seq: number;
-  payload: Record<string, unknown>;
 }
 
 // SSE Message type (for streaming requests)
@@ -158,137 +97,40 @@ export interface ExecuteRequestParams {
   profile?: string;
 }
 
-export interface ResolvedDefaults {
-  timeoutMs: number;
-  followRedirects: boolean;
-  validateSSL: boolean;
-  proxy?: string;
-  headers: Record<string, string>;
-}
+export type ResolvedDefaults = GeneratedResolvedDefaults;
 
-export interface ResolvedCookies {
-  enabled: boolean;
-  jarPath?: string;
-  mode: 'disabled' | 'memory' | 'persistent';
-}
+export type ResolvedCookies = GeneratedResolvedCookies;
 
-export interface SecuritySettings {
-  allowExternalFiles: boolean;
-  allowPluginsOutsideProject: boolean;
-  pluginPermissions?: Record<string, string[]>;
-}
+export type SecuritySettings = GeneratedSecuritySettings;
 
-export interface ConfigResponse {
-  configPath?: string;
-  projectRoot: string;
-  format?: 'jsonc' | 'json' | 'ts' | 'js' | 'mjs';
-  profile?: string;
-  availableProfiles: string[];
-  layersApplied: string[];
-  resolvedConfig: {
-    variables: Record<string, unknown>;
-    defaults: ResolvedDefaults;
-    cookies: ResolvedCookies;
-    security: SecuritySettings;
-    resolverNames: string[];
-  };
-  warnings: string[];
-}
+export type ConfigResponse = GeneratedConfigResponse;
 
-export interface PluginCapabilities {
-  hasHooks: boolean;
-  hasResolvers: boolean;
-  hasCommands: boolean;
-  hasMiddleware: boolean;
-  hasTools: boolean;
-}
+export type PluginInfo = GeneratedPluginInfo;
 
-export interface PluginInfo {
-  name: string;
-  version?: string;
-  source: 'npm' | 'file' | 'inline' | 'subprocess';
-  permissions: string[];
-  capabilities: PluginCapabilities;
-}
+export type PluginCapabilities = PluginInfo['capabilities'];
 
-export interface PluginsResponse {
-  plugins: PluginInfo[];
-  count: number;
-}
+export type PluginsResponse = GeneratedPluginsResponse;
 
-export interface ExecuteResponse {
-  runId: string;
-  reqExecId?: string;
-  flowId?: string;
-  pluginReports?: PluginReport[];
-  request: {
-    index: number;
-    name?: string;
-    method: string;
-    url: string;
-  };
-  response: {
-    status: number;
-    statusText: string;
-    headers: ResponseHeader[];
-    body?: string;
-    encoding: 'utf-8' | 'base64';
-    truncated: boolean;
-    bodyBytes: number;
-  };
-  timing: {
-    startTime: number;
-    endTime: number;
-    durationMs: number;
-  };
-}
+export type ExecuteResponse = GeneratedExecuteResponse;
 
 // Script execution types
-export interface RunnerOption {
-  id: string;
-  label: string;
-}
+export type RunnerOption = GeneratedRunnerOption;
 
-export interface GetRunnersResponse {
-  detected: string | null;
-  options: RunnerOption[];
-}
+export type GetRunnersResponse = GetScriptRunnersResponses[200];
 
-export interface RunScriptResponse {
-  runId: string;
-  flowId: string;
-}
+export type RunScriptResponse = PostScriptResponses[200];
 
-export interface TestFrameworkOption {
-  id: string;
-  label: string;
-}
+export type TestFrameworkOption = GeneratedTestFrameworkOption;
 
-export interface GetTestFrameworksResponse {
-  detected: string | null;
-  options: TestFrameworkOption[];
-}
+export type GetTestFrameworksResponse = GetTestFrameworksResponses[200];
 
-export interface RunTestResponse {
-  runId: string;
-  flowId: string;
-}
+export type RunTestResponse = PostTestResponses[200];
 
-export interface GetFileContentResponse {
-  path: string;
-  content: string;
-  lastModified: number;
-}
+export type GetFileContentResponse = GetWorkspaceFileResponses[200];
 
-export interface UpdateFileRequest {
-  path: string;
-  content: string;
-}
+export type UpdateFileRequest = NonNullable<PutWorkspaceFileData['body']>;
 
-export interface CreateFileRequest {
-  path: string;
-  content?: string;
-}
+export type CreateFileRequest = NonNullable<PostWorkspaceFileData['body']>;
 
 export interface SDK {
   /** Base URL for API requests (empty string for relative URLs) */
@@ -363,17 +205,7 @@ export interface SDKConfig {
   token?: string;
 }
 
-export class SDKError extends Error {
-  status?: number;
-  code?: string;
-
-  constructor(message: string, status?: number, code?: string) {
-    super(message);
-    this.name = 'SDKError';
-    this.status = status;
-    this.code = code;
-  }
-}
+export { SDKError };
 
 /**
  * Get the default server URL from environment or use same-origin.
@@ -400,16 +232,44 @@ export function getDefaultServerUrl(): string {
   return 'http://localhost:4096';
 }
 
-/**
- * Handle 401 Unauthorized errors.
- * For web clients without token, redirect to /auth/init.
- */
-function handleUnauthorized(token?: string): never {
-  // Redirect to auth init for web clients (no token = using cookies)
-  if (typeof window !== 'undefined' && !token) {
-    window.location.href = '/auth/init';
+function normalizeSDKConfig(configOrUrl?: SDKConfig | string, legacyToken?: string): SDKConfig {
+  if (typeof configOrUrl === 'string') {
+    return { baseUrl: configOrUrl, token: legacyToken };
   }
-  throw new SDKError('Unauthorized', 401);
+  return configOrUrl ?? {};
+}
+
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(String(error));
+}
+
+function createWebFetch(token?: string): typeof fetch {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const requestWithCredentials = new Request(request, { credentials: 'include' });
+    const response = await fetch(requestWithCredentials);
+
+    if (response.status === 401 && !token && typeof window !== 'undefined') {
+      window.location.href = '/auth/init';
+    }
+
+    return response;
+  };
+}
+
+function createWebClient(baseUrl: string, token?: string): TreqClient {
+  const client = createGeneratedClient(
+    createConfig<ClientOptions>({
+      baseUrl: baseUrl || undefined,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      fetch: createWebFetch(token)
+    })
+  );
+
+  return new TreqClient({ client });
 }
 
 /**
@@ -432,126 +292,55 @@ function handleUnauthorized(token?: string): never {
  * const sdk = createSDK('http://localhost:4096', 'token');
  */
 export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string): SDK {
-  // Handle legacy positional arguments: createSDK(serverUrl, token)
-  let config: SDKConfig;
-  if (typeof configOrUrl === 'string') {
-    config = { baseUrl: configOrUrl, token: legacyToken };
-  } else {
-    config = configOrUrl ?? {};
-  }
+  const config = normalizeSDKConfig(configOrUrl, legacyToken);
 
   // Normalize baseUrl: remove trailing slashes, empty string = relative URLs
   const baseUrl = (config.baseUrl ?? '').replace(/\/+$/, '');
   const token = config.token;
-
-  /**
-   * Build the full URL for an endpoint.
-   * If baseUrl is empty, returns just the endpoint (relative URL).
-   */
-  function buildUrl(endpoint: string): string {
-    if (baseUrl) {
-      return new URL(endpoint, baseUrl).toString();
-    }
-    // Relative URL for same-origin requests
-    return endpoint;
-  }
-
-  async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = buildUrl(endpoint);
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    };
-
-    // Add bearer token if provided (for non-cookie auth)
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      // Include cookies for same-origin requests (cookie auth)
-      credentials: 'include',
-      headers: {
-        ...headers,
-        ...options?.headers
-      }
-    });
-
-    // Handle auth failure
-    if (response.status === 401) {
-      handleUnauthorized(token);
-    }
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      let errorCode: string | undefined;
-
-      try {
-        const errorBody = (await response.json()) as {
-          error?: { message?: string; code?: string };
-        };
-        if (errorBody.error) {
-          errorMessage = errorBody.error.message || errorMessage;
-          errorCode = errorBody.error.code;
-        }
-      } catch {
-        // Ignore JSON parse errors for error response
-      }
-
-      throw new SDKError(errorMessage, response.status, errorCode);
-    }
-
-    return (await response.json()) as T;
-  }
+  const client = createWebClient(baseUrl, token);
 
   return {
     baseUrl,
     token,
+
     // Legacy compatibility
     get serverUrl() {
-      return baseUrl || window.location.origin;
+      if (baseUrl) return baseUrl;
+      if (typeof window !== 'undefined') return window.location.origin;
+      return getDefaultServerUrl();
     },
 
     async health(): Promise<HealthResponse> {
-      return request<HealthResponse>('/health');
+      const data = await unwrap(client.getHealth());
+      return { healthy: Boolean(data.healthy), version: data.version };
     },
 
     async listWorkspaceFiles(): Promise<ListWorkspaceFilesResponse> {
-      return request<ListWorkspaceFilesResponse>('/workspace/files');
+      return unwrap(client.getWorkspaceFiles());
     },
 
     async listWorkspaceRequests(path: string): Promise<ListWorkspaceRequestsResponse> {
-      const encodedPath = encodeURIComponent(path);
-      return request<ListWorkspaceRequestsResponse>(`/workspace/requests?path=${encodedPath}`);
+      return unwrap(client.getWorkspaceRequests({ query: { path } }));
     },
 
     async getConfig(profile?: string): Promise<ConfigResponse> {
-      const query = profile ? `?profile=${encodeURIComponent(profile)}` : '';
-      return request<ConfigResponse>(`/config${query}`);
+      return unwrap(client.getConfig({ query: { profile } }));
     },
 
     async getPlugins(): Promise<PluginsResponse> {
-      return request<PluginsResponse>('/plugins');
+      return unwrap(client.getPlugins());
     },
 
     async createFlow(label?: string): Promise<CreateFlowResponse> {
-      return request<CreateFlowResponse>('/flows', {
-        method: 'POST',
-        body: JSON.stringify({ label })
-      });
+      return unwrap(client.postFlows({ body: { label } }));
     },
 
     async finishFlow(flowId: string): Promise<FinishFlowResponse> {
-      return request<FinishFlowResponse>(`/flows/${encodeURIComponent(flowId)}/finish`, {
-        method: 'POST'
-      });
+      return unwrap(client.postFlowsByFlowIdFinish({ path: { flowId } }));
     },
 
     async getExecution(flowId: string, reqExecId: string): Promise<ExecutionDetail> {
-      return request<ExecutionDetail>(
-        `/flows/${encodeURIComponent(flowId)}/executions/${encodeURIComponent(reqExecId)}`
-      );
+      return unwrap(client.getFlowsByFlowIdExecutionsByReqExecId({ path: { flowId, reqExecId } }));
     },
 
     async executeRequest(
@@ -560,21 +349,20 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
       requestIndex: number,
       profile?: string
     ): Promise<ExecuteResponse> {
-      return request<ExecuteResponse>('/execute', {
-        method: 'POST',
-        body: JSON.stringify({
-          path,
-          requestIndex,
-          flowId,
-          profile
+      return unwrap(
+        client.postExecute({
+          body: {
+            flowId,
+            path,
+            requestIndex,
+            profile
+          }
         })
-      });
+      );
     },
 
-    // Script execution
     async getRunners(filePath?: string): Promise<GetRunnersResponse> {
-      const query = filePath ? `?filePath=${encodeURIComponent(filePath)}` : '';
-      return request<GetRunnersResponse>(`/script/runners${query}`);
+      return unwrap(client.getScriptRunners({ query: { filePath } }));
     },
 
     async runScript(
@@ -582,33 +370,23 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
       runnerId?: string,
       flowId?: string
     ): Promise<RunScriptResponse> {
-      return request<RunScriptResponse>('/script', {
-        method: 'POST',
-        body: JSON.stringify({
-          filePath,
-          runnerId,
-          flowId
+      return unwrap(
+        client.postScript({
+          body: {
+            filePath,
+            runnerId,
+            flowId
+          }
         })
-      });
+      );
     },
 
     async cancelScript(runId: string): Promise<void> {
-      const url = buildUrl(`/script/${encodeURIComponent(runId)}`);
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers
-      });
+      await unwrap(client.deleteScriptByRunId({ path: { runId } }));
     },
 
-    // Test execution
     async getTestFrameworks(filePath?: string): Promise<GetTestFrameworksResponse> {
-      const query = filePath ? `?filePath=${encodeURIComponent(filePath)}` : '';
-      return request<GetTestFrameworksResponse>(`/test/frameworks${query}`);
+      return unwrap(client.getTestFrameworks({ query: { filePath } }));
     },
 
     async runTest(
@@ -616,75 +394,35 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
       frameworkId?: string,
       flowId?: string
     ): Promise<RunTestResponse> {
-      return request<RunTestResponse>('/test', {
-        method: 'POST',
-        body: JSON.stringify({
-          filePath,
-          frameworkId,
-          flowId
+      return unwrap(
+        client.postTest({
+          body: {
+            filePath,
+            frameworkId,
+            flowId
+          }
         })
-      });
+      );
     },
 
     async cancelTest(runId: string): Promise<void> {
-      const url = buildUrl(`/test/${encodeURIComponent(runId)}`);
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers
-      });
+      await unwrap(client.deleteTestByRunId({ path: { runId } }));
     },
 
-    // File CRUD
     async getFileContent(path: string): Promise<GetFileContentResponse> {
-      const encodedPath = encodeURIComponent(path);
-      return request<GetFileContentResponse>(`/workspace/file?path=${encodedPath}`);
+      return unwrap(client.getWorkspaceFile({ query: { path } }));
     },
 
     async updateFile(path: string, content: string): Promise<void> {
-      await request<void>('/workspace/file', {
-        method: 'PUT',
-        body: JSON.stringify({ path, content })
-      });
+      await unwrap(client.putWorkspaceFile({ body: { path, content } }));
     },
 
     async createFile(path: string, content?: string): Promise<void> {
-      await request<void>('/workspace/file', {
-        method: 'POST',
-        body: JSON.stringify({ path, content })
-      });
+      await unwrap(client.postWorkspaceFile({ body: { path, content } }));
     },
 
     async deleteFile(path: string): Promise<void> {
-      const url = buildUrl(`/workspace/file?path=${encodeURIComponent(path)}`);
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers
-      });
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorBody = (await response.json()) as {
-            error?: { message?: string };
-          };
-          if (errorBody.error?.message) {
-            errorMessage = errorBody.error.message;
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        throw new SDKError(errorMessage, response.status);
-      }
+      await unwrap(client.deleteWorkspaceFile({ query: { path } }));
     },
 
     subscribeEvents(
@@ -693,97 +431,52 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
       onError: (error: Error) => void,
       onClose: () => void
     ): () => void {
-      let aborted = false;
+      let closed = false;
+      let hadSseError = false;
       const controller = new AbortController();
 
-      const url = buildUrl(`/event?flowId=${encodeURIComponent(flowId)}`);
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        onClose();
+      };
 
-      // Start SSE subscription using fetch streaming
-      (async () => {
+      void (async () => {
         try {
-          const headers: Record<string, string> = {
-            Accept: 'text/event-stream'
-          };
-          if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-          }
-
-          const response = await fetch(url, {
-            headers,
-            credentials: 'include', // Include cookies for auth
-            signal: controller.signal
+          const { stream } = await client.getEvent({
+            query: { flowId },
+            signal: controller.signal,
+            sseMaxRetryAttempts: 1,
+            onSseError: (error) => {
+              if (closed || controller.signal.aborted) return;
+              hadSseError = true;
+              onError(normalizeError(error));
+            }
           });
 
-          // Handle auth failure
-          if (response.status === 401) {
-            handleUnauthorized(token);
-          }
-
-          if (!response.ok) {
-            throw new SDKError(`SSE connection failed: ${response.status}`, response.status);
-          }
-
-          if (!response.body) {
-            throw new SDKError('SSE connection has no body');
-          }
-
-          // Parse SSE stream
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (!aborted) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-
-            // Process complete SSE messages
-            const lines = buffer.split(/\r?\n/);
-            buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
-
-            let eventType = '';
-            let eventData = '';
-
-            for (const line of lines) {
-              if (line.startsWith('event:')) {
-                eventType = line.slice(6).trim();
-              } else if (line.startsWith('data:')) {
-                eventData = line.slice(5).trim();
-              } else if (line === '') {
-                // End of message - process it
-                if (eventData && eventType !== 'heartbeat' && eventType !== 'connected') {
-                  try {
-                    const parsed = JSON.parse(eventData) as EventEnvelope;
-                    onEvent(parsed);
-                  } catch {
-                    // Ignore parse errors
-                  }
-                }
-                eventType = '';
-                eventData = '';
-              }
+          for await (const event of stream) {
+            if (closed || controller.signal.aborted) {
+              break;
             }
+            onEvent(event as EventEnvelope);
           }
 
-          if (!aborted) {
-            onClose();
+          if (!hadSseError) {
+            close();
           }
-        } catch (err) {
-          if (!aborted) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              onClose();
-            } else {
-              onError(err instanceof Error ? err : new Error(String(err)));
-            }
+        } catch (error) {
+          if (controller.signal.aborted) {
+            close();
+            return;
           }
+          onError(normalizeError(error));
         }
       })();
 
-      // Return unsubscribe function
       return () => {
-        aborted = true;
+        if (closed) return;
         controller.abort();
+        close();
       };
     },
 
@@ -793,111 +486,50 @@ export function createSDK(configOrUrl?: SDKConfig | string, legacyToken?: string
       requestIndex: number,
       options: { variables?: Record<string, unknown>; timeout?: number; lastEventId?: string } = {}
     ): Promise<SSEStreamResult> {
-      const url = buildUrl('/execute/sse');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
+      let closed = false;
+      let streamError: Error | undefined;
+      const controller = new AbortController();
 
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
+      const { stream } = await client.postExecuteSse({
+        body: {
           path,
           requestIndex,
           flowId,
           ...options
-        })
+        },
+        signal: controller.signal,
+        sseMaxRetryAttempts: 1,
+        onSseError: (error) => {
+          if (closed || controller.signal.aborted) return;
+          streamError = normalizeError(error);
+        }
       });
 
-      if (response.status === 401) {
-        handleUnauthorized(token);
-      }
-
-      if (!response.ok) {
-        throw new SDKError(
-          `SSE request failed: ${response.status} ${response.statusText}`,
-          response.status
-        );
-      }
-
-      if (!response.body) {
-        throw new SDKError('SSE response has no body');
-      }
-
-      const reader = response.body.getReader();
-      let closed = false;
-
-      // Parse SSE stream
-      async function* parseSSEStream(): AsyncGenerator<SSEMessage> {
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let currentMessage: Partial<SSEMessage> = {};
-
-        while (!closed) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (line.startsWith('id:')) {
-              currentMessage.id = line.slice(3).trim();
-            } else if (line.startsWith('event:')) {
-              currentMessage.event = line.slice(6).trim();
-              // Handle error events from server
-              if (currentMessage.event === 'error' && currentMessage.data) {
-                try {
-                  const errorData = JSON.parse(currentMessage.data) as { error: string };
-                  throw new SDKError(errorData.error);
-                } catch (e) {
-                  if (e instanceof SDKError) throw e;
-                  // If parse fails, continue
-                }
-              }
-            } else if (line.startsWith('data:')) {
-              const data = line.slice(5);
-              currentMessage.data =
-                currentMessage.data !== undefined ? currentMessage.data + '\n' + data : data;
-            } else if (line.startsWith('retry:')) {
-              const retryValue = parseInt(line.slice(6).trim(), 10);
-              if (!isNaN(retryValue)) {
-                currentMessage.retry = retryValue;
-              }
-            } else if (line === '') {
-              // Handle error events
-              if (currentMessage.event === 'error' && currentMessage.data !== undefined) {
-                try {
-                  const errorData = JSON.parse(currentMessage.data) as { error: string };
-                  throw new SDKError(errorData.error);
-                } catch (e) {
-                  if (e instanceof SDKError) throw e;
-                  // Continue if parse fails
-                }
-              }
-              // Emit non-error messages
-              if (currentMessage.data !== undefined && currentMessage.event !== 'error') {
-                yield currentMessage as SSEMessage;
-              }
-              currentMessage = {};
-            }
+      async function* parseStream(): AsyncGenerator<SSEMessage> {
+        for await (const event of stream) {
+          if (closed || controller.signal.aborted) {
+            break;
           }
+
+          const envelope = event as EventEnvelope;
+          yield {
+            id: String(envelope.seq),
+            event: envelope.type,
+            data: JSON.stringify(envelope)
+          };
+        }
+
+        if (!closed && !controller.signal.aborted && streamError) {
+          throw streamError;
         }
       }
 
       return {
-        messages: parseSSEStream(),
+        messages: parseStream(),
         close: () => {
+          if (closed) return;
           closed = true;
-          reader.cancel().catch(() => {
-            // Ignore cancel errors
-          });
+          controller.abort();
         }
       };
     }

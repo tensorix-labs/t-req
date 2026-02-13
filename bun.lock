@@ -152,6 +152,7 @@
         "@codemirror/state": "^6.4.0",
         "@codemirror/theme-one-dark": "^6.1.0",
         "@codemirror/view": "^6.26.0",
+        "@t-req/sdk": "workspace:*",
         "codemirror": "^6.0.1",
         "solid-js": "^1.9.10",
       },
