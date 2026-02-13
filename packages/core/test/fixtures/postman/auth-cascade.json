@@ -1,0 +1,97 @@
+{
+  "info": {
+    "name": "Auth Cascade"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "collectionToken" }]
+  },
+  "item": [
+    {
+      "name": "Root Inherited",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/root"
+      }
+    },
+    {
+      "name": "Auth Folder",
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          { "key": "key", "value": "X-Folder-Key" },
+          { "key": "value", "value": "folderValue" },
+          { "key": "in", "value": "header" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Folder Inherited",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/folder"
+          }
+        },
+        {
+          "name": "Basic Override",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/basic",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "user" },
+                { "key": "password", "value": "pass" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Templated Basic",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/basic-template",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{user}}" },
+                { "key": "password", "value": "pass" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "No Auth",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/noauth",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "ApiKey Query",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/query",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                { "key": "key", "value": "api_key" },
+                { "key": "value", "value": "k123" },
+                { "key": "in", "value": "query" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unsupported Auth",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/oauth",
+            "auth": { "type": "oauth2" }
+          }
+        }
+      ]
+    }
+  ]
+}

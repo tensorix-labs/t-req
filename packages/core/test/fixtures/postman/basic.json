@@ -1,0 +1,46 @@
+{
+  "info": {
+    "name": "Basic Collection"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "api.example.com" },
+    { "key": "apiVersion", "value": "v1" }
+  ],
+  "item": [
+    {
+      "name": "Users API",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "protocol": "https",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiVersion}}", "users"]
+            },
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "description": { "content": "Fetch all users" }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "https://{{baseUrl}}/{{apiVersion}}/users",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Ada\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

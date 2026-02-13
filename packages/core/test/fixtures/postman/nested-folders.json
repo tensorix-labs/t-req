@@ -1,0 +1,57 @@
+{
+  "info": {
+    "name": "Nested Folders"
+  },
+  "item": [
+    {
+      "name": "Root Request",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/root"
+      }
+    },
+    {
+      "name": "Level One",
+      "item": [
+        {
+          "name": "One Request",
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.com/one"
+          }
+        },
+        {
+          "name": "Level Two",
+          "item": [
+            {
+              "name": "Two Request",
+              "request": {
+                "method": "GET",
+                "url": "https://api.example.com/two"
+              }
+            },
+            {
+              "name": "Level Three",
+              "item": [
+                {
+                  "name": "Deep One",
+                  "request": {
+                    "method": "GET",
+                    "url": "https://api.example.com/deep-one"
+                  }
+                },
+                {
+                  "name": "Deep Two",
+                  "request": {
+                    "method": "GET",
+                    "url": "https://api.example.com/deep-two"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
