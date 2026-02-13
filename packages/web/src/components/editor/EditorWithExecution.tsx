@@ -1,13 +1,28 @@
-import { type Component, createSignal, createEffect, on, Show, Switch, Match } from 'solid-js';
-import { useWorkspace, useObserver, useSDK, useScriptRunner, useTestRunner } from '../../context';
-import { HttpEditor } from './HttpEditor';
-import { CodeEditor } from './CodeEditor';
-import { ResizableSplitPane } from './ResizableSplitPane';
-import { RequestSelectorBar } from './RequestSelectorBar';
+import {
+  type Component,
+  createEffect,
+  createMemo,
+  createSignal,
+  Match,
+  on,
+  Show,
+  Switch
+} from 'solid-js';
+import {
+  useConnection,
+  useObserver,
+  useScriptRunner,
+  useTestRunner,
+  useWorkspace
+} from '../../context';
+import type { WorkspaceRequest } from '../../sdk';
+import { type FileType, getFileType } from '../../utils/fileType';
 import { ExecutionDetail } from '../execution/ExecutionDetail';
 import { ScriptPanel } from '../script';
-import { getFileType, type FileType } from '../../utils/fileType';
-import type { WorkspaceRequest } from '../../sdk';
+import { CodeEditor } from './CodeEditor';
+import { HttpEditor } from './HttpEditor';
+import { RequestSelectorBar } from './RequestSelectorBar';
+import { ResizableSplitPane } from './ResizableSplitPane';
 
 interface EditorWithExecutionProps {
   path: string;
@@ -18,7 +33,7 @@ const COLLAPSE_STORAGE_KEY = 'treq:editor:resultsPanelCollapsed';
 export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) => {
   const workspace = useWorkspace();
   const observer = useObserver();
-  const sdk = useSDK();
+  const connection = useConnection();
   const scriptRunner = useScriptRunner();
   const testRunner = useTestRunner();
 
@@ -32,7 +47,12 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
 
   const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
   const [resultsPanelCollapsed, setResultsPanelCollapsed] = createSignal(loadCollapsedState());
-  const [requests, setRequests] = createSignal<WorkspaceRequest[]>([]);
+  const requests = createMemo<WorkspaceRequest[]>(() => {
+    if (fileType() !== 'http') {
+      return [];
+    }
+    return workspace.requestsByPath()[props.path] ?? [];
+  });
 
   const saveCollapsedState = (collapsed: boolean) => {
     if (typeof localStorage !== 'undefined') {
@@ -46,43 +66,44 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
     saveCollapsedState(newState);
   };
 
-  // Track path changes with explicit dependency and handle async properly
+  // Reset execution state on path changes and trigger request loading for HTTP files.
   createEffect(
     on(
       () => props.path,
-      async (path) => {
+      (path) => {
+        // Clear previous execution results when switching files
+        observer.clearExecutions();
+        setSelectedRequestIndex(0);
+
         if (!path) {
-          setRequests([]);
+          observer.clearScriptOutput();
           return;
         }
 
-        // Clear previous execution results when switching files
-        observer.clearExecutions();
-
         if (getFileType(path) === 'http') {
-          await workspace.loadRequests(path);
-          // Only update if path hasn't changed during async operation
-          if (props.path === path) {
-            const fileRequests = workspace.requestsByPath()[path] ?? [];
-            setRequests(fileRequests);
-          }
-        } else {
-          setRequests([]);
-          observer.clearScriptOutput();
+          void workspace.loadRequests(path);
+          return;
         }
 
-        setSelectedRequestIndex(0);
+        observer.clearScriptOutput();
       }
     )
   );
 
-  // Sync requests when requestsByPath changes (e.g., after file save/parse)
+  // Keep selected index valid as request lists change after edits/saves.
   createEffect(
     on(
-      () => workspace.requestsByPath()[props.path],
-      (fileRequests) => {
-        if (getFileType(props.path) === 'http' && fileRequests) {
-          setRequests(fileRequests);
+      () => requests().length,
+      (totalRequests) => {
+        if (totalRequests === 0) {
+          if (selectedRequestIndex() !== 0) {
+            setSelectedRequestIndex(0);
+          }
+          return;
+        }
+
+        if (selectedRequestIndex() >= totalRequests) {
+          setSelectedRequestIndex(totalRequests - 1);
         }
       }
     )
@@ -93,17 +114,15 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
   const hasRequests = () => requests().length > 0;
 
   const handleHttpExecute = async () => {
-    if (!sdk() || !hasRequests()) return;
+    if (!connection.client || !hasRequests()) return;
 
     if (workspace.hasUnsavedChanges(props.path)) {
       await workspace.saveFile(props.path);
       await workspace.loadRequests(props.path);
-      const fileRequests = workspace.requestsByPath()[props.path] ?? [];
-      setRequests(fileRequests);
     }
 
     const profile = workspace.activeProfile();
-    await observer.execute(sdk()!, props.path, selectedRequestIndex(), profile);
+    await observer.execute(connection.client, props.path, selectedRequestIndex(), profile);
 
     if (resultsPanelCollapsed()) {
       setResultsPanelCollapsed(false);
@@ -165,9 +184,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
 
           <div class="flex-1 min-h-0">
             <ResizableSplitPane
-              left={
-                <HttpEditor path={props.path} onExecute={handleHttpExecute} />
-              }
+              left={<HttpEditor path={props.path} onExecute={handleHttpExecute} />}
               right={
                 <div class="h-full bg-treq-bg dark:bg-treq-dark-bg overflow-hidden">
                   <Show
@@ -179,7 +196,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                       </div>
                     }
                   >
-                    <ExecutionDetail execution={selectedExecution()!} />
+                    {(execution) => <ExecutionDetail execution={execution()} />}
                   </Show>
                 </div>
               }
@@ -193,9 +210,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
         <Match when={fileType() === 'script' || fileType() === 'test'}>
           <div class="flex-1 min-h-0">
             <ResizableSplitPane
-              left={
-                <CodeEditor path={props.path} onExecute={handleScriptExecute} />
-              }
+              left={<CodeEditor path={props.path} onExecute={handleScriptExecute} />}
               right={
                 <div class="h-full bg-treq-bg dark:bg-treq-dark-bg overflow-hidden p-4">
                   <ScriptPanel

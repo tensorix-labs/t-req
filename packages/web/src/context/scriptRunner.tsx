@@ -24,8 +24,8 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   const connection = useConnection();
 
   const lifecycle = createRunnerLifecycle<RunnerOption>({
-    getSDK: () => connection.sdk,
-    isConnected: () => !!connection.sdk && !!connection.client,
+    getClient: () => connection.client,
+    isConnected: () => !!connection.client,
     observer,
     detectRunners: async (path) => {
       const client = connection.client;

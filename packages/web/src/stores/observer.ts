@@ -7,9 +7,15 @@
  * - Execute actions
  */
 
+import {
+  type ExecuteResponse,
+  type PluginReport,
+  type TreqClient,
+  unwrap
+} from '@t-req/sdk/client';
 import { type Accessor, createMemo } from 'solid-js';
 import { createStore, produce, reconcile, type SetStoreFunction } from 'solid-js/store';
-import type { EventEnvelope, ExecuteResponse, PluginReport, SDK } from '../sdk';
+import type { EventEnvelope } from '../sdk';
 
 export type SSEStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
@@ -74,12 +80,12 @@ export interface ObserverStore {
   setState: SetStoreFunction<ObserverState>;
 
   // Flow lifecycle
-  openFlow: (sdk: SDK) => Promise<string>;
+  openFlow: (client: TreqClient) => Promise<string>;
   closeFlow: () => void;
 
   // Actions
   execute: (
-    sdk: SDK,
+    client: TreqClient,
     path: string,
     requestIndex: number,
     profile?: string
@@ -139,7 +145,7 @@ const MAX_OUTPUT_LINES = 1000;
 export function createObserverStore(): ObserverStore {
   const [state, setState] = createStore<ObserverState>(createInitialState());
 
-  let unsubscribeSSE: (() => void) | null = null;
+  let sseController: AbortController | null = null;
 
   const handleSSEEvent = (event: EventEnvelope) => {
     const { type, reqExecId, payload } = event;
@@ -306,52 +312,78 @@ export function createObserverStore(): ObserverStore {
 
   /** Tear down the SSE connection and clear flow state. Idempotent. */
   const closeFlow = () => {
-    if (unsubscribeSSE) {
-      unsubscribeSSE();
-      unsubscribeSSE = null;
+    if (sseController) {
+      sseController.abort();
+      sseController = null;
     }
     setState('flowId', undefined);
     setState('sseStatus', 'idle');
   };
 
   /** Subscribe SSE to a specific flow. Tears down any existing connection first. */
-  const subscribeToSSE = (sdk: SDK, flowId: string) => {
+  const subscribeToSSE = (client: TreqClient, flowId: string) => {
     closeFlow();
 
     setState('flowId', flowId);
     setState('sseStatus', 'connecting');
 
-    unsubscribeSSE = sdk.subscribeEvents(
-      flowId,
-      (event) => {
-        if (state.sseStatus !== 'open') {
-          setState('sseStatus', 'open');
+    const controller = new AbortController();
+    let hadSseError = false;
+    sseController = controller;
+
+    void (async () => {
+      try {
+        const { stream } = await client.getEvent({
+          query: { flowId },
+          signal: controller.signal,
+          sseMaxRetryAttempts: 1,
+          onSseError: (error) => {
+            if (controller.signal.aborted) return;
+            hadSseError = true;
+            console.error('SSE error:', error);
+            setState('sseStatus', 'error');
+          }
+        });
+
+        for await (const event of stream) {
+          if (controller.signal.aborted) {
+            break;
+          }
+
+          if (state.sseStatus !== 'open') {
+            setState('sseStatus', 'open');
+          }
+          handleSSEEvent(event as EventEnvelope);
         }
-        handleSSEEvent(event);
-      },
-      (error) => {
+
+        if (!controller.signal.aborted && sseController === controller && !hadSseError) {
+          setState('sseStatus', 'closed');
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('SSE error:', error);
         setState('sseStatus', 'error');
-      },
-      () => {
-        setState('sseStatus', 'closed');
+      } finally {
+        if (sseController === controller) {
+          sseController = null;
+        }
       }
-    );
+    })();
   };
 
   /** Create a flow and subscribe to its SSE stream. Reuses existing flow. */
-  const openFlow = async (sdk: SDK): Promise<string> => {
+  const openFlow = async (client: TreqClient): Promise<string> => {
     if (state.flowId) return state.flowId;
 
-    const { flowId } = await sdk.createFlow('web-execution');
-    subscribeToSSE(sdk, flowId);
+    const { flowId } = await unwrap(client.postFlows({ body: { label: 'web-execution' } }));
+    subscribeToSSE(client, flowId);
     return flowId;
   };
 
   // ── Execute ─────────────────────────────────────────────────────────────
 
   const execute = async (
-    sdk: SDK,
+    client: TreqClient,
     path: string,
     requestIndex: number,
     profile?: string
@@ -360,15 +392,25 @@ export function createObserverStore(): ObserverStore {
     setState('executeError', undefined);
 
     try {
-      const flowId = await openFlow(sdk);
+      const flowId = await openFlow(client);
 
       // Execute the request with profile
-      const response = await sdk.executeRequest(flowId, path, requestIndex, profile);
+      const response = await unwrap(
+        client.postExecute({
+          body: {
+            flowId,
+            path,
+            requestIndex,
+            profile
+          }
+        })
+      );
 
       // If we got a response directly (non-SSE mode), add it to state
-      if (response.reqExecId && !state.executionsById[response.reqExecId]) {
+      const reqExecId = response.reqExecId;
+      if (reqExecId && !state.executionsById[reqExecId]) {
         const exec: ExecutionSummary = {
-          reqExecId: response.reqExecId,
+          reqExecId,
           flowId: response.flowId ?? flowId,
           method: response.request.method,
           urlResolved: response.request.url,
@@ -378,12 +420,12 @@ export function createObserverStore(): ObserverStore {
           response: response.response,
           pluginReports: response.pluginReports
         };
-        setState('executionsById', response.reqExecId, exec);
-        setState('executionOrder', (prev) => [...prev, response.reqExecId!]);
+        setState('executionsById', reqExecId, exec);
+        setState('executionOrder', (prev) => [...prev, reqExecId]);
 
         // Auto-select
         if (state.selectedReqExecId === undefined) {
-          setState('selectedReqExecId', response.reqExecId);
+          setState('selectedReqExecId', reqExecId);
         }
       }
 
