@@ -1,8 +1,9 @@
-import { createContext, useContext, type Accessor, type JSX } from 'solid-js';
-import { useObserver } from './index';
-import { useSDK } from './sdk';
-import type { RunnerOption } from '../sdk';
+import { unwrap } from '@t-req/sdk/client';
+import { type Accessor, createContext, type JSX, useContext } from 'solid-js';
 import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
+import type { RunnerOption } from '../sdk';
+import { useObserver } from './index';
+import { useConnection } from './sdk';
 
 export interface ScriptRunnerContextValue {
   runScript: (scriptPath: string) => Promise<void>;
@@ -20,14 +21,27 @@ const ScriptRunnerContext = createContext<ScriptRunnerContextValue>();
 
 export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   const observer = useObserver();
-  const getSDK = useSDK();
+  const connection = useConnection();
 
   const lifecycle = createRunnerLifecycle<RunnerOption>({
-    getSDK,
+    getSDK: () => connection.sdk,
+    isConnected: () => !!connection.sdk && !!connection.client,
     observer,
-    detectRunners: (sdk, path) => sdk.getRunners(path),
-    startRun: (sdk, path, runnerId, flowId) => sdk.runScript(path, runnerId, flowId),
-    cancelRun: (sdk, runId) => sdk.cancelScript(runId),
+    detectRunners: async (path) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      return unwrap(client.getScriptRunners({ query: { filePath: path } }));
+    },
+    startRun: async (path, runnerId, flowId) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      return unwrap(client.postScript({ body: { filePath: path, runnerId, flowId } }));
+    },
+    cancelRun: async (runId) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      await unwrap(client.deleteScriptByRunId({ path: { runId } }));
+    },
     flowLabel: 'Script'
   });
 
@@ -43,9 +57,7 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   };
 
   return (
-    <ScriptRunnerContext.Provider value={value}>
-      {props.children}
-    </ScriptRunnerContext.Provider>
+    <ScriptRunnerContext.Provider value={value}>{props.children}</ScriptRunnerContext.Provider>
   );
 }
 

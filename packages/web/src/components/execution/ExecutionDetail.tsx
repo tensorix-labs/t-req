@@ -1,8 +1,9 @@
-import { createSignal, createResource, For, Show } from 'solid-js';
+import { unwrap } from '@t-req/sdk/client';
+import { createResource, createSignal, For, Show } from 'solid-js';
+import { useConnection } from '../../context/sdk';
+import type { PluginHookInfo, PluginReport } from '../../sdk';
 import type { ExecutionSummary } from '../../stores/observer';
 import { ResponseViewer } from '../response';
-import { useSDK } from '../../context/sdk';
-import type { PluginHookInfo, PluginReport } from '../../sdk';
 
 type TabType = 'response' | 'headers' | 'plugins' | 'reports';
 
@@ -11,17 +12,21 @@ interface ExecutionDetailProps {
 }
 
 export function ExecutionDetail(props: ExecutionDetailProps) {
-  const sdk = useSDK();
+  const connection = useConnection();
   const [activeTab, setActiveTab] = createSignal<TabType>('response');
 
   // Fetch full execution details (includes plugin hooks/reports) when relevant tab is active
   const [executionDetail] = createResource(
     () => (activeTab() === 'plugins' || activeTab() === 'reports' ? props.execution : null),
     async (exec) => {
-      const client = sdk();
+      const client = connection.client;
       if (!exec || !client) return null;
       try {
-        return await client.getExecution(exec.flowId, exec.reqExecId);
+        return await unwrap(
+          client.getFlowsByFlowIdExecutionsByReqExecId({
+            path: { flowId: exec.flowId, reqExecId: exec.reqExecId }
+          })
+        );
       } catch {
         return null;
       }
@@ -179,9 +184,7 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
                   <For each={pluginHooks()}>
                     {(hookInfo) => (
                       <div class="flex items-center gap-3 font-mono text-[13px]">
-                        <span class="text-treq-accent font-medium">
-                          {hookInfo.pluginName}
-                        </span>
+                        <span class="text-treq-accent font-medium">{hookInfo.pluginName}</span>
                         <span class="text-treq-text-muted dark:text-treq-dark-text-muted">
                           {hookInfo.hook}
                         </span>
@@ -231,6 +234,6 @@ export function ExecutionDetail(props: ExecutionDetailProps) {
 }
 
 function getContentType(headers: Array<{ name: string; value: string }>): string | undefined {
-  const header = headers.find(h => h.name.toLowerCase() === 'content-type');
+  const header = headers.find((h) => h.name.toLowerCase() === 'content-type');
   return header?.value;
 }

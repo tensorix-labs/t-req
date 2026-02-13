@@ -1,20 +1,20 @@
-import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
+import { createSignal } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { useWorkspace, useSDK } from '../../context';
+import { useConnection, useWorkspace } from '../../context';
 import { useAccessibleDialog, useEnvironmentData } from '../../hooks';
+import type { PluginInfo, ResolvedCookies, ResolvedDefaults, SecuritySettings } from '../../sdk';
 import { CloseIcon } from '../icons';
-import type { SectionType, SectionConfig, SectionRenderProps } from './types';
-import type { ResolvedDefaults, ResolvedCookies, SecuritySettings, PluginInfo } from '../../sdk';
-import { Sidebar } from './Sidebar';
 import { EnvironmentContent } from './EnvironmentContent';
+import { Sidebar } from './Sidebar';
 import {
-  VariablesSection,
-  DefaultsSection,
   CookiesSection,
+  DefaultsSection,
+  PluginsSection,
   SecuritySection,
-  PluginsSection
+  VariablesSection
 } from './sections';
+import type { SectionConfig, SectionRenderProps, SectionType } from './types';
 
 export interface EnvironmentManagerProps {
   onClose: () => void;
@@ -69,14 +69,12 @@ const SECTIONS: SectionConfig[] = [
   },
   {
     type: 'plugins',
-    component: (props: SectionRenderProps) => (
-      <PluginsSectionWrapper plugins={props.plugins} />
-    )
+    component: (props: SectionRenderProps) => <PluginsSectionWrapper plugins={props.plugins} />
   }
 ];
 
 function getSectionComponent(type: SectionType): (props: SectionRenderProps) => JSX.Element {
-  const section = SECTIONS.find(s => s.type === type);
+  const section = SECTIONS.find((s) => s.type === type);
   if (!section) {
     throw new Error(`Unknown section type: ${type}`);
   }
@@ -85,7 +83,7 @@ function getSectionComponent(type: SectionType): (props: SectionRenderProps) => 
 
 function EnvironmentManager(props: EnvironmentManagerProps) {
   const store = useWorkspace();
-  const sdk = useSDK();
+  const connection = useConnection();
   const [activeSection, setActiveSection] = createSignal<SectionType>('variables');
   const [previewProfile, setPreviewProfile] = createSignal(store.activeProfile());
 
@@ -99,18 +97,16 @@ function EnvironmentManager(props: EnvironmentManagerProps) {
     preventBodyScroll: true
   });
 
-  const { refetch, resolvedConfig, pluginsResponse, loading, error } =
-    useEnvironmentData(sdk, () => previewProfile());
+  const { refetch, resolvedConfig, pluginsResponse, loading, error } = useEnvironmentData(
+    () => connection.client,
+    () => previewProfile()
+  );
 
   const currentSectionComponent = () => getSectionComponent(activeSection());
 
   return (
     <Portal>
-      <div
-        class="fixed inset-0 bg-black/50 z-[100]"
-        onClick={props.onClose}
-        aria-hidden="true"
-      />
+      <div class="fixed inset-0 bg-black/50 z-[100]" onClick={props.onClose} aria-hidden="true" />
 
       <div
         ref={dialogRef}
@@ -121,7 +117,8 @@ function EnvironmentManager(props: EnvironmentManagerProps) {
         class="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none"
       >
         <span id="env-manager-desc" class="sr-only">
-          View environment configuration including variables, defaults, cookies, security settings, and plugins.
+          View environment configuration including variables, defaults, cookies, security settings,
+          and plugins.
         </span>
         <div class="bg-white dark:bg-treq-dark-bg rounded-xl shadow-2xl w-full max-w-4xl h-[600px] max-h-[80vh] flex pointer-events-auto overflow-hidden animate-fade-scale-in">
           <Sidebar
@@ -152,11 +149,7 @@ function EnvironmentManager(props: EnvironmentManagerProps) {
             </header>
 
             <div class="flex-1 overflow-y-auto">
-              <EnvironmentContent
-                loading={loading()}
-                error={error()}
-                onRetry={refetch}
-              >
+              <EnvironmentContent loading={loading()} error={error()} onRetry={refetch}>
                 {currentSectionComponent()({
                   resolvedConfig: resolvedConfig(),
                   plugins: pluginsResponse()?.plugins ?? []

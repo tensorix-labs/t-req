@@ -1,8 +1,10 @@
+import { unwrap } from '@t-req/sdk/client';
 import { createMemo, createSignal } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
+import type { ConnectionState } from '../context/sdk';
 import {
   createSDK,
-  type SDK,
+  createTreqWebClient,
   type SDKConfig,
   type WorkspaceFile,
   type WorkspaceRequest
@@ -40,8 +42,8 @@ interface DeepState {
 }
 
 export interface WorkspaceStoreDeps {
-  sdk: () => SDK | null;
-  setSdk: (sdk: SDK | null) => void;
+  connection: () => ConnectionState;
+  setConnection: (connection: ConnectionState) => void;
 }
 
 export interface WorkspaceStore {
@@ -218,7 +220,7 @@ function flattenTree(nodes: TreeNode[], expandedDirs: Record<string, boolean>): 
 // ============================================================================
 
 export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
-  const { sdk, setSdk } = deps;
+  const { connection, setConnection } = deps;
 
   // ── Signals: simple flat state ──────────────────────────────────────────
   const [connectionStatus, setConnectionStatus] = createSignal<ConnectionStatus>('disconnected');
@@ -264,6 +266,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   const connect = async (config?: SDKConfig | string) => {
     setConnectionStatus('connecting');
     setError(undefined);
+    setConnection({ sdk: null, client: null });
     setFiles([]);
     setSelectedPath(undefined);
     setDeep('requestsByPath', {});
@@ -271,28 +274,28 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
     setAvailableProfiles([]);
 
     try {
-      // Create SDK with provided config
-      // - undefined: relative URLs with cookie auth (local proxy mode)
-      // - string: legacy URL-only mode
-      // - SDKConfig: full config
+      // Create generated client for direct API calls
+      const newClient = createTreqWebClient(config);
+
+      // Create legacy SDK for SSE consumers (observer, runner lifecycle)
       const newSdk = createSDK(config);
 
       // Test connection with health check
-      const health = await newSdk.health();
+      const health = await unwrap(newClient.getHealth());
       if (!health.healthy) {
         throw new Error('Server is unhealthy');
       }
 
       // Fetch workspace files
-      const response = await newSdk.listWorkspaceFiles();
+      const response = await unwrap(newClient.getWorkspaceFiles());
       setFiles(response.files);
       setWorkspaceRoot(response.workspaceRoot);
-      setSdk(newSdk);
+      setConnection({ sdk: newSdk, client: newClient });
       setConnectionStatus('connected');
 
       // Fetch available profiles
       try {
-        const configResponse = await newSdk.getConfig();
+        const configResponse = await unwrap(newClient.getConfig());
         setAvailableProfiles(configResponse.availableProfiles);
       } catch {
         // Ignore errors - profiles just won't be available
@@ -310,12 +313,12 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
     } catch (err) {
       setConnectionStatus('error');
       setError(err instanceof Error ? err.message : String(err));
-      setSdk(null);
+      setConnection({ sdk: null, client: null });
     }
   };
 
   const disconnect = () => {
-    setSdk(null);
+    setConnection({ sdk: null, client: null });
     setConnectionStatus('disconnected');
     setFiles([]);
     setWorkspaceRoot('');
@@ -325,15 +328,15 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   };
 
   const loadRequests = async (path: string) => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     // Skip if already loaded
     if (deep.requestsByPath[path]) return;
 
     setLoadingRequests(true);
     try {
-      const response = await currentSdk.listWorkspaceRequests(path);
+      const response = await unwrap(currentClient.getWorkspaceRequests({ query: { path } }));
       setDeep('requestsByPath', path, response.requests);
     } catch (err) {
       console.error('Failed to load requests:', err);
@@ -343,11 +346,11 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   };
 
   const refresh = async () => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     try {
-      const response = await currentSdk.listWorkspaceFiles();
+      const response = await unwrap(currentClient.getWorkspaceFiles());
       setFiles(response.files);
       setWorkspaceRoot(response.workspaceRoot);
       // Clear requests cache to force reload
@@ -359,8 +362,8 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
 
   // ── File editor actions ─────────────────────────────────────────────────
   const openFile = async (path: string) => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     // Add to open files if not already open
     setOpenFiles((prev) => {
@@ -381,7 +384,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
       });
 
       try {
-        const response = await currentSdk.getFileContent(path);
+        const response = await unwrap(currentClient.getWorkspaceFile({ query: { path } }));
         setDeep('fileContents', path, {
           content: response.content,
           originalContent: response.content,
@@ -443,14 +446,14 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   };
 
   const saveFile = async (path: string) => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     const content = deep.fileContents[path]?.content;
     if (content === undefined) return;
 
     try {
-      await currentSdk.updateFile(path, content);
+      await unwrap(currentClient.putWorkspaceFile({ body: { path, content } }));
 
       // Mark as saved
       setDeep(
@@ -467,7 +470,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
       });
 
       // Refresh file list to update request counts (but don't clear all requests)
-      const response = await currentSdk.listWorkspaceFiles();
+      const response = await unwrap(currentClient.getWorkspaceFiles());
       setFiles(response.files);
       setWorkspaceRoot(response.workspaceRoot);
 
@@ -484,11 +487,11 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   };
 
   const createFile = async (path: string) => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     try {
-      await currentSdk.createFile(path);
+      await unwrap(currentClient.postWorkspaceFile({ body: { path } }));
 
       // Refresh file list
       await refresh();
@@ -501,11 +504,11 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   };
 
   const deleteFile = async (path: string) => {
-    const currentSdk = sdk();
-    if (!currentSdk) return;
+    const currentClient = connection().client;
+    if (!currentClient) return;
 
     try {
-      await currentSdk.deleteFile(path);
+      await unwrap(currentClient.deleteWorkspaceFile({ query: { path } }));
 
       // Close if open
       if (openFiles().includes(path)) {

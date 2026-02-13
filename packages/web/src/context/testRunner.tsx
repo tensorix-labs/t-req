@@ -1,8 +1,9 @@
-import { createContext, useContext, type Accessor, type JSX } from 'solid-js';
-import { useObserver } from './index';
-import { useSDK } from './sdk';
-import type { TestFrameworkOption } from '../sdk';
+import { unwrap } from '@t-req/sdk/client';
+import { type Accessor, createContext, type JSX, useContext } from 'solid-js';
 import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
+import type { TestFrameworkOption } from '../sdk';
+import { useObserver } from './index';
+import { useConnection } from './sdk';
 
 export interface TestRunnerContextValue {
   runTest: (testPath: string) => Promise<void>;
@@ -20,14 +21,27 @@ const TestRunnerContext = createContext<TestRunnerContextValue>();
 
 export function TestRunnerProvider(props: { children: JSX.Element }) {
   const observer = useObserver();
-  const getSDK = useSDK();
+  const connection = useConnection();
 
   const lifecycle = createRunnerLifecycle<TestFrameworkOption>({
-    getSDK,
+    getSDK: () => connection.sdk,
+    isConnected: () => !!connection.sdk && !!connection.client,
     observer,
-    detectRunners: (sdk, path) => sdk.getTestFrameworks(path),
-    startRun: (sdk, path, frameworkId, flowId) => sdk.runTest(path, frameworkId, flowId),
-    cancelRun: (sdk, runId) => sdk.cancelTest(runId),
+    detectRunners: async (path) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      return unwrap(client.getTestFrameworks({ query: { filePath: path } }));
+    },
+    startRun: async (path, frameworkId, flowId) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      return unwrap(client.postTest({ body: { filePath: path, frameworkId, flowId } }));
+    },
+    cancelRun: async (runId) => {
+      const client = connection.client;
+      if (!client) throw new Error('Not connected');
+      await unwrap(client.deleteTestByRunId({ path: { runId } }));
+    },
     flowLabel: 'Test'
   });
 
@@ -42,11 +56,7 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
     handleDialogClose: lifecycle.handleDialogClose
   };
 
-  return (
-    <TestRunnerContext.Provider value={value}>
-      {props.children}
-    </TestRunnerContext.Provider>
-  );
+  return <TestRunnerContext.Provider value={value}>{props.children}</TestRunnerContext.Provider>;
 }
 
 export function useTestRunner(): TestRunnerContextValue {
