@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION } from '../schemas';
 import { createConfigService } from './config-service';
 import { createExecutionEngine } from './execution-engine';
 import { createFlowManager } from './flow-manager';
+import { createImportService } from './import-service';
 import { createParseService } from './parse-service';
 import { createPluginService } from './plugin-service';
 import { createScriptService } from './script-service';
@@ -38,6 +39,7 @@ export function createService(config: ServiceConfig) {
   const pluginService = createPluginService(configService);
   const scriptService = createScriptService(context, sessionManager, flowManager);
   const testService = createTestService(context, sessionManager, flowManager);
+  const importService = createImportService(context);
   const executionEngine = createExecutionEngine(
     context,
     sessionManager,
@@ -113,6 +115,9 @@ export function createService(config: ServiceConfig) {
     getTestFrameworks: testService.getTestFrameworks,
     // Plugins
     getPlugins: pluginService.getPlugins,
+    // Import
+    importPreview: importService.preview,
+    importApply: importService.apply,
     dispose,
     // For testing
     getSessions: sessionManager.getSessions,
