@@ -54,7 +54,7 @@ export async function unwrap<T>(
     const code = (error as { error?: { code?: string } })?.error?.code;
     throw new SDKError(msg, status, code);
   }
-  if (!data) throw new SDKError('No data returned from server');
+  if (data === undefined) throw new SDKError('No data returned from server');
   return data;
 }
 
