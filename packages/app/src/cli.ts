@@ -2,6 +2,7 @@ import { resolveProjectConfig } from '@t-req/core/config';
 import type { CommandModule } from 'yargs';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { importCommand } from './cmd/import';
 import { initCommand } from './cmd/init';
 import { openCommand } from './cmd/open';
 import { runCommand } from './cmd/run';
@@ -94,6 +95,7 @@ export async function cli(args: string[]): Promise<void> {
   let yargsInstance = yargs(hideBin(['node', 'cli', ...args]))
     .scriptName('treq')
     .usage('$0 <command> [options]')
+    .command(importCommand)
     .command(initCommand)
     .command(openCommand)
     .command(runCommand)

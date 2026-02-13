@@ -6,7 +6,15 @@ import type { CommandModule } from 'yargs';
 import { analyzeParsedContent, DiagnosticCodes, getLinePositions } from '../server/diagnostics';
 import type { Diagnostic } from '../server/schemas';
 import { DEFAULT_WORKSPACE_IGNORE_PATTERNS } from '../server/service/types';
-import { dirname, existsSync, isAbsolute, resolve, resolveWorkspaceRoot } from '../utils';
+import {
+  ANSI,
+  dirname,
+  existsSync,
+  isAbsolute,
+  resolve,
+  resolveWorkspaceRoot,
+  useColor
+} from '../utils';
 
 interface ValidateOptions {
   path: string;
@@ -205,20 +213,6 @@ async function validateFile(
   });
 
   return { path: relPath, diagnostics, requestCount };
-}
-
-const ANSI = {
-  red: '\x1b[31m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  dim: '\x1b[2m',
-  reset: '\x1b[0m',
-  bold: '\x1b[1m'
-};
-
-function useColor(): boolean {
-  if (process.env.NO_COLOR !== undefined) return false;
-  return process.stdout.isTTY === true;
 }
 
 function severityLabel(severity: Diagnostic['severity'], color: boolean): string {
