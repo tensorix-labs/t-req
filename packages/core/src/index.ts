@@ -106,6 +106,13 @@ export {
 export { createAutoTransport, createFetchTransport } from './runtime';
 // Runtime types (needed for plugin event handlers)
 export type { EngineEvent, EventSink } from './runtime/types';
+// Serialization
+export {
+  type SerializableDocument,
+  type SerializableRequest,
+  serializeDocument,
+  serializeRequest
+} from './serializer';
 // Server metadata utilities
 export { getServerMetadata, type ServerMetadata } from './server-metadata';
 
