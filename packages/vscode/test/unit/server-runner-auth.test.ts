@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { TreqClient } from '@t-req/sdk/client';
+import { SDKError, type TreqClient } from '@t-req/sdk/client';
 import type * as vscode from 'vscode';
-import {
-  createServerRunner,
-  isServerAuthError,
-  ServerAuthError
-} from '../../src/execution/server-runner';
+import { createServerRunner, isServerAuthError } from '../../src/execution/server-runner';
 
 function makeContext(): Parameters<ReturnType<typeof createServerRunner>['run']>[0] {
   return {
@@ -33,7 +29,7 @@ function makeContext(): Parameters<ReturnType<typeof createServerRunner>['run']>
 }
 
 describe('server runner auth errors', () => {
-  test('throws ServerAuthError on 401 and still attempts to finish flow', async () => {
+  test('throws SDKError on 401 and still attempts to finish flow', async () => {
     let finishCalled = false;
     const runner = createServerRunner('http://localhost:4097', 'token', {
       createClient: () =>
@@ -73,9 +69,9 @@ describe('server runner auth errors', () => {
       caught = error;
     }
 
-    expect(caught).toBeInstanceOf(ServerAuthError);
+    expect(caught).toBeInstanceOf(SDKError);
     expect(isServerAuthError(caught)).toBe(true);
-    expect((caught as ServerAuthError).status).toBe(401);
+    expect((caught as SDKError).status).toBe(401);
     expect(finishCalled).toBe(true);
   });
 
