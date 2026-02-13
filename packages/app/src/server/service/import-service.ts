@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { serializeDocument } from '@t-req/core';
 import { parseJsonc } from '@t-req/core/config';
@@ -480,12 +480,11 @@ export function createImportService(context: ServiceContext): ImportService {
     const outputAbsolutePath = resolve(context.workspaceRoot, resolvedOptions.outputDir || '.');
     validatePathSafety(context, resolvedOptions.outputDir === '' ? '.' : resolvedOptions.outputDir);
 
-    const stagingDirectoryName = `.treq-import-staging-${Math.random().toString(36).slice(2, 10)}`;
-    const stagingAbsolutePath = resolve(outputAbsolutePath, stagingDirectoryName);
+    let stagingAbsolutePath = '';
 
     if (plan.writes.length > 0) {
       await mkdir(outputAbsolutePath, { recursive: true });
-      await mkdir(stagingAbsolutePath, { recursive: true });
+      stagingAbsolutePath = await mkdtemp(path.join(outputAbsolutePath, '.treq-import-staging-'));
     }
 
     try {
