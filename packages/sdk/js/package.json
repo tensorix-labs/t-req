@@ -61,6 +61,7 @@
     "build:js": "bun build --target node --minify --sourcemap --outdir ./dist --root ./src ./src/index.ts ./src/client.ts ./src/server.ts",
     "build:types": "tsc -p tsconfig.build.json",
     "check-types": "tsc -p tsconfig.build.json --noEmit",
+    "test": "bun test",
     "clean": "rm -rf src/gen dist",
     "prepublishOnly": "bun run build"
   },

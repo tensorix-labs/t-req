@@ -16,6 +16,48 @@ import type { ClientOptions } from './gen/types.gen';
 // Re-export SSE types for consumers
 export type { ServerSentEventsResult, StreamEvent } from './gen/core/serverSentEvents.gen';
 
+export class SDKError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+
+  constructor(message: string, status?: number, code?: string) {
+    super(message);
+    this.name = 'SDKError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Response unwrapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the data from a generated SDK response or throw an SDKError.
+ *
+ * The generated client returns `{ data, error, response }` for every call.
+ * `unwrap` provides a single, consistent way to handle that across all
+ * consumers — no duplicate extraction logic, no divergent error handling.
+ *
+ * Guards against `response` being `undefined` on network errors
+ * (the generated client sets `response: undefined` when fetch throws).
+ */
+export async function unwrap<T>(
+  promise: Promise<{ data?: T; error?: unknown; response: Response }>
+): Promise<T> {
+  const { data, error, response } = await promise;
+  if (error) {
+    const status = response?.status;
+    const msg =
+      (error as { error?: { message?: string } })?.error?.message ??
+      (error instanceof Error ? error.message : `HTTP ${status ?? 'unknown'}`);
+    const code = (error as { error?: { code?: string } })?.error?.code;
+    throw new SDKError(msg, status, code);
+  }
+  if (data === undefined) throw new SDKError('No data returned from server');
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Convenience type aliases — extract named types from generated responses
 // so consumers don't need to navigate Responses[200] indexing.
@@ -52,6 +94,30 @@ export type FlowSummary =
 
 /** An event envelope from the /event SSE endpoint. */
 export type EventEnvelope = import('./gen/types.gen').GetEventResponses[200];
+
+/** Execute response from POST /execute. */
+export type ExecuteResponse = import('./gen/types.gen').PostExecuteResponses[200];
+
+/** Resolved configuration from GET /config. */
+export type ConfigResponse = import('./gen/types.gen').GetConfigResponses[200];
+
+/** Plugin list response from GET /plugins. */
+export type PluginsResponse = import('./gen/types.gen').GetPluginsResponses[200];
+
+/** A single plugin from the plugins response. */
+export type PluginInfo = PluginsResponse['plugins'][number];
+
+/** A plugin report emitted during execution. */
+export type PluginReport = NonNullable<ExecuteResponse['pluginReports']>[number];
+
+/** Resolved default settings from the config response. */
+export type ResolvedDefaults = ConfigResponse['resolvedConfig']['defaults'];
+
+/** Resolved cookie settings from the config response. */
+export type ResolvedCookies = ConfigResponse['resolvedConfig']['cookies'];
+
+/** Security settings from the config response. */
+export type SecuritySettings = ConfigResponse['resolvedConfig']['security'];
 
 // ---------------------------------------------------------------------------
 // Factory
