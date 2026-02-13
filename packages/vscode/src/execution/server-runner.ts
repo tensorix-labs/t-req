@@ -1,53 +1,13 @@
 import * as path from 'node:path';
-import { createTreqClient, type TreqClient } from '@t-req/sdk/client';
+import { createTreqClient, SDKError, type TreqClient, unwrap } from '@t-req/sdk/client';
 import type { ExecutionResult, ExecutionRunner, ResponseHeader, RunContext } from './types';
 
-export class ServerAuthError extends Error {
-  readonly status: 401 | 403;
-
-  constructor(status: 401 | 403, message: string) {
-    super(message);
-    this.name = 'ServerAuthError';
-    this.status = status;
-  }
-}
-
-export function isServerAuthError(error: unknown): error is ServerAuthError {
-  if (error instanceof ServerAuthError) {
-    return true;
-  }
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  const candidate = error as Error & { status?: number };
-  return (
-    candidate.name === 'ServerAuthError' && (candidate.status === 401 || candidate.status === 403)
-  );
+export function isServerAuthError(error: unknown): error is SDKError {
+  return error instanceof SDKError && (error.status === 401 || error.status === 403);
 }
 
 function contentTypeFromHeaders(headers: ResponseHeader[]): string | undefined {
   return headers.find((header) => header.name.toLowerCase() === 'content-type')?.value;
-}
-
-async function unwrap<T>(
-  promise: Promise<{ data?: T; error?: unknown; response: Response }>
-): Promise<T> {
-  const { data, error, response } = await promise;
-  if (error) {
-    if (response.status === 401 || response.status === 403) {
-      const message =
-        (error as { error?: { message?: string } }).error?.message ??
-        `Authentication failed (HTTP ${response.status})`;
-      throw new ServerAuthError(response.status as 401 | 403, message);
-    }
-    const message =
-      (error as { error?: { message?: string } }).error?.message ?? `HTTP ${response.status}`;
-    throw new Error(message);
-  }
-  if (!data) {
-    throw new Error('No data returned from server');
-  }
-  return data;
 }
 
 async function safeFinishFlow(

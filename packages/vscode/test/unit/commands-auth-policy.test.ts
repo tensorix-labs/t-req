@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import { SDKError } from '@t-req/sdk/client';
 import {
   shouldAutoRerunAfterTokenUpdate,
   shouldPromptForAuthRecovery
 } from '../../src/auth/auth-policy';
-import { ServerAuthError } from '../../src/execution/server-runner';
 
 describe('commands auth policy', () => {
   test('prompts for auth recovery on typed server auth errors', () => {
-    expect(shouldPromptForAuthRecovery(new ServerAuthError(401, 'Unauthorized'))).toBe(true);
-    expect(shouldPromptForAuthRecovery(new ServerAuthError(403, 'Forbidden'))).toBe(true);
+    expect(shouldPromptForAuthRecovery(new SDKError('Unauthorized', 401))).toBe(true);
+    expect(shouldPromptForAuthRecovery(new SDKError('Forbidden', 403))).toBe(true);
   });
 
   test('prompts for auth recovery on auth-like generic messages', () => {
