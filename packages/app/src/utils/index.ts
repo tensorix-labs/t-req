@@ -13,3 +13,4 @@ export {
   resolve,
   resolveWorkspaceRoot
 } from './path';
+export { ANSI, useColor } from './terminal';
