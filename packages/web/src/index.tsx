@@ -19,7 +19,6 @@ const root = document.getElementById('root');
 
 render(() => {
   const [connection, setConnection] = createStore<ConnectionState>({
-    sdk: null,
     client: null
   });
   const workspaceStore = createWorkspaceStore({

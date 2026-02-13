@@ -2,13 +2,7 @@ import { unwrap } from '@t-req/sdk/client';
 import { createMemo, createSignal } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import type { ConnectionState } from '../context/sdk';
-import {
-  createSDK,
-  createTreqWebClient,
-  type SDKConfig,
-  type WorkspaceFile,
-  type WorkspaceRequest
-} from '../sdk';
+import { createTreqWebClient, type WorkspaceFile, type WorkspaceRequest } from '../sdk';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -85,12 +79,12 @@ export interface WorkspaceStore {
   /**
    * Connect to a t-req server.
    *
-   * @param config - SDK configuration. Can be:
+   * @param config - Web client configuration. Can be:
    *   - undefined/empty: Use relative URLs with cookie auth (local proxy mode)
    *   - string: Server URL (legacy, uses that URL with no token)
-   *   - SDKConfig: Full config with baseUrl and optional token
+   *   - object: Full config with baseUrl and optional token
    */
-  connect: (config?: SDKConfig | string) => Promise<void>;
+  connect: (config?: Parameters<typeof createTreqWebClient>[0]) => Promise<void>;
   disconnect: () => void;
   loadRequests: (path: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -263,10 +257,10 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
     setDeep('expandedDirs', path, (v) => !v);
   };
 
-  const connect = async (config?: SDKConfig | string) => {
+  const connect = async (config?: Parameters<typeof createTreqWebClient>[0]) => {
     setConnectionStatus('connecting');
     setError(undefined);
-    setConnection({ sdk: null, client: null });
+    setConnection({ client: null });
     setFiles([]);
     setSelectedPath(undefined);
     setDeep('requestsByPath', {});
@@ -274,11 +268,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
     setAvailableProfiles([]);
 
     try {
-      // Create generated client for direct API calls
       const newClient = createTreqWebClient(config);
-
-      // Create legacy SDK for SSE consumers (observer, runner lifecycle)
-      const newSdk = createSDK(config);
 
       // Test connection with health check
       const health = await unwrap(newClient.getHealth());
@@ -290,7 +280,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
       const response = await unwrap(newClient.getWorkspaceFiles());
       setFiles(response.files);
       setWorkspaceRoot(response.workspaceRoot);
-      setConnection({ sdk: newSdk, client: newClient });
+      setConnection({ client: newClient });
       setConnectionStatus('connected');
 
       // Fetch available profiles
@@ -313,12 +303,12 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
     } catch (err) {
       setConnectionStatus('error');
       setError(err instanceof Error ? err.message : String(err));
-      setConnection({ sdk: null, client: null });
+      setConnection({ client: null });
     }
   };
 
   const disconnect = () => {
-    setConnection({ sdk: null, client: null });
+    setConnection({ client: null });
     setConnectionStatus('disconnected');
     setFiles([]);
     setWorkspaceRoot('');

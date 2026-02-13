@@ -1,9 +1,7 @@
 import type { TreqClient } from '@t-req/sdk/client';
 import { createContext, type JSX, useContext } from 'solid-js';
-import type { SDK } from '../sdk';
 
 export interface ConnectionState {
-  sdk: SDK | null;
   client: TreqClient | null;
 }
 
@@ -23,14 +21,4 @@ export function useConnection(): ConnectionState {
     throw new Error('useConnection must be used within SDKProvider');
   }
   return ctx;
-}
-
-export function useSDK(): () => SDK | null {
-  const connection = useConnection();
-  return () => connection.sdk;
-}
-
-export function useTreqClient(): () => TreqClient | null {
-  const connection = useConnection();
-  return () => connection.client;
 }
