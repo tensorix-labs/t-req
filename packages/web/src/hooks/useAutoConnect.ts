@@ -1,11 +1,11 @@
-import { createEffect } from 'solid-js';
+import { onMount } from 'solid-js';
 import { useWorkspace } from '../context';
 import { getDefaultServerUrl } from '../sdk';
 
 export function useAutoConnect() {
   const store = useWorkspace();
 
-  createEffect(() => {
-    store.connect(getDefaultServerUrl());
+  onMount(() => {
+    void store.connect(getDefaultServerUrl());
   });
 }

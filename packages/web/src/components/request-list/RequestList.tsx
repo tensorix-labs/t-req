@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { useWorkspace, useObserver, useSDK } from '../../context';
+import { useConnection, useObserver, useWorkspace } from '../../context';
 import type { WorkspaceRequest } from '../../sdk';
 import { SpinnerIcon } from '../icons';
 import { RequestItem } from './RequestItem';
@@ -7,10 +7,10 @@ import { RequestItem } from './RequestItem';
 export function RequestList() {
   const store = useWorkspace();
   const observer = useObserver();
-  const sdk = useSDK();
+  const connection = useConnection();
 
   const handleExecute = (request: WorkspaceRequest) => {
-    const client = sdk();
+    const client = connection.client;
     const path = store.selectedPath();
     if (!client || !path) return;
     const profile = store.activeProfile();
@@ -32,13 +32,21 @@ export function RequestList() {
         </div>
       </Show>
 
-      <Show when={store.selectedPath() && !store.loadingRequests() && store.selectedRequests().length === 0}>
+      <Show
+        when={
+          store.selectedPath() && !store.loadingRequests() && store.selectedRequests().length === 0
+        }
+      >
         <div class="flex flex-col items-center justify-center gap-3 p-12 text-treq-text-muted dark:text-treq-dark-text-muted text-center">
           <p>No requests in this file</p>
         </div>
       </Show>
 
-      <Show when={store.selectedPath() && !store.loadingRequests() && store.selectedRequests().length > 0}>
+      <Show
+        when={
+          store.selectedPath() && !store.loadingRequests() && store.selectedRequests().length > 0
+        }
+      >
         <ul class="list-none p-0 m-0 flex flex-col gap-2">
           <For each={store.selectedRequests()}>
             {(request) => (

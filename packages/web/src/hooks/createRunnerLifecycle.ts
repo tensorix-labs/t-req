@@ -8,15 +8,16 @@
  * duplicated lifecycle logic.
  */
 
+import { type TreqClient, unwrap } from '@t-req/sdk/client';
 import { type Accessor, onCleanup } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { SDK } from '../sdk';
+import type { EventEnvelope } from '../sdk';
 import type { ObserverStore } from '../stores/observer';
 
 export interface RunnerLifecycleConfig<TOption> {
-  /** SDK accessor — still needed for SSE subscription and flow creation. */
-  getSDK: () => SDK | null;
-  /** True when both SDK and generated client are available. */
+  /** Generated client accessor for flow creation and SSE subscription. */
+  getClient: () => TreqClient | null;
+  /** True when the web connection is active. */
   isConnected: () => boolean;
   observer: ObserverStore;
   /** Detect/list available runners for a file path. */
@@ -64,10 +65,10 @@ export interface RunnerLifecycleReturn<TOption> {
 export function createRunnerLifecycle<TOption>(
   config: RunnerLifecycleConfig<TOption>
 ): RunnerLifecycleReturn<TOption> {
-  const { getSDK, observer, isConnected } = config;
+  const { getClient, observer, isConnected } = config;
 
   let currentRunId: string | undefined;
-  let sseUnsubscribe: (() => void) | undefined;
+  let sseController: AbortController | undefined;
 
   const [state, setState] = createStore<LifecycleState<TOption>>(createInitialState());
 
@@ -76,47 +77,86 @@ export function createRunnerLifecycle<TOption>(
     observer.setState('sseStatus', 'idle');
   }
 
-  function subscribeToFlow(sdk: SDK, flowId: string) {
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
+  function stopSseSubscription() {
+    if (sseController) {
+      sseController.abort();
+      sseController = undefined;
     }
+  }
 
+  function subscribeToFlow(client: TreqClient, flowId: string) {
+    stopSseSubscription();
     observer.setState('flowId', flowId);
     observer.setState('sseStatus', 'connecting');
 
-    sseUnsubscribe = sdk.subscribeEvents(
-      flowId,
-      (event) => {
-        if (observer.state.sseStatus !== 'open') {
-          observer.setState('sseStatus', 'open');
+    const controller = new AbortController();
+    let hadSseError = false;
+    sseController = controller;
+
+    void (async () => {
+      try {
+        const { stream } = await client.getEvent({
+          query: { flowId },
+          signal: controller.signal,
+          sseMaxRetryAttempts: 1,
+          onSseError: (error) => {
+            if (controller.signal.aborted) return;
+            hadSseError = true;
+            console.error('SSE error:', error);
+            if (isConnected()) {
+              observer.setState('sseStatus', 'error');
+            } else {
+              markDisconnected();
+            }
+          }
+        });
+
+        for await (const event of stream) {
+          if (controller.signal.aborted) {
+            break;
+          }
+
+          if (observer.state.sseStatus !== 'open') {
+            observer.setState('sseStatus', 'open');
+          }
+          observer.handleSSEEvent(event as EventEnvelope);
         }
-        observer.handleSSEEvent(event);
-      },
-      (error) => {
+
+        if (!controller.signal.aborted && sseController === controller && !hadSseError) {
+          observer.setState('sseStatus', 'closed');
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('SSE error:', error);
-        observer.setState('sseStatus', 'error');
-      },
-      () => {
-        observer.setState('sseStatus', 'closed');
+        if (isConnected()) {
+          observer.setState('sseStatus', 'error');
+        } else {
+          markDisconnected();
+        }
+      } finally {
+        if (sseController === controller) {
+          sseController = undefined;
+        }
       }
-    );
+    })();
   }
 
   async function startExecution(path: string, runnerId?: string) {
-    const sdk = getSDK();
-    if (!sdk || !isConnected()) return;
+    const client = getClient();
+    if (!client || !isConnected()) return;
 
     let flowId: string | undefined;
     try {
-      const createdFlow = await sdk.createFlow(`${config.flowLabel}: ${path}`);
+      const createdFlow = await unwrap(
+        client.postFlows({ body: { label: `${config.flowLabel}: ${path}` } })
+      );
       flowId = createdFlow.flowId;
       if (!isConnected()) {
         markDisconnected();
         return;
       }
 
-      subscribeToFlow(sdk, flowId);
+      subscribeToFlow(client, flowId);
 
       const { runId } = await config.startRun(path, runnerId, flowId);
       currentRunId = runId;
@@ -131,10 +171,7 @@ export function createRunnerLifecycle<TOption>(
     } catch (err) {
       console.error(`Failed to start ${config.flowLabel.toLowerCase()}:`, err);
       if (flowId) {
-        if (sseUnsubscribe) {
-          sseUnsubscribe();
-          sseUnsubscribe = undefined;
-        }
+        stopSseSubscription();
         observer.setState('flowId', undefined);
       }
       if (isConnected()) {
@@ -147,7 +184,7 @@ export function createRunnerLifecycle<TOption>(
   }
 
   async function run(path: string) {
-    if (!getSDK() || !isConnected()) return;
+    if (!getClient() || !isConnected()) return;
 
     if (observer.state.runningScript || state.starting) {
       return;
@@ -193,12 +230,12 @@ export function createRunnerLifecycle<TOption>(
     }
     currentRunId = undefined;
     setState('starting', false);
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
-    }
+    const hadSseSubscription = !!sseController;
+    stopSseSubscription();
     if (!isConnected()) {
       markDisconnected();
+    } else if (hadSseSubscription) {
+      observer.setState('sseStatus', 'closed');
     }
   }
 
@@ -223,13 +260,13 @@ export function createRunnerLifecycle<TOption>(
       config.cancelRun(currentRunId).catch(() => {});
     }
     currentRunId = undefined;
-    if (sseUnsubscribe) {
-      sseUnsubscribe();
-      sseUnsubscribe = undefined;
-    }
+    const hadSseSubscription = !!sseController;
+    stopSseSubscription();
     setState('starting', false);
     if (!isConnected()) {
       markDisconnected();
+    } else if (hadSseSubscription) {
+      observer.setState('sseStatus', 'closed');
     }
   }
 

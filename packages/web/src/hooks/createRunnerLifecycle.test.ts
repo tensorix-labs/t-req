@@ -1,18 +1,32 @@
 import { describe, expect, test } from 'bun:test';
+import type { TreqClient } from '@t-req/sdk/client';
 import { createRoot } from 'solid-js';
-import type { SDK } from '../sdk';
 import { createObserverStore } from '../stores/observer';
 import { createRunnerLifecycle } from './createRunnerLifecycle';
 
-function createMockSdk(onUnsubscribe?: () => void): SDK {
+function createMockClient(onUnsubscribe?: () => void): TreqClient {
+  async function* streamUntilAbort(signal: AbortSignal): AsyncGenerator<unknown> {
+    if (signal.aborted) return;
+    await new Promise<void>((resolve) => {
+      signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+  }
+
   return {
-    createFlow: async () => ({ flowId: 'flow-1' }),
-    subscribeEvents: () => {
-      return () => {
-        onUnsubscribe?.();
+    postFlows: async () => ({
+      data: { flowId: 'flow-1' },
+      response: new Response(null, { status: 201 })
+    }),
+    getEvent: async (options?: { signal?: AbortSignal }) => {
+      const signal = options?.signal ?? new AbortController().signal;
+      if (onUnsubscribe) {
+        signal.addEventListener('abort', () => onUnsubscribe(), { once: true });
+      }
+      return {
+        stream: streamUntilAbort(signal)
       };
     }
-  } as unknown as SDK;
+  } as unknown as TreqClient;
 }
 
 describe('createRunnerLifecycle disconnect handling', () => {
@@ -25,10 +39,10 @@ describe('createRunnerLifecycle disconnect handling', () => {
     });
 
     const { lifecycle, dispose } = createRoot((dispose) => {
-      const sdk = createMockSdk();
+      const client = createMockClient();
       return {
         lifecycle: createRunnerLifecycle({
-          getSDK: () => (connected ? sdk : null),
+          getClient: () => (connected ? client : null),
           isConnected: () => connected,
           observer,
           detectRunners: async () => ({ detected: 'runner-1', options: [] as string[] }),
@@ -60,10 +74,10 @@ describe('createRunnerLifecycle disconnect handling', () => {
     let detectCalls = 0;
 
     const { lifecycle, dispose } = createRoot((dispose) => {
-      const sdk = createMockSdk();
+      const client = createMockClient();
       return {
         lifecycle: createRunnerLifecycle({
-          getSDK: () => sdk,
+          getClient: () => client,
           isConnected: () => false,
           observer,
           detectRunners: async () => {
@@ -89,10 +103,10 @@ describe('createRunnerLifecycle disconnect handling', () => {
     const observer = createObserverStore();
 
     const { lifecycle, dispose } = createRoot((dispose) => {
-      const sdk = createMockSdk();
+      const client = createMockClient();
       return {
         lifecycle: createRunnerLifecycle({
-          getSDK: () => sdk,
+          getClient: () => client,
           isConnected: () => true,
           observer,
           detectRunners: async () => {
@@ -124,12 +138,12 @@ describe('createRunnerLifecycle disconnect handling', () => {
     let unsubscribeCalls = 0;
 
     const { lifecycle, dispose } = createRoot((dispose) => {
-      const sdk = createMockSdk(() => {
+      const client = createMockClient(() => {
         unsubscribeCalls += 1;
       });
       return {
         lifecycle: createRunnerLifecycle({
-          getSDK: () => (connected ? sdk : null),
+          getClient: () => (connected ? client : null),
           isConnected: () => connected,
           observer,
           detectRunners: async () => ({ detected: 'runner-1', options: [] as string[] }),
