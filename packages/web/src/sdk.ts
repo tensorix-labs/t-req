@@ -208,6 +208,21 @@ export interface SDKConfig {
 export { SDKError };
 
 /**
+ * Create a TreqClient configured for web use (cookie auth + 401 redirect).
+ *
+ * Accepts the same config as `createSDK`. Use this when you want direct
+ * access to the generated client methods with `unwrap()`.
+ */
+export function createTreqWebClient(
+  configOrUrl?: SDKConfig | string,
+  legacyToken?: string
+): TreqClient {
+  const config = normalizeSDKConfig(configOrUrl, legacyToken);
+  const baseUrl = (config.baseUrl ?? '').replace(/\/+$/, '');
+  return createWebClient(baseUrl, config.token);
+}
+
+/**
  * Get the default server URL from environment or use same-origin.
  *
  * In browser context without explicit VITE_API_URL:

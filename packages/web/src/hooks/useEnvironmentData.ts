@@ -1,5 +1,6 @@
+import { type TreqClient, unwrap } from '@t-req/sdk/client';
 import { createResource, type Resource } from 'solid-js';
-import type { ConfigResponse, PluginsResponse, SDK } from '../sdk';
+import type { ConfigResponse, PluginsResponse } from '../sdk';
 
 export interface EnvironmentData {
   config: ConfigResponse | null;
@@ -26,15 +27,18 @@ export interface UseEnvironmentDataReturn {
  * Fetches both config and plugins in parallel
  */
 export function useEnvironmentData(
-  sdk: () => SDK | null,
+  client: () => TreqClient | null,
   profile: () => string | undefined
 ): UseEnvironmentDataReturn {
   const [data, { refetch }] = createResource(
-    () => ({ sdk: sdk(), profile: profile() }),
-    async ({ sdk, profile }): Promise<EnvironmentData | null> => {
-      if (!sdk) return null;
+    () => ({ client: client(), profile: profile() }),
+    async ({ client, profile }): Promise<EnvironmentData | null> => {
+      if (!client) return null;
 
-      const [config, plugins] = await Promise.all([sdk.getConfig(profile), sdk.getPlugins()]);
+      const [config, plugins] = await Promise.all([
+        unwrap(client.getConfig({ query: { profile } })),
+        unwrap(client.getPlugins())
+      ]);
 
       return { config, plugins };
     }

@@ -14,22 +14,21 @@ import type { SDK } from '../sdk';
 import type { ObserverStore } from '../stores/observer';
 
 export interface RunnerLifecycleConfig<TOption> {
+  /** SDK accessor — still needed for SSE subscription and flow creation. */
   getSDK: () => SDK | null;
+  /** True when both SDK and generated client are available. */
+  isConnected: () => boolean;
   observer: ObserverStore;
-  /** SDK call to detect/list available runners. */
-  detectRunners: (
-    sdk: SDK,
-    path: string
-  ) => Promise<{ detected: string | null; options: TOption[] }>;
-  /** SDK call to start execution. */
+  /** Detect/list available runners for a file path. */
+  detectRunners: (path: string) => Promise<{ detected: string | null; options: TOption[] }>;
+  /** Start execution and return the run ID. */
   startRun: (
-    sdk: SDK,
     path: string,
     runnerId: string | undefined,
     flowId: string
   ) => Promise<{ runId: string }>;
-  /** SDK call to cancel a running execution. */
-  cancelRun: (sdk: SDK, runId: string) => Promise<void>;
+  /** Cancel a running execution by run ID. */
+  cancelRun: (runId: string) => Promise<void>;
   /** Label prefix for flow creation (e.g., "Script" or "Test"). */
   flowLabel: string;
 }
@@ -65,12 +64,17 @@ export interface RunnerLifecycleReturn<TOption> {
 export function createRunnerLifecycle<TOption>(
   config: RunnerLifecycleConfig<TOption>
 ): RunnerLifecycleReturn<TOption> {
-  const { getSDK, observer } = config;
+  const { getSDK, observer, isConnected } = config;
 
   let currentRunId: string | undefined;
   let sseUnsubscribe: (() => void) | undefined;
 
   const [state, setState] = createStore<LifecycleState<TOption>>(createInitialState());
+
+  function markDisconnected() {
+    observer.setState('flowId', undefined);
+    observer.setState('sseStatus', 'idle');
+  }
 
   function subscribeToFlow(sdk: SDK, flowId: string) {
     if (sseUnsubscribe) {
@@ -101,16 +105,20 @@ export function createRunnerLifecycle<TOption>(
 
   async function startExecution(path: string, runnerId?: string) {
     const sdk = getSDK();
-    if (!sdk) return;
+    if (!sdk || !isConnected()) return;
 
     let flowId: string | undefined;
     try {
       const createdFlow = await sdk.createFlow(`${config.flowLabel}: ${path}`);
       flowId = createdFlow.flowId;
+      if (!isConnected()) {
+        markDisconnected();
+        return;
+      }
 
       subscribeToFlow(sdk, flowId);
 
-      const { runId } = await config.startRun(sdk, path, runnerId, flowId);
+      const { runId } = await config.startRun(path, runnerId, flowId);
       currentRunId = runId;
 
       if (!observer.state.runningScript) {
@@ -129,14 +137,17 @@ export function createRunnerLifecycle<TOption>(
         }
         observer.setState('flowId', undefined);
       }
-      observer.setState('sseStatus', 'error');
+      if (isConnected()) {
+        observer.setState('sseStatus', 'error');
+      } else {
+        markDisconnected();
+      }
       currentRunId = undefined;
     }
   }
 
   async function run(path: string) {
-    const sdk = getSDK();
-    if (!sdk) return;
+    if (!getSDK() || !isConnected()) return;
 
     if (observer.state.runningScript || state.starting) {
       return;
@@ -146,7 +157,7 @@ export function createRunnerLifecycle<TOption>(
     observer.clearScriptOutput();
 
     try {
-      const { detected, options } = await config.detectRunners(sdk, path);
+      const { detected, options } = await config.detectRunners(path);
 
       if (detected) {
         await startExecution(path, detected);
@@ -162,26 +173,32 @@ export function createRunnerLifecycle<TOption>(
       }
     } catch (err) {
       console.error(`Failed to detect ${config.flowLabel.toLowerCase()}s:`, err);
-      observer.setState('sseStatus', 'error');
+      if (isConnected()) {
+        observer.setState('sseStatus', 'error');
+      } else {
+        markDisconnected();
+      }
     } finally {
       setState('starting', false);
     }
   }
 
   async function cancel() {
-    const sdk = getSDK();
-    if (currentRunId && sdk) {
+    if (currentRunId && isConnected()) {
       try {
-        await config.cancelRun(sdk, currentRunId);
+        await config.cancelRun(currentRunId);
       } catch {
         // Run may have already finished
       }
-      currentRunId = undefined;
     }
+    currentRunId = undefined;
     setState('starting', false);
     if (sseUnsubscribe) {
       sseUnsubscribe();
       sseUnsubscribe = undefined;
+    }
+    if (!isConnected()) {
+      markDisconnected();
     }
   }
 
@@ -202,16 +219,18 @@ export function createRunnerLifecycle<TOption>(
   }
 
   function cleanup() {
-    const sdk = getSDK();
-    if (currentRunId && sdk) {
-      config.cancelRun(sdk, currentRunId).catch(() => {});
-      currentRunId = undefined;
+    if (currentRunId && isConnected()) {
+      config.cancelRun(currentRunId).catch(() => {});
     }
+    currentRunId = undefined;
     if (sseUnsubscribe) {
       sseUnsubscribe();
       sseUnsubscribe = undefined;
     }
     setState('starting', false);
+    if (!isConnected()) {
+      markDisconnected();
+    }
   }
 
   onCleanup(cleanup);

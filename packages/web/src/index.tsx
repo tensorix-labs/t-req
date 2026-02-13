@@ -1,23 +1,35 @@
 /* @refresh reload */
-import { createSignal } from 'solid-js'
-import { render } from 'solid-js/web'
-import { SDKProvider, WorkspaceProvider, ObserverProvider, ScriptRunnerProvider, TestRunnerProvider } from './context'
-import { createWorkspaceStore } from './stores/workspace'
-import { createObserverStore } from './stores/observer'
-import type { SDK } from './sdk'
-import '@t-req/ui/fonts'
-import './index.css'
-import App from './App.tsx'
+import { createStore } from 'solid-js/store';
+import { render } from 'solid-js/web';
+import {
+  type ConnectionState,
+  ObserverProvider,
+  ScriptRunnerProvider,
+  SDKProvider,
+  TestRunnerProvider,
+  WorkspaceProvider
+} from './context';
+import { createObserverStore } from './stores/observer';
+import { createWorkspaceStore } from './stores/workspace';
+import '@t-req/ui/fonts';
+import './index.css';
+import App from './App.tsx';
 
-const root = document.getElementById('root')
+const root = document.getElementById('root');
 
 render(() => {
-  const [sdk, setSdk] = createSignal<SDK | null>(null)
-  const workspaceStore = createWorkspaceStore({ sdk, setSdk })
-  const observerStore = createObserverStore()
+  const [connection, setConnection] = createStore<ConnectionState>({
+    sdk: null,
+    client: null
+  });
+  const workspaceStore = createWorkspaceStore({
+    connection: () => connection,
+    setConnection: (next) => setConnection(next)
+  });
+  const observerStore = createObserverStore();
 
   return (
-    <SDKProvider sdk={sdk}>
+    <SDKProvider connection={connection}>
       <WorkspaceProvider store={workspaceStore}>
         <ObserverProvider store={observerStore}>
           <ScriptRunnerProvider>
@@ -28,5 +40,5 @@ render(() => {
         </ObserverProvider>
       </WorkspaceProvider>
     </SDKProvider>
-  )
-}, root!)
+  );
+}, root!);
