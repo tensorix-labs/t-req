@@ -245,6 +245,8 @@ export const EventTypeSchema = z.enum([
   // Execution-level events
   'requestQueued',
   'executionFailed',
+  // Plugin events
+  'pluginReport',
   // Script events
   'scriptStarted',
   'scriptOutput',

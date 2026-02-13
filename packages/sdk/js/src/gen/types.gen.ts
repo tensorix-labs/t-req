@@ -351,7 +351,7 @@ export type PostExecuteSseResponses = {
      * SSE event stream
      */
     200: {
-        type: 'parseStarted' | 'parseFinished' | 'interpolateStarted' | 'interpolateFinished' | 'compileStarted' | 'compileFinished' | 'fetchStarted' | 'fetchFinished' | 'error' | 'sessionUpdated' | 'flowStarted' | 'flowFinished' | 'requestQueued' | 'executionFailed' | 'scriptStarted' | 'scriptOutput' | 'scriptFinished' | 'testStarted' | 'testOutput' | 'testFinished';
+        type: 'parseStarted' | 'parseFinished' | 'interpolateStarted' | 'interpolateFinished' | 'compileStarted' | 'compileFinished' | 'fetchStarted' | 'fetchFinished' | 'error' | 'sessionUpdated' | 'flowStarted' | 'flowFinished' | 'requestQueued' | 'executionFailed' | 'pluginReport' | 'scriptStarted' | 'scriptOutput' | 'scriptFinished' | 'testStarted' | 'testOutput' | 'testFinished';
         ts: number;
         runId: string;
         sessionId?: string;
@@ -1259,7 +1259,7 @@ export type GetEventResponses = {
      * SSE stream
      */
     200: {
-        type: 'parseStarted' | 'parseFinished' | 'interpolateStarted' | 'interpolateFinished' | 'compileStarted' | 'compileFinished' | 'fetchStarted' | 'fetchFinished' | 'error' | 'sessionUpdated' | 'flowStarted' | 'flowFinished' | 'requestQueued' | 'executionFailed' | 'scriptStarted' | 'scriptOutput' | 'scriptFinished' | 'testStarted' | 'testOutput' | 'testFinished';
+        type: 'parseStarted' | 'parseFinished' | 'interpolateStarted' | 'interpolateFinished' | 'compileStarted' | 'compileFinished' | 'fetchStarted' | 'fetchFinished' | 'error' | 'sessionUpdated' | 'flowStarted' | 'flowFinished' | 'requestQueued' | 'executionFailed' | 'pluginReport' | 'scriptStarted' | 'scriptOutput' | 'scriptFinished' | 'testStarted' | 'testOutput' | 'testFinished';
         ts: number;
         runId: string;
         sessionId?: string;

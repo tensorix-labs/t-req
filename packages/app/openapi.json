@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "t-req Server API",
-    "version": "0.3.7",
+    "version": "0.3.10",
     "description": "HTTP API for parsing and executing .http files, managing sessions, and subscribing to real-time events.",
     "license": {
       "name": "MIT",
@@ -937,6 +937,7 @@
                         "flowFinished",
                         "requestQueued",
                         "executionFailed",
+                        "pluginReport",
                         "scriptStarted",
                         "scriptOutput",
                         "scriptFinished",
@@ -2966,6 +2967,7 @@
                         "flowFinished",
                         "requestQueued",
                         "executionFailed",
+                        "pluginReport",
                         "scriptStarted",
                         "scriptOutput",
                         "scriptFinished",
