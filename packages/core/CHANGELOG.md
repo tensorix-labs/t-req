@@ -1,5 +1,16 @@
 # @t-req/core
 
+## 0.2.4
+
+### Patch Changes
+
+- bdd0556: Expand `RequestDefinition` with optional `description`, `bodyFile`, `formData`, and `directives` fields, making
+  it structurally compatible with `SerializableRequest`. Implement `writeHttpFile` in CLI command context using
+  `serializeDocument()`.
+- 2cd3609: Add deterministic `.http` serialization APIs:
+  `serializeRequest` and `serializeDocument`, plus `SerializableRequest`/`SerializableDocument` exports.
+  Includes parser-compatible serializer test coverage.
+
 ## 0.2.3
 
 ### Patch Changes

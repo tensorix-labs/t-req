@@ -53,7 +53,7 @@
     "prepublishOnly": "bun run build && bun run test"
   },
   "peerDependencies": {
-    "@t-req/core": "^0.2.3"
+    "@t-req/core": "^0.2.4"
   },
   "dependencies": {
     "fast-deep-equal": "^3.1.3",

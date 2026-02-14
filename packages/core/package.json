@@ -1,6 +1,6 @@
 {
   "name": "@t-req/core",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "HTTP request parsing, execution, and testing. Define requests in .http files, test them in isolation.",
   "license": "MIT",
   "repository": {

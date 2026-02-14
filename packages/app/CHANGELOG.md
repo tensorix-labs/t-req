@@ -1,5 +1,35 @@
 # @t-req/app
 
+## 0.3.11
+
+### Patch Changes
+
+- a7bb6dc: Add `treq import postman <file>` CLI command:
+  - Import Postman collections into .http files
+  - Options: output directory, file strategy, conflict policy, variable merge
+  - Dry-run mode for previewing changes
+  - Colored diagnostic output
+- bdd0556: Expand `RequestDefinition` with optional `description`, `bodyFile`, `formData`, and `directives` fields, making
+  it structurally compatible with `SerializableRequest`. Implement `writeHttpFile` in CLI command context using
+  `serializeDocument()`.
+- b0150a2: Add source-agnostic import preview/apply server endpoints
+
+  - `POST /import/{source}/preview` — convert and preview filesystem changes without writing
+  - `POST /import/{source}/apply` — convert and apply with conflict resolution, variable merge, staging
+  - Parameterized `{source}` path validated against importer registry (initially: `postman`)
+  - `convertOptions` validated per-importer via `optionsSchema`
+  - Script-scoped tokens blocked (403)
+  - Error diagnostics gate apply unless `force: true` (422)
+  - Partial commit failures return 207 with `partialResult`
+  - SDK regenerated: `TreqClient.importPreview()` and `TreqClient.importApply()`
+
+- Updated dependencies [bdd0556]
+- Updated dependencies [b0150a2]
+- Updated dependencies [2cd3609]
+  - @t-req/core@0.2.4
+  - @t-req/sdk@0.1.2
+  - @t-req/plugin-base@0.1.1
+
 ## 0.3.8
 
 ### Patch Changes
