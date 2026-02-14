@@ -977,6 +977,233 @@ export type PutWorkspaceFileResponses = {
     200: unknown;
 };
 
+export type ImportPreviewData = {
+    body?: {
+        input: string;
+        convertOptions?: {
+            [key: string]: unknown;
+        };
+        planOptions: {
+            outputDir: string;
+            onConflict?: 'fail' | 'skip' | 'overwrite' | 'rename';
+        };
+    };
+    path: {
+        /**
+         * Import source identifier (for example: postman)
+         */
+        source: string;
+    };
+    query?: never;
+    url: '/import/{source}/preview';
+};
+
+export type ImportPreviewErrors = {
+    /**
+     * Unknown source or invalid convert options
+     */
+    400: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+    /**
+     * Endpoint not allowed for script tokens
+     */
+    403: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+    /**
+     * Import contains error diagnostics and force is false
+     */
+    422: {
+        diagnostics: Array<{
+            code: string;
+            severity: 'info' | 'warning' | 'error';
+            message: string;
+            sourcePath?: string;
+            details?: {
+                [key: string]: unknown;
+            };
+        }>;
+        stats: {
+            requestCount: number;
+            fileCount: number;
+            diagnosticCount: number;
+        };
+    };
+};
+
+export type ImportPreviewError = ImportPreviewErrors[keyof ImportPreviewErrors];
+
+export type ImportPreviewResponses = {
+    /**
+     * Import preview generated successfully
+     */
+    200: {
+        result: {
+            written: Array<string>;
+            skipped: Array<string>;
+            renamed: Array<{
+                original: string;
+                actual: string;
+            }>;
+            failed: Array<{
+                path: string;
+                error: string;
+            }>;
+            variablesMerged: boolean;
+            variableMergeInstructions?: string;
+        };
+        diagnostics: Array<{
+            code: string;
+            severity: 'info' | 'warning' | 'error';
+            message: string;
+            sourcePath?: string;
+            details?: {
+                [key: string]: unknown;
+            };
+        }>;
+        stats: {
+            requestCount: number;
+            fileCount: number;
+            diagnosticCount: number;
+        };
+    };
+};
+
+export type ImportPreviewResponse = ImportPreviewResponses[keyof ImportPreviewResponses];
+
+export type ImportApplyData = {
+    body?: {
+        input: string;
+        convertOptions?: {
+            [key: string]: unknown;
+        };
+        applyOptions: {
+            outputDir: string;
+            onConflict?: 'fail' | 'skip' | 'overwrite' | 'rename';
+            mergeVariables?: boolean;
+            force?: boolean;
+        };
+    };
+    path: {
+        /**
+         * Import source identifier (for example: postman)
+         */
+        source: string;
+    };
+    query?: never;
+    url: '/import/{source}/apply';
+};
+
+export type ImportApplyErrors = {
+    /**
+     * Unknown source or invalid convert options
+     */
+    400: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+    /**
+     * Endpoint not allowed for script tokens
+     */
+    403: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+    /**
+     * Import contains error diagnostics and force is false
+     */
+    422: {
+        diagnostics: Array<{
+            code: string;
+            severity: 'info' | 'warning' | 'error';
+            message: string;
+            sourcePath?: string;
+            details?: {
+                [key: string]: unknown;
+            };
+        }>;
+        stats: {
+            requestCount: number;
+            fileCount: number;
+            diagnosticCount: number;
+        };
+    };
+};
+
+export type ImportApplyError = ImportApplyErrors[keyof ImportApplyErrors];
+
+export type ImportApplyResponses = {
+    /**
+     * Import applied successfully
+     */
+    200: {
+        result: {
+            written: Array<string>;
+            skipped: Array<string>;
+            renamed: Array<{
+                original: string;
+                actual: string;
+            }>;
+            failed: Array<{
+                path: string;
+                error: string;
+            }>;
+            variablesMerged: boolean;
+            variableMergeInstructions?: string;
+        };
+        diagnostics: Array<{
+            code: string;
+            severity: 'info' | 'warning' | 'error';
+            message: string;
+            sourcePath?: string;
+            details?: {
+                [key: string]: unknown;
+            };
+        }>;
+        stats: {
+            requestCount: number;
+            fileCount: number;
+            diagnosticCount: number;
+        };
+    };
+    /**
+     * Import partially applied due to commit failures
+     */
+    207: {
+        partialResult: {
+            written: Array<string>;
+            skipped: Array<string>;
+            renamed: Array<{
+                original: string;
+                actual: string;
+            }>;
+            failed: Array<{
+                path: string;
+                error: string;
+            }>;
+            variablesMerged: boolean;
+            variableMergeInstructions?: string;
+        };
+    };
+};
+
+export type ImportApplyResponse = ImportApplyResponses[keyof ImportApplyResponses];
+
 export type PostScriptData = {
     body?: {
         filePath: string;

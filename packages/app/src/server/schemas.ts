@@ -403,6 +403,84 @@ export const ErrorResponseSchema = z.object({
 });
 
 // ============================================================================
+// Import Schemas
+// ============================================================================
+
+export const ConflictPolicySchema = z.enum(['fail', 'skip', 'overwrite', 'rename']);
+
+export const ApplyImportResultSchema = z.object({
+  written: z.array(z.string()),
+  skipped: z.array(z.string()),
+  renamed: z.array(
+    z.object({
+      original: z.string(),
+      actual: z.string()
+    })
+  ),
+  failed: z.array(
+    z.object({
+      path: z.string(),
+      error: z.string()
+    })
+  ),
+  variablesMerged: z.boolean(),
+  variableMergeInstructions: z.string().optional()
+});
+
+export const ImportDiagnosticSchema = z.object({
+  code: z.string(),
+  severity: z.enum(['info', 'warning', 'error']),
+  message: z.string(),
+  sourcePath: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional()
+});
+
+export const ImportStatsSchema = z.object({
+  requestCount: z.number().int().nonnegative(),
+  fileCount: z.number().int().nonnegative(),
+  diagnosticCount: z.number().int().nonnegative()
+});
+
+export const ImportPlanOptionsSchema = z.object({
+  outputDir: z.string().max(MAX_PATH_LENGTH),
+  onConflict: ConflictPolicySchema.default('fail')
+});
+
+export const ImportApplyOptionsSchema = z.object({
+  outputDir: z.string().max(MAX_PATH_LENGTH),
+  onConflict: ConflictPolicySchema.default('fail'),
+  mergeVariables: z.boolean().optional().default(false),
+  force: z.boolean().optional().default(false)
+});
+
+export const ImportPreviewRequestSchema = z.object({
+  input: z.string().max(MAX_CONTENT_SIZE),
+  convertOptions: z.record(z.string(), z.unknown()).optional(),
+  planOptions: ImportPlanOptionsSchema
+});
+
+export const ImportApplyRequestSchema = z.object({
+  input: z.string().max(MAX_CONTENT_SIZE),
+  convertOptions: z.record(z.string(), z.unknown()).optional(),
+  applyOptions: ImportApplyOptionsSchema
+});
+
+export const ImportResponseSchema = z.object({
+  result: ApplyImportResultSchema,
+  diagnostics: z.array(ImportDiagnosticSchema),
+  stats: ImportStatsSchema
+});
+
+export const ImportDiagnosticsErrorResponseSchema = z.object({
+  diagnostics: z.array(ImportDiagnosticSchema),
+  stats: ImportStatsSchema
+});
+
+export const ImportPartialFailureResponseSchema = z.object({
+  partialResult: ApplyImportResultSchema
+});
+
+// ============================================================================
 // Flow & Execution Schemas
 // ============================================================================
 
@@ -752,6 +830,17 @@ export type ExecutionError = z.infer<typeof ExecutionErrorSchema>;
 export type PluginHookInfo = z.infer<typeof PluginHookInfoSchema>;
 export type PluginReport = z.infer<typeof PluginReportSchema>;
 export type ExecutionDetail = z.infer<typeof ExecutionDetailSchema>;
+
+// Import types
+export type ApplyImportResult = z.infer<typeof ApplyImportResultSchema>;
+export type ImportApplyRequest = z.infer<typeof ImportApplyRequestSchema>;
+export type ImportDiagnostic = z.infer<typeof ImportDiagnosticSchema>;
+export type ImportDiagnosticsErrorResponse = z.infer<typeof ImportDiagnosticsErrorResponseSchema>;
+export type ImportPartialFailureResponse = z.infer<typeof ImportPartialFailureResponseSchema>;
+export type ImportPlanOptions = z.infer<typeof ImportPlanOptionsSchema>;
+export type ImportPreviewRequest = z.infer<typeof ImportPreviewRequestSchema>;
+export type ImportResponse = z.infer<typeof ImportResponseSchema>;
+export type ImportStats = z.infer<typeof ImportStatsSchema>;
 
 // Workspace types
 export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;

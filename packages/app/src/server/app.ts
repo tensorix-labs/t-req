@@ -1,4 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import {
+  createImporterRegistry,
+  createPostmanImporter,
+  type Importer,
+  type ImportResult
+} from '@t-req/core/import';
 import type { MiddlewareFunction } from '@t-req/core/plugin';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
@@ -38,6 +44,8 @@ import {
   getSessionRoute,
   getTestFrameworksRoute,
   healthRoute,
+  importApplyRoute,
+  importPreviewRoute,
   listWorkspaceFilesRoute,
   listWorkspaceRequestsRoute,
   parseRoute,
@@ -49,6 +57,7 @@ import {
 } from './openapi';
 import type { ErrorResponse } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
+import { ImportApplyError } from './service/import-service';
 import { formatSSEMessage } from './sse-format';
 import { createWebRoutes, isApiPath, type WebConfig } from './web';
 
@@ -104,6 +113,46 @@ function enforceScriptScope(c: Context, opts: EnforceScriptScopeOptions): void {
   }
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function createValidationErrorResponse(message: string): ErrorResponse {
+  return { error: { code: 'VALIDATION_ERROR', message } };
+}
+
+function hasErrorDiagnostics(result: ImportResult): boolean {
+  return result.diagnostics.some((diagnostic) => diagnostic.severity === 'error');
+}
+
+function isImportDiagnosticGateError(error: unknown, result: ImportResult): boolean {
+  return (
+    error instanceof ValidationError &&
+    error.message.includes('force=true') &&
+    hasErrorDiagnostics(result)
+  );
+}
+
+function resolveConvertOptions(
+  importer: Importer,
+  convertOptions: Record<string, unknown> | undefined
+): unknown {
+  if (!importer.optionsSchema) {
+    return convertOptions;
+  }
+
+  try {
+    return importer.optionsSchema.parse(convertOptions ?? {});
+  } catch (error) {
+    throw new ValidationError(
+      `Invalid convertOptions for source "${importer.source}": ${errorMessage(error)}`
+    );
+  }
+}
+
 // Re-export middleware types from core for consumers
 export type {
   MiddlewareFunction as PluginMiddleware,
@@ -139,6 +188,9 @@ export function createApp(config: ServerConfig) {
       eventManager.emit(sessionId, runId, event);
     }
   });
+
+  const importerRegistry = createImporterRegistry();
+  importerRegistry.register(createPostmanImporter());
 
   const allowedOrigins = new Set(config.corsOrigins ?? []);
 
@@ -286,7 +338,7 @@ export function createApp(config: ServerConfig) {
   // ============================================================================
 
   app.openapi(healthRoute, (c) => {
-    return c.json(service.health());
+    return c.json(service.health(), 200);
   });
 
   // ============================================================================
@@ -294,7 +346,7 @@ export function createApp(config: ServerConfig) {
   // ============================================================================
 
   app.openapi(capabilitiesRoute, (c) => {
-    return c.json(service.capabilities());
+    return c.json(service.capabilities(), 200);
   });
 
   // ============================================================================
@@ -525,6 +577,102 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
+  // Import Endpoints
+  // ============================================================================
+
+  app.openapi(importPreviewRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+
+    const { source } = c.req.valid('param');
+    const importer = importerRegistry.get(source);
+    if (!importer) {
+      return c.json(createValidationErrorResponse(`Unknown import source: ${source}`), 400);
+    }
+
+    const request = c.req.valid('json');
+    let parsedConvertOptions: unknown;
+    try {
+      parsedConvertOptions = resolveConvertOptions(importer, request.convertOptions);
+    } catch (error) {
+      return c.json(createValidationErrorResponse(errorMessage(error)), 400);
+    }
+
+    const conversionResult = importer.convert(request.input, parsedConvertOptions as never);
+
+    try {
+      const previewResult = await service.importPreview(conversionResult, {
+        outputDir: request.planOptions.outputDir,
+        onConflict: request.planOptions.onConflict
+      });
+      return c.json(
+        {
+          result: previewResult,
+          diagnostics: conversionResult.diagnostics,
+          stats: conversionResult.stats
+        },
+        200
+      );
+    } catch (error) {
+      if (isImportDiagnosticGateError(error, conversionResult)) {
+        return c.json(
+          {
+            diagnostics: conversionResult.diagnostics,
+            stats: conversionResult.stats
+          },
+          422
+        );
+      }
+      throw error;
+    }
+  });
+
+  app.openapi(importApplyRoute, async (c) => {
+    enforceScriptScope(c, { allowedEndpoint: false });
+
+    const { source } = c.req.valid('param');
+    const importer = importerRegistry.get(source);
+    if (!importer) {
+      return c.json(createValidationErrorResponse(`Unknown import source: ${source}`), 400);
+    }
+
+    const request = c.req.valid('json');
+    let parsedConvertOptions: unknown;
+    try {
+      parsedConvertOptions = resolveConvertOptions(importer, request.convertOptions);
+    } catch (error) {
+      return c.json(createValidationErrorResponse(errorMessage(error)), 400);
+    }
+
+    const conversionResult = importer.convert(request.input, parsedConvertOptions as never);
+
+    try {
+      const applyResult = await service.importApply(conversionResult, request.applyOptions);
+      return c.json(
+        {
+          result: applyResult,
+          diagnostics: conversionResult.diagnostics,
+          stats: conversionResult.stats
+        },
+        200
+      );
+    } catch (error) {
+      if (error instanceof ImportApplyError) {
+        return c.json({ partialResult: error.partialResult }, 207);
+      }
+      if (isImportDiagnosticGateError(error, conversionResult)) {
+        return c.json(
+          {
+            diagnostics: conversionResult.diagnostics,
+            stats: conversionResult.stats
+          },
+          422
+        );
+      }
+      throw error;
+    }
+  });
+
+  // ============================================================================
   // Script Endpoints
   // ============================================================================
 
@@ -692,7 +840,7 @@ export function createApp(config: ServerConfig) {
     });
   });
 
-  app.doc('/doc', {
+  const openApiDocConfig = {
     openapi: '3.0.3',
     info: {
       title: 't-req Server API',
@@ -716,6 +864,7 @@ export function createApp(config: ServerConfig) {
       { name: 'Sessions', description: 'Manage stateful sessions with variables and cookies' },
       { name: 'Flows', description: 'Observer Mode - track and correlate request executions' },
       { name: 'Workspace', description: 'Workspace discovery - list .http files and requests' },
+      { name: 'Import', description: 'Import external request collections into workspace files' },
       { name: 'Scripts', description: 'Run JavaScript, TypeScript, and Python scripts' },
       {
         name: 'Tests',
@@ -728,6 +877,11 @@ export function createApp(config: ServerConfig) {
       description: 't-req Documentation',
       url: 'https://github.com/tensorix-labs/t-req'
     }
+  };
+
+  app.get('/doc', (c) => {
+    const document = app.getOpenAPIDocument(openApiDocConfig);
+    return c.json(document, 200);
   });
 
   // ============================================================================
