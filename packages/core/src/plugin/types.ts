@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { EngineEvent } from '../runtime/types';
-import type { ParsedRequest } from '../types';
+import type { FileReference, FormField, ParsedRequest } from '../types';
 
 // ============================================================================
 // Plugin Permissions
@@ -538,10 +538,14 @@ export interface CommandContext {
  */
 export interface RequestDefinition {
   name?: string;
+  description?: string;
   method: string;
   url: string;
   headers?: Record<string, string>;
   body?: string;
+  bodyFile?: FileReference;
+  formData?: FormField[];
+  directives?: Array<{ name: string; value: string }>;
 }
 
 /**

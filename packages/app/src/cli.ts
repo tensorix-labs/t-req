@@ -45,9 +45,14 @@ function createPluginCommand(
           const resolved = nodePath.resolve(projectRoot, path);
           await fs.writeFile(resolved, content, 'utf-8');
         },
-        writeHttpFile: async (_name: string, _requests) => {
-          // Simplified implementation
-          throw new Error('writeHttpFile not implemented in CLI context');
+        writeHttpFile: async (name: string, requests) => {
+          const fs = await import('node:fs/promises');
+          const nodePath = await import('node:path');
+          const { serializeDocument } = await import('@t-req/core');
+          const resolved = nodePath.resolve(projectRoot, name);
+          const content = serializeDocument({ requests });
+          await fs.mkdir(nodePath.dirname(resolved), { recursive: true });
+          await fs.writeFile(resolved, content, 'utf-8');
         },
         parseCollection: async () => {
           throw new Error('parseCollection not implemented in CLI context');
