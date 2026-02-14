@@ -18,6 +18,11 @@ import {
   GetRunnersResponseSchema,
   GetTestFrameworksResponseSchema,
   HealthResponseSchema,
+  ImportApplyRequestSchema,
+  ImportDiagnosticsErrorResponseSchema,
+  ImportPartialFailureResponseSchema,
+  ImportPreviewRequestSchema,
+  ImportResponseSchema,
   ListWorkspaceFilesResponseSchema,
   ListWorkspaceRequestsResponseSchema,
   ParseRequestSchema,
@@ -588,6 +593,91 @@ export const deleteFileRoute = createRoute({
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'File not found'
+    }
+  }
+});
+
+// ============================================================================
+// Import Endpoints
+// ============================================================================
+
+const ImportSourceParamSchema = z.object({
+  source: z
+    .string()
+    .min(1)
+    .openapi({
+      param: { name: 'source', in: 'path' },
+      description: 'Import source identifier (for example: postman)',
+      example: 'postman'
+    })
+});
+
+export const importPreviewRoute = createRoute({
+  method: 'post',
+  path: '/import/{source}/preview',
+  operationId: 'importPreview',
+  tags: ['Import'],
+  summary: 'Preview import changes',
+  description: 'Convert input from an external source and preview filesystem changes.',
+  request: {
+    params: ImportSourceParamSchema,
+    body: {
+      content: { 'application/json': { schema: ImportPreviewRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ImportResponseSchema } },
+      description: 'Import preview generated successfully'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Unknown source or invalid convert options'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Endpoint not allowed for script tokens'
+    },
+    422: {
+      content: { 'application/json': { schema: ImportDiagnosticsErrorResponseSchema } },
+      description: 'Import contains error diagnostics and force is false'
+    }
+  }
+});
+
+export const importApplyRoute = createRoute({
+  method: 'post',
+  path: '/import/{source}/apply',
+  operationId: 'importApply',
+  tags: ['Import'],
+  summary: 'Apply import changes',
+  description: 'Convert input from an external source and apply filesystem/config changes.',
+  request: {
+    params: ImportSourceParamSchema,
+    body: {
+      content: { 'application/json': { schema: ImportApplyRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ImportResponseSchema } },
+      description: 'Import applied successfully'
+    },
+    207: {
+      content: { 'application/json': { schema: ImportPartialFailureResponseSchema } },
+      description: 'Import partially applied due to commit failures'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Unknown source or invalid convert options'
+    },
+    403: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Endpoint not allowed for script tokens'
+    },
+    422: {
+      content: { 'application/json': { schema: ImportDiagnosticsErrorResponseSchema } },
+      description: 'Import contains error diagnostics and force is false'
     }
   }
 });

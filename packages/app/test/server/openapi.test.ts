@@ -76,6 +76,10 @@ describe('OpenAPI /doc endpoint', () => {
 
     // Event endpoint
     expect(paths['/event']).toBeDefined();
+
+    // Import endpoints
+    expect(paths['/import/{source}/preview']).toBeDefined();
+    expect(paths['/import/{source}/apply']).toBeDefined();
   });
 
   test('should define health endpoint correctly', async () => {
@@ -165,6 +169,16 @@ describe('OpenAPI /doc endpoint', () => {
     expect(tagNames).toContain('Requests');
     expect(tagNames).toContain('Sessions');
     expect(tagNames).toContain('Events');
+    expect(tagNames).toContain('Import');
+  });
+
+  test('should define import endpoint operationIds', async () => {
+    const res = await app.request('/doc');
+    const spec = await res.json();
+    const paths = spec.paths as Record<string, Record<string, { operationId?: string }>>;
+
+    expect(paths['/import/{source}/preview']?.post?.operationId).toBe('importPreview');
+    expect(paths['/import/{source}/apply']?.post?.operationId).toBe('importApply');
   });
 
   test('should include external docs link', async () => {

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteScriptByRunIdData, DeleteScriptByRunIdErrors, DeleteScriptByRunIdResponses, DeleteSessionByIdData, DeleteSessionByIdErrors, DeleteSessionByIdResponses, DeleteTestByRunIdData, DeleteTestByRunIdErrors, DeleteTestByRunIdResponses, DeleteWorkspaceFileData, DeleteWorkspaceFileErrors, DeleteWorkspaceFileResponses, GetCapabilitiesData, GetCapabilitiesResponses, GetConfigData, GetConfigResponses, GetEventData, GetEventResponses, GetFlowsByFlowIdExecutionsByReqExecIdData, GetFlowsByFlowIdExecutionsByReqExecIdErrors, GetFlowsByFlowIdExecutionsByReqExecIdResponses, GetHealthData, GetHealthResponses, GetPluginsData, GetPluginsResponses, GetScriptRunnersData, GetScriptRunnersResponses, GetSessionByIdData, GetSessionByIdErrors, GetSessionByIdResponses, GetTestFrameworksData, GetTestFrameworksResponses, GetWorkspaceFileData, GetWorkspaceFileErrors, GetWorkspaceFileResponses, GetWorkspaceFilesData, GetWorkspaceFilesResponses, GetWorkspaceRequestsData, GetWorkspaceRequestsErrors, GetWorkspaceRequestsResponses, PostExecuteData, PostExecuteErrors, PostExecuteResponses, PostExecuteSseData, PostExecuteSseErrors, PostExecuteSseResponses, PostFlowsByFlowIdFinishData, PostFlowsByFlowIdFinishErrors, PostFlowsByFlowIdFinishResponses, PostFlowsData, PostFlowsErrors, PostFlowsResponses, PostParseData, PostParseErrors, PostParseResponses, PostScriptData, PostScriptErrors, PostScriptResponses, PostSessionData, PostSessionResponses, PostTestData, PostTestErrors, PostTestResponses, PostWorkspaceFileData, PostWorkspaceFileErrors, PostWorkspaceFileResponses, PutSessionByIdVariablesData, PutSessionByIdVariablesErrors, PutSessionByIdVariablesResponses, PutWorkspaceFileData, PutWorkspaceFileErrors, PutWorkspaceFileResponses } from './types.gen';
+import type { DeleteScriptByRunIdData, DeleteScriptByRunIdErrors, DeleteScriptByRunIdResponses, DeleteSessionByIdData, DeleteSessionByIdErrors, DeleteSessionByIdResponses, DeleteTestByRunIdData, DeleteTestByRunIdErrors, DeleteTestByRunIdResponses, DeleteWorkspaceFileData, DeleteWorkspaceFileErrors, DeleteWorkspaceFileResponses, GetCapabilitiesData, GetCapabilitiesResponses, GetConfigData, GetConfigResponses, GetEventData, GetEventResponses, GetFlowsByFlowIdExecutionsByReqExecIdData, GetFlowsByFlowIdExecutionsByReqExecIdErrors, GetFlowsByFlowIdExecutionsByReqExecIdResponses, GetHealthData, GetHealthResponses, GetPluginsData, GetPluginsResponses, GetScriptRunnersData, GetScriptRunnersResponses, GetSessionByIdData, GetSessionByIdErrors, GetSessionByIdResponses, GetTestFrameworksData, GetTestFrameworksResponses, GetWorkspaceFileData, GetWorkspaceFileErrors, GetWorkspaceFileResponses, GetWorkspaceFilesData, GetWorkspaceFilesResponses, GetWorkspaceRequestsData, GetWorkspaceRequestsErrors, GetWorkspaceRequestsResponses, ImportApplyData, ImportApplyErrors, ImportApplyResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, PostExecuteData, PostExecuteErrors, PostExecuteResponses, PostExecuteSseData, PostExecuteSseErrors, PostExecuteSseResponses, PostFlowsByFlowIdFinishData, PostFlowsByFlowIdFinishErrors, PostFlowsByFlowIdFinishResponses, PostFlowsData, PostFlowsErrors, PostFlowsResponses, PostParseData, PostParseErrors, PostParseResponses, PostScriptData, PostScriptErrors, PostScriptResponses, PostSessionData, PostSessionResponses, PostTestData, PostTestErrors, PostTestResponses, PostWorkspaceFileData, PostWorkspaceFileErrors, PostWorkspaceFileResponses, PutSessionByIdVariablesData, PutSessionByIdVariablesErrors, PutSessionByIdVariablesResponses, PutWorkspaceFileData, PutWorkspaceFileErrors, PutWorkspaceFileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -280,6 +280,38 @@ export class TreqClient extends HeyApiClient {
             headers: {
                 'Content-Type': 'application/json',
                 ...options?.headers
+            }
+        });
+    }
+    
+    /**
+     * Preview import changes
+     *
+     * Convert input from an external source and preview filesystem changes.
+     */
+    public importPreview<ThrowOnError extends boolean = false>(options: Options<ImportPreviewData, ThrowOnError>) {
+        return (options.client ?? this.client).post<ImportPreviewResponses, ImportPreviewErrors, ThrowOnError>({
+            url: '/import/{source}/preview',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
+     * Apply import changes
+     *
+     * Convert input from an external source and apply filesystem/config changes.
+     */
+    public importApply<ThrowOnError extends boolean = false>(options: Options<ImportApplyData, ThrowOnError>) {
+        return (options.client ?? this.client).post<ImportApplyResponses, ImportApplyErrors, ThrowOnError>({
+            url: '/import/{source}/apply',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
             }
         });
     }

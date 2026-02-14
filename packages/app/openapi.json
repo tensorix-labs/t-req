@@ -37,6 +37,10 @@
       "description": "Workspace discovery - list .http files and requests"
     },
     {
+      "name": "Import",
+      "description": "Import external request collections into workspace files"
+    },
+    {
       "name": "Scripts",
       "description": "Run JavaScript, TypeScript, and Python scripts"
     },
@@ -2353,6 +2357,659 @@
                     }
                   },
                   "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/import/{source}/preview": {
+      "post": {
+        "operationId": "importPreview",
+        "tags": ["Import"],
+        "summary": "Preview import changes",
+        "description": "Convert input from an external source and preview filesystem changes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Import source identifier (for example: postman)",
+              "example": "postman"
+            },
+            "required": true,
+            "description": "Import source identifier (for example: postman)",
+            "name": "source",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "convertOptions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "planOptions": {
+                    "type": "object",
+                    "properties": {
+                      "outputDir": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "onConflict": {
+                        "type": "string",
+                        "enum": ["fail", "skip", "overwrite", "rename"],
+                        "default": "fail"
+                      }
+                    },
+                    "required": ["outputDir"]
+                  }
+                },
+                "required": ["input", "planOptions"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import preview generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "written": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "skipped": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "renamed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "original": {
+                                "type": "string"
+                              },
+                              "actual": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["original", "actual"]
+                          }
+                        },
+                        "failed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path", "error"]
+                          }
+                        },
+                        "variablesMerged": {
+                          "type": "boolean"
+                        },
+                        "variableMergeInstructions": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["written", "skipped", "renamed", "failed", "variablesMerged"]
+                    },
+                    "diagnostics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sourcePath": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "required": ["code", "severity", "message"]
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "requestCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "fileCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "diagnosticCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["requestCount", "fileCount", "diagnosticCount"]
+                    }
+                  },
+                  "required": ["result", "diagnostics", "stats"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown source or invalid convert options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Endpoint not allowed for script tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Import contains error diagnostics and force is false",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "diagnostics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sourcePath": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "required": ["code", "severity", "message"]
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "requestCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "fileCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "diagnosticCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["requestCount", "fileCount", "diagnosticCount"]
+                    }
+                  },
+                  "required": ["diagnostics", "stats"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/import/{source}/apply": {
+      "post": {
+        "operationId": "importApply",
+        "tags": ["Import"],
+        "summary": "Apply import changes",
+        "description": "Convert input from an external source and apply filesystem/config changes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Import source identifier (for example: postman)",
+              "example": "postman"
+            },
+            "required": true,
+            "description": "Import source identifier (for example: postman)",
+            "name": "source",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "convertOptions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "applyOptions": {
+                    "type": "object",
+                    "properties": {
+                      "outputDir": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "onConflict": {
+                        "type": "string",
+                        "enum": ["fail", "skip", "overwrite", "rename"],
+                        "default": "fail"
+                      },
+                      "mergeVariables": {
+                        "type": "boolean",
+                        "default": false
+                      },
+                      "force": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": ["outputDir"]
+                  }
+                },
+                "required": ["input", "applyOptions"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import applied successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "written": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "skipped": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "renamed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "original": {
+                                "type": "string"
+                              },
+                              "actual": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["original", "actual"]
+                          }
+                        },
+                        "failed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path", "error"]
+                          }
+                        },
+                        "variablesMerged": {
+                          "type": "boolean"
+                        },
+                        "variableMergeInstructions": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["written", "skipped", "renamed", "failed", "variablesMerged"]
+                    },
+                    "diagnostics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sourcePath": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "required": ["code", "severity", "message"]
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "requestCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "fileCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "diagnosticCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["requestCount", "fileCount", "diagnosticCount"]
+                    }
+                  },
+                  "required": ["result", "diagnostics", "stats"]
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Import partially applied due to commit failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "partialResult": {
+                      "type": "object",
+                      "properties": {
+                        "written": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "skipped": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "renamed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "original": {
+                                "type": "string"
+                              },
+                              "actual": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["original", "actual"]
+                          }
+                        },
+                        "failed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path", "error"]
+                          }
+                        },
+                        "variablesMerged": {
+                          "type": "boolean"
+                        },
+                        "variableMergeInstructions": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["written", "skipped", "renamed", "failed", "variablesMerged"]
+                    }
+                  },
+                  "required": ["partialResult"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown source or invalid convert options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Endpoint not allowed for script tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Import contains error diagnostics and force is false",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "diagnostics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sourcePath": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "required": ["code", "severity", "message"]
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "requestCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "fileCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "diagnosticCount": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["requestCount", "fileCount", "diagnosticCount"]
+                    }
+                  },
+                  "required": ["diagnostics", "stats"]
                 }
               }
             }
