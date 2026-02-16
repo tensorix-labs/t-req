@@ -115,8 +115,7 @@ function detectProtocol(
   headers: Record<string, string>,
   meta: Record<string, string>
 ): { protocol: Protocol; protocolOptions?: ProtocolOptions } {
-  // Priority 1: Explicit @ws directive
-  if (meta['ws'] !== undefined) {
+  const parseWsOptions = (): WSOptions => {
     const options: WSOptions = { type: 'ws' };
 
     if (meta['ws-subprotocols']) {
@@ -136,7 +135,12 @@ function detectProtocol(
       }
     }
 
-    return { protocol: 'ws', protocolOptions: options };
+    return options;
+  };
+
+  // Priority 1: Explicit @ws directive
+  if (meta['ws'] !== undefined) {
+    return { protocol: 'ws', protocolOptions: parseWsOptions() };
   }
 
   // Priority 2: Explicit @sse directive
@@ -161,7 +165,7 @@ function detectProtocol(
 
   // Priority 3: Auto-detect from WS URL scheme
   if (url.startsWith('ws://') || url.startsWith('wss://')) {
-    return { protocol: 'ws', protocolOptions: { type: 'ws' } };
+    return { protocol: 'ws', protocolOptions: parseWsOptions() };
   }
 
   // Priority 4: Auto-detect from Accept header

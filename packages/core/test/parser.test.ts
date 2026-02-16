@@ -717,6 +717,32 @@ GET wss://api.example.com/socket
     }
   });
 
+  test('preserves @ws-subprotocols on ws:// URL auto-detection without @ws', () => {
+    const requests = parse(`
+# @ws-subprotocols chat, json,graphql-ws
+GET ws://localhost:8080/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    if (requests[0]?.protocolOptions?.type === 'ws') {
+      expect(requests[0].protocolOptions.subprotocols).toEqual(['chat', 'json', 'graphql-ws']);
+    }
+  });
+
+  test('preserves @ws-connect-timeout on wss:// URL auto-detection without @ws', () => {
+    const requests = parse(`
+# @ws-connect-timeout 30000
+GET wss://api.example.com/graphql
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    if (requests[0]?.protocolOptions?.type === 'ws') {
+      expect(requests[0].protocolOptions.connectTimeoutMs).toBe(30000);
+    }
+  });
+
   test('@ws directive takes precedence over SSE Accept header detection', () => {
     const requests = parse(`
 # @ws
