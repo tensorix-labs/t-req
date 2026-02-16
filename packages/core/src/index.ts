@@ -136,5 +136,6 @@ export type {
   SSEMessage,
   SSEOptions,
   SSEResponse,
-  StreamResponse
+  StreamResponse,
+  WSOptions
 } from './types';

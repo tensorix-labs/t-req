@@ -62,7 +62,11 @@ export function createService(config: ServiceConfig) {
       features: {
         sessions: true,
         diagnostics: true,
-        streamingBodies: false
+        streamingBodies: false,
+        observerWebSocket: false,
+        requestWebSocket: false,
+        replayBuffer: false,
+        binaryPayloads: false
       }
     };
   }

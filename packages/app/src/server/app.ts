@@ -35,8 +35,10 @@ import {
   deleteFileRoute,
   deleteSessionRoute,
   eventRoute,
+  eventWSRoute,
   executeRoute,
   executeSSERoute,
+  executeWSRoute,
   finishFlowRoute,
   getExecutionRoute,
   getFileContentRoute,
@@ -53,7 +55,8 @@ import {
   runScriptRoute,
   runTestRoute,
   updateFileRoute,
-  updateSessionVariablesRoute
+  updateSessionVariablesRoute,
+  wsSessionRoute
 } from './openapi';
 import type { ErrorResponse } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
@@ -122,6 +125,10 @@ function errorMessage(error: unknown): string {
 
 function createValidationErrorResponse(message: string): ErrorResponse {
   return { error: { code: 'VALIDATION_ERROR', message } };
+}
+
+function createNotImplementedResponse(message: string): ErrorResponse {
+  return { error: { code: 'NOT_IMPLEMENTED', message } };
 }
 
 function hasErrorDiagnostics(result: ImportResult): boolean {
@@ -447,6 +454,18 @@ export function createApp(config: ServerConfig) {
           Connection: 'keep-alive'
         }
       }
+    );
+  });
+
+  // ============================================================================
+  // Execute WebSocket Endpoint (contract only, runtime disabled)
+  // ============================================================================
+
+  app.openapi(executeWSRoute, (c) => {
+    c.req.valid('json');
+    return c.json(
+      createNotImplementedResponse('WebSocket request execution is not enabled in this phase'),
+      501
     );
   });
 
@@ -840,6 +859,31 @@ export function createApp(config: ServerConfig) {
     });
   });
 
+  // ============================================================================
+  // Event Streaming (WebSocket) - contract only, runtime disabled
+  // ============================================================================
+
+  app.openapi(eventWSRoute, (c) => {
+    c.req.valid('query');
+    return c.json(
+      createNotImplementedResponse('WebSocket event streaming is not enabled in this phase'),
+      501
+    );
+  });
+
+  // ============================================================================
+  // Request Session WebSocket - contract only, runtime disabled
+  // ============================================================================
+
+  app.openapi(wsSessionRoute, (c) => {
+    c.req.valid('param');
+    c.req.valid('query');
+    return c.json(
+      createNotImplementedResponse('WebSocket session control is not enabled in this phase'),
+      501
+    );
+  });
+
   const openApiDocConfig = {
     openapi: '3.0.3',
     info: {
@@ -870,6 +914,7 @@ export function createApp(config: ServerConfig) {
         name: 'Tests',
         description: 'Run tests with detected frameworks (bun, vitest, jest, pytest)'
       },
+      { name: 'WebSocket', description: 'WebSocket request/session and event stream endpoints' },
       { name: 'Plugins', description: 'List and manage loaded plugins' },
       { name: 'Events', description: 'Real-time event streaming via Server-Sent Events' }
     ],

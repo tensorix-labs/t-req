@@ -7,7 +7,8 @@ import type {
   ParsedRequest,
   Protocol,
   ProtocolOptions,
-  SSEOptions
+  SSEOptions,
+  WSOptions
 } from './types';
 import { setOptional } from './utils/optional';
 
@@ -106,14 +107,43 @@ function parseFormBody(body: string): FormField[] {
 }
 
 /**
- * Detect protocol from meta directives and headers.
- * Priority: explicit directive > Accept header > default HTTP
+ * Detect protocol from URL, meta directives, and headers.
+ * Priority: explicit directive > URL scheme/header auto-detect > default HTTP
  */
 function detectProtocol(
+  url: string,
   headers: Record<string, string>,
   meta: Record<string, string>
 ): { protocol: Protocol; protocolOptions?: ProtocolOptions } {
-  // Priority 1: Explicit @sse directive
+  const parseWsOptions = (): WSOptions => {
+    const options: WSOptions = { type: 'ws' };
+
+    if (meta['ws-subprotocols']) {
+      const subprotocols = meta['ws-subprotocols']
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+      if (subprotocols.length > 0) {
+        options.subprotocols = subprotocols;
+      }
+    }
+
+    if (meta['ws-connect-timeout']) {
+      const timeout = parseInt(meta['ws-connect-timeout'], 10);
+      if (!Number.isNaN(timeout)) {
+        options.connectTimeoutMs = timeout;
+      }
+    }
+
+    return options;
+  };
+
+  // Priority 1: Explicit @ws directive
+  if (meta['ws'] !== undefined) {
+    return { protocol: 'ws', protocolOptions: parseWsOptions() };
+  }
+
+  // Priority 2: Explicit @sse directive
   if (meta['sse'] !== undefined) {
     const options: SSEOptions = { type: 'sse' };
 
@@ -133,7 +163,12 @@ function detectProtocol(
     return { protocol: 'sse', protocolOptions: options };
   }
 
-  // Priority 2: Auto-detect from Accept header
+  // Priority 3: Auto-detect from WS URL scheme
+  if (url.startsWith('ws://') || url.startsWith('wss://')) {
+    return { protocol: 'ws', protocolOptions: parseWsOptions() };
+  }
+
+  // Priority 4: Auto-detect from Accept header
   const accept = headers['Accept'] || headers['accept'];
   if (accept?.includes('text/event-stream')) {
     return { protocol: 'sse', protocolOptions: { type: 'sse' } };
@@ -340,7 +375,7 @@ function parseRequestBlock(block: string, defaultName?: string): ParsedRequest |
   }
 
   // Detect protocol from meta directives and headers
-  const { protocol, protocolOptions } = detectProtocol(headers, meta);
+  const { protocol, protocolOptions } = detectProtocol(url, headers, meta);
 
   return setOptional<ParsedRequest>({
     method,

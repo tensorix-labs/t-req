@@ -9,8 +9,9 @@ import type { EventSink, IO, Transport } from './runtime/types';
  * Supported protocols for HTTP-like requests.
  * - 'http': Standard HTTP request/response
  * - 'sse': Server-Sent Events streaming
+ * - 'ws': WebSocket connection definition
  */
-export type Protocol = 'http' | 'sse';
+export type Protocol = 'http' | 'sse' | 'ws';
 
 /**
  * Options specific to SSE protocol.
@@ -24,9 +25,20 @@ export interface SSEOptions {
 }
 
 /**
+ * Options specific to WebSocket protocol definition.
+ */
+export interface WSOptions {
+  type: 'ws';
+  /** Requested subprotocols for WebSocket handshake */
+  subprotocols?: string[];
+  /** Connection timeout in milliseconds */
+  connectTimeoutMs?: number;
+}
+
+/**
  * Protocol-specific options. Union grows with protocols.
  */
-export type ProtocolOptions = SSEOptions;
+export type ProtocolOptions = SSEOptions | WSOptions;
 
 /**
  * A single SSE message as parsed from the event stream.

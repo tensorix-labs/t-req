@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Protocol Version
 // ============================================================================
 
-export const PROTOCOL_VERSION = '1.0';
+export const PROTOCOL_VERSION = '1.1';
 
 // ============================================================================
 // Common Schemas
@@ -49,7 +49,12 @@ export const CapabilitiesResponseSchema = z.object({
   features: z.object({
     sessions: z.boolean(),
     diagnostics: z.boolean(),
-    streamingBodies: z.boolean()
+    streamingBodies: z.boolean(),
+    observerWebSocket: z.boolean(),
+    requestWebSocket: z.boolean(),
+    replayBuffer: z.boolean(),
+    // Reserved capability flag for future binary frame support.
+    binaryPayloads: z.boolean()
   })
 });
 
@@ -630,7 +635,7 @@ export const WorkspaceRequestSchema = z.object({
   name: z.string().optional(),
   method: z.string(),
   url: z.string(),
-  protocol: z.enum(['http', 'sse']).optional()
+  protocol: z.enum(['http', 'sse', 'ws']).optional()
 });
 
 export const ListWorkspaceRequestsResponseSchema = z.object({
@@ -771,6 +776,111 @@ export const SSEMessageSchema = z.object({
 });
 
 // ============================================================================
+// WebSocket Foundation Schemas
+// ============================================================================
+
+export const ExecuteWSRequestSchema = z
+  .object({
+    // Source (exactly one required)
+    content: z.string().max(MAX_CONTENT_SIZE).optional(),
+    path: z.string().max(MAX_PATH_LENGTH).optional(),
+
+    // Request selection (for multi-request files)
+    requestName: z.string().max(256).optional(),
+    requestIndex: z.number().int().min(0).optional(),
+
+    // Context
+    sessionId: z.string().max(100).optional(),
+    profile: z.string().max(100).optional(),
+    variables: z.record(z.string(), z.unknown()).optional(),
+
+    // Flow tracking (for Observer Mode)
+    flowId: z.string().max(100).optional(),
+    reqLabel: z.string().max(256).optional(),
+
+    // WS-specific options
+    connectTimeoutMs: z.number().int().min(100).max(300000).optional(),
+    idleTimeoutMs: z.number().int().min(1000).max(3600000).optional(),
+    replayBufferSize: z.number().int().min(1).max(5000).optional()
+  })
+  .refine((data) => (data.content !== undefined) !== (data.path !== undefined), {
+    message: 'Exactly one of "content" or "path" must be provided'
+  })
+  .refine((data) => !(data.requestName !== undefined && data.requestIndex !== undefined), {
+    message: 'Cannot specify both "requestName" and "requestIndex"'
+  });
+
+export const ExecuteWSResponseSchema = z.object({
+  runId: z.string(),
+  flowId: z.string().optional(),
+  reqExecId: z.string().optional(),
+  request: z.object({
+    index: z.number(),
+    name: z.string().optional(),
+    method: z.string(),
+    url: z.string()
+  }),
+  resolved: ResolvedPathsSchema,
+  ws: z.object({
+    wsSessionId: z.string(),
+    downstreamPath: z.string(),
+    upstreamUrl: z.string(),
+    subprotocol: z.string().optional(),
+    replayBufferSize: z.number(),
+    lastSeq: z.number()
+  })
+});
+
+export const WsPayloadTypeSchema = z.enum(['text', 'json', 'binary']);
+export const WsPayloadEncodingSchema = z.enum(['utf-8', 'base64']);
+
+export const WsSessionServerEventTypeSchema = z.enum([
+  'session.opened',
+  'session.inbound',
+  'session.outbound',
+  'session.closed',
+  'session.error',
+  'session.replay.end'
+]);
+
+export const WsSessionClientEventTypeSchema = z.enum([
+  'session.send',
+  'session.close',
+  'session.ping'
+]);
+
+export const WsSessionServerEnvelopeSchema = z.object({
+  type: WsSessionServerEventTypeSchema,
+  ts: z.number(),
+  seq: z.number().int().min(0),
+  wsSessionId: z.string(),
+  flowId: z.string().optional(),
+  reqExecId: z.string().optional(),
+  payloadType: WsPayloadTypeSchema.optional(),
+  encoding: WsPayloadEncodingSchema.optional(),
+  // Forward-compat metadata for future binary support.
+  byteLength: z.number().int().nonnegative().optional(),
+  payload: z.unknown().optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string()
+    })
+    .optional()
+});
+
+export const WsSessionClientEnvelopeSchema = z.object({
+  type: WsSessionClientEventTypeSchema,
+  payloadType: WsPayloadTypeSchema.optional(),
+  encoding: WsPayloadEncodingSchema.optional(),
+  payload: z.unknown().optional(),
+  code: z.number().int().optional(),
+  reason: z.string().optional()
+});
+
+export const ObserverWsEventEnvelopeSchema = EventEnvelopeSchema;
+
+// ============================================================================
 // Plugin Schemas
 // ============================================================================
 
@@ -876,3 +986,14 @@ export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;
 // SSE Execute types
 export type ExecuteSSERequest = z.infer<typeof ExecuteSSERequestSchema>;
 export type SSEMessage = z.infer<typeof SSEMessageSchema>;
+
+// WebSocket foundation types
+export type ExecuteWSRequest = z.infer<typeof ExecuteWSRequestSchema>;
+export type ExecuteWSResponse = z.infer<typeof ExecuteWSResponseSchema>;
+export type WsPayloadType = z.infer<typeof WsPayloadTypeSchema>;
+export type WsPayloadEncoding = z.infer<typeof WsPayloadEncodingSchema>;
+export type WsSessionServerEventType = z.infer<typeof WsSessionServerEventTypeSchema>;
+export type WsSessionClientEventType = z.infer<typeof WsSessionClientEventTypeSchema>;
+export type WsSessionServerEnvelope = z.infer<typeof WsSessionServerEnvelopeSchema>;
+export type WsSessionClientEnvelope = z.infer<typeof WsSessionClientEnvelopeSchema>;
+export type ObserverWsEventEnvelope = z.infer<typeof ObserverWsEventEnvelopeSchema>;

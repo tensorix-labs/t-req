@@ -70,9 +70,13 @@ describe('GET /capabilities', () => {
     }>('/capabilities');
 
     expect(status).toBe(200);
-    expect(data.protocolVersion).toBeDefined();
+    expect(data.protocolVersion).toBe('1.1');
     expect(data.version).toBeDefined();
     expect(data.features.sessions).toBe(true);
+    expect(data.features.observerWebSocket).toBe(false);
+    expect(data.features.requestWebSocket).toBe(false);
+    expect(data.features.replayBuffer).toBe(false);
+    expect(data.features.binaryPayloads).toBe(false);
   });
 });
 

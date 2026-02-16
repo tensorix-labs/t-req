@@ -68,14 +68,17 @@ describe('OpenAPI /doc endpoint', () => {
     // Request endpoints
     expect(paths['/parse']).toBeDefined();
     expect(paths['/execute']).toBeDefined();
+    expect(paths['/execute/ws']).toBeDefined();
 
     // Session endpoints
     expect(paths['/session']).toBeDefined();
     expect(paths['/session/{id}']).toBeDefined();
     expect(paths['/session/{id}/variables']).toBeDefined();
 
-    // Event endpoint
+    // Event endpoints
     expect(paths['/event']).toBeDefined();
+    expect(paths['/event/ws']).toBeDefined();
+    expect(paths['/ws/session/{wsSessionId}']).toBeDefined();
 
     // Import endpoints
     expect(paths['/import/{source}/preview']).toBeDefined();
@@ -156,6 +159,29 @@ describe('OpenAPI /doc endpoint', () => {
     expect(event.tags).toContain('Events');
   });
 
+  test('should define execute websocket endpoint', async () => {
+    const res = await app.request('/doc');
+    const spec = await res.json();
+    const paths = spec.paths as Record<string, Record<string, unknown>>;
+    const executeWs = paths['/execute/ws']?.post as Record<string, unknown>;
+
+    expect(executeWs).toBeDefined();
+    expect(executeWs.summary).toBe('Execute WebSocket request definition');
+    expect(executeWs.tags).toContain('WebSocket');
+    expect(executeWs.requestBody).toBeDefined();
+  });
+
+  test('should define websocket event endpoint', async () => {
+    const res = await app.request('/doc');
+    const spec = await res.json();
+    const paths = spec.paths as Record<string, Record<string, unknown>>;
+    const eventWs = paths['/event/ws']?.get as Record<string, unknown>;
+
+    expect(eventWs).toBeDefined();
+    expect(eventWs.summary).toBe('Event stream (WebSocket)');
+    expect(eventWs.tags).toContain('WebSocket');
+  });
+
   test('should include tags with descriptions', async () => {
     const res = await app.request('/doc');
     const spec = await res.json();
@@ -169,6 +195,7 @@ describe('OpenAPI /doc endpoint', () => {
     expect(tagNames).toContain('Requests');
     expect(tagNames).toContain('Sessions');
     expect(tagNames).toContain('Events');
+    expect(tagNames).toContain('WebSocket');
     expect(tagNames).toContain('Import');
   });
 
