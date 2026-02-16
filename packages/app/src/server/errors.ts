@@ -118,6 +118,30 @@ export class FileNotFoundError extends TreqError {
   }
 }
 
+export class WsSessionNotFoundError extends TreqError {
+  constructor(id: string) {
+    super('WS_SESSION_NOT_FOUND', `WebSocket session '${id}' not found`);
+    this.name = 'WsSessionNotFoundError';
+  }
+}
+
+export class WsSessionLimitReachedError extends TreqError {
+  constructor(limit: number) {
+    super('WS_SESSION_LIMIT_REACHED', `Maximum WebSocket session limit (${limit}) reached`);
+    this.name = 'WsSessionLimitReachedError';
+  }
+}
+
+export class WsReplayGapError extends TreqError {
+  constructor(wsSessionId: string, afterSeq: number, oldestAvailableSeq: number) {
+    super(
+      'WS_REPLAY_GAP',
+      `Replay gap for WebSocket session '${wsSessionId}': requested afterSeq=${afterSeq}, oldest available seq=${oldestAvailableSeq}`
+    );
+    this.name = 'WsReplayGapError';
+  }
+}
+
 // ============================================================================
 // Status Code Mapping
 // ============================================================================
@@ -131,13 +155,16 @@ type HttpStatusCode = 400 | 403 | 404 | 429 | 500;
  */
 export function getStatusForError(err: Error): HttpStatusCode {
   if (err instanceof SessionNotFoundError) return 404;
+  if (err instanceof WsSessionNotFoundError) return 404;
   if (err instanceof RequestNotFoundError) return 404;
   if (err instanceof FlowNotFoundError) return 404;
   if (err instanceof ExecutionNotFoundError) return 404;
   if (err instanceof FileNotFoundError) return 404;
   if (err instanceof PathOutsideWorkspaceError) return 403;
   if (err instanceof SessionLimitReachedError) return 429;
+  if (err instanceof WsSessionLimitReachedError) return 429;
   if (err instanceof FlowLimitReachedError) return 429;
+  if (err instanceof WsReplayGapError) return 400;
   if (err instanceof ValidationError) return 400;
   if (err instanceof ContentOrPathRequiredError) return 400;
   if (err instanceof RequestIndexOutOfRangeError) return 400;
