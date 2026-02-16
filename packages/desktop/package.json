@@ -8,13 +8,19 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "tauri": "tauri"
+    "sidecar:build": "bun run ./script/prepare-sidecar.ts",
+    "rust:check": "sh -c 'TRIPLE=$(rustc --print host-tuple); SIDECAR=\"src-tauri/sidecars/treq-$TRIPLE\"; if [ ! -f \"$SIDECAR\" ]; then bun run sidecar:build; fi; cargo check --manifest-path src-tauri/Cargo.toml'",
+    "tauri": "tauri",
+    "tauri:dev": "bun run sidecar:build && tauri dev",
+    "tauri:build": "bun run sidecar:build && tauri build"
   },
   "license": "MIT",
   "dependencies": {
     "solid-js": "^1.9.3",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "^2"
   },
   "devDependencies": {
     "typescript": "~5.6.2",
