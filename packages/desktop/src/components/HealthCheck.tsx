@@ -1,18 +1,7 @@
 import { unwrap } from '@t-req/sdk/client';
 import { createMemo, createResource, Match, Switch } from 'solid-js';
 import { useServer } from '../context/server-context';
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  return 'Unknown error';
-}
+import { toErrorMessage } from '../lib/errors';
 
 export default function HealthCheck() {
   const { client, workspacePath } = useServer();

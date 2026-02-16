@@ -11,6 +11,7 @@ import {
   useContext
 } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import { toErrorMessage } from '../lib/errors';
 import { createTreqDesktopClient } from '../lib/sdk';
 
 const EVENT_SERVER_READY = 'server-ready';
@@ -23,6 +24,8 @@ export type ServerInfo = {
   baseUrl: string;
   workspace: string;
 };
+
+type ClientCredentials = Pick<ServerInfo, 'baseUrl' | 'token'>;
 
 type ServerErrorPayload = {
   message: string;
@@ -50,18 +53,6 @@ type ServerContextValue = {
 
 const ServerContext = createContext<ServerContextValue>();
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  return 'Unknown error';
-}
-
 export const ServerProvider: ParentComponent = (props) => {
   const [state, setState] = createStore<{ status: ServerStatus }>({
     status: { state: 'connecting' }
@@ -81,13 +72,34 @@ export const ServerProvider: ParentComponent = (props) => {
   });
 
   const workspacePath = createMemo(() => readyInfo()?.workspace ?? null);
+  const clientCredentials = createMemo<ClientCredentials | null>(
+    () => {
+      const info = readyInfo();
+      if (!info) {
+        return null;
+      }
+
+      return { baseUrl: info.baseUrl, token: info.token };
+    },
+    null,
+    {
+      equals: (previous, next) => {
+        if (!previous || !next) {
+          return previous === next;
+        }
+
+        return previous.baseUrl === next.baseUrl && previous.token === next.token;
+      }
+    }
+  );
+
   const client = createMemo<TreqClient | null>(() => {
-    const info = readyInfo();
-    if (!info) {
+    const credentials = clientCredentials();
+    if (!credentials) {
       return null;
     }
 
-    return createTreqDesktopClient(info);
+    return createTreqDesktopClient(credentials);
   });
 
   async function registerListeners(): Promise<void> {

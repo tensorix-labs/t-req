@@ -1,18 +1,13 @@
-import {
-  type ClientOptions,
-  createConfig,
-  createClient as createGeneratedClient,
-  TreqClient
-} from '@t-req/sdk/client';
-import type { ServerInfo } from '../context/server-context';
+import { createTreqClient, type TreqClient } from '@t-req/sdk/client';
 
-export function createTreqDesktopClient(info: ServerInfo): TreqClient {
-  const client = createGeneratedClient(
-    createConfig<ClientOptions>({
-      baseUrl: info.baseUrl,
-      headers: { Authorization: `Bearer ${info.token}` }
-    })
-  );
+type TreqDesktopClientCredentials = {
+  baseUrl: string;
+  token: string;
+};
 
-  return new TreqClient({ client });
+export function createTreqDesktopClient(info: TreqDesktopClientCredentials): TreqClient {
+  return createTreqClient({
+    baseUrl: info.baseUrl,
+    token: info.token
+  });
 }
