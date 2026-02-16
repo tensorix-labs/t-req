@@ -1,13 +1,12 @@
 use std::{net::TcpListener, path::Path};
 
+use super::SIDECAR_HOST;
 use rand::RngCore;
 use tauri::AppHandle;
 use tauri_plugin_shell::{
     ShellExt,
     process::{CommandChild, CommandEvent},
 };
-
-const SIDECAR_HOST: &str = "127.0.0.1";
 
 pub fn find_available_port() -> Result<u16, String> {
     let listener = TcpListener::bind((SIDECAR_HOST, 0))

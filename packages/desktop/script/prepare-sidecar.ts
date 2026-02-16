@@ -7,6 +7,7 @@ const desktopDir = path.resolve(import.meta.dirname, '..');
 const appDir = path.resolve(desktopDir, '../app');
 const sidecarDir = path.join(desktopDir, 'src-tauri', 'sidecars');
 
+// Intentionally macOS-only for this phase. Add Linux/Windows mappings in a later phase.
 const tripleToAppDistDir: Record<string, string> = {
   'aarch64-apple-darwin': 'app-darwin-arm64',
   'x86_64-apple-darwin': 'app-darwin-x64'
