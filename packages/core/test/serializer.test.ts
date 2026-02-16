@@ -241,6 +241,7 @@ Content-Type: application/json
     const reparsed = parse(serialized);
     expect(reparsed).toHaveLength(1);
     expect(reparsed[0]?.protocol).toBe('ws');
+    expect(reparsed[0]?.protocolOptions?.type).toBe('ws');
     if (reparsed[0]?.protocolOptions?.type === 'ws') {
       expect(reparsed[0].protocolOptions.subprotocols).toEqual(['chat', 'json']);
       expect(reparsed[0].protocolOptions.connectTimeoutMs).toBe(30000);

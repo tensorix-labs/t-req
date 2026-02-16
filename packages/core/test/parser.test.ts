@@ -698,6 +698,7 @@ GET wss://api.example.com/socket
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
     if (requests[0]?.protocolOptions?.type === 'ws') {
       expect(requests[0].protocolOptions.subprotocols).toEqual(['chat', 'json', 'graphql-ws']);
     }
@@ -712,6 +713,7 @@ GET wss://api.example.com/socket
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
     if (requests[0]?.protocolOptions?.type === 'ws') {
       expect(requests[0].protocolOptions.connectTimeoutMs).toBe(45000);
     }
@@ -725,6 +727,7 @@ GET ws://localhost:8080/socket
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
     if (requests[0]?.protocolOptions?.type === 'ws') {
       expect(requests[0].protocolOptions.subprotocols).toEqual(['chat', 'json', 'graphql-ws']);
     }
@@ -738,6 +741,7 @@ GET wss://api.example.com/graphql
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
     if (requests[0]?.protocolOptions?.type === 'ws') {
       expect(requests[0].protocolOptions.connectTimeoutMs).toBe(30000);
     }

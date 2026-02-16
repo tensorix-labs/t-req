@@ -298,7 +298,7 @@ const EventQuerySchema = z.object({
 });
 
 const ReplayQuerySchema = z.object({
-  afterSeq: z
+  afterSeq: z.coerce
     .number()
     .int()
     .min(0)
