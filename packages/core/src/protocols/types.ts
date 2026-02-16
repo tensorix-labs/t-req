@@ -4,7 +4,7 @@ import type { ExecuteOptions, ExecuteRequest, ParsedRequest, StreamResponse } fr
 /**
  * Supported protocol types.
  */
-export type Protocol = 'http' | 'sse';
+export type Protocol = 'http' | 'sse' | 'ws';
 
 /**
  * Extended execute options for protocol handlers.

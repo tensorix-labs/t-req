@@ -401,7 +401,13 @@ export function createEngine(config: EngineConfig = {}): Engine {
       .ifDefined('followRedirects', options.followRedirects)
       .ifDefined('validateSSL', options.validateSSL)
       .ifDefined('proxy', options.proxy)
-      .ifDefined('lastEventId', options.lastEventId ?? request.protocolOptions?.lastEventId)
+      .ifDefined(
+        'lastEventId',
+        options.lastEventId ??
+          (request.protocolOptions?.type === 'sse'
+            ? request.protocolOptions.lastEventId
+            : undefined)
+      )
       .build();
 
     try {

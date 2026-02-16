@@ -12,6 +12,8 @@ import {
   ExecuteRequestSchema,
   ExecuteResponseSchema,
   ExecuteSSERequestSchema,
+  ExecuteWSRequestSchema,
+  ExecuteWSResponseSchema,
   ExecutionDetailSchema,
   FinishFlowResponseSchema,
   GetFileContentResponseSchema,
@@ -154,6 +156,39 @@ export const executeSSERoute = createRoute({
   }
 });
 
+// Execute WebSocket session
+export const executeWSRoute = createRoute({
+  method: 'post',
+  path: '/execute/ws',
+  tags: ['WebSocket'],
+  summary: 'Execute WebSocket request definition',
+  description:
+    'Validate and initialize a server-owned WebSocket session from .http content. Returns session metadata and downstream connection path.',
+  request: {
+    body: {
+      content: { 'application/json': { schema: ExecuteWSRequestSchema } }
+    }
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: ExecuteWSResponseSchema } },
+      description: 'WebSocket session initialized'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid request or non-WebSocket request definition'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Request not found'
+    },
+    501: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'WebSocket runtime is not enabled yet'
+    }
+  }
+});
+
 // Session param schema
 const SessionIdParamSchema = z.object({
   id: z
@@ -262,6 +297,26 @@ const EventQuerySchema = z.object({
     .openapi({ param: { name: 'flowId', in: 'query' } })
 });
 
+const ReplayQuerySchema = z.object({
+  afterSeq: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .openapi({ param: { name: 'afterSeq', in: 'query' } })
+});
+
+const EventWsQuerySchema = EventQuerySchema.extend({
+  afterSeq: ReplayQuerySchema.shape.afterSeq
+});
+
+const WsSessionIdParamSchema = z.object({
+  wsSessionId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: 'wsSessionId', in: 'path' }, example: 'ws_abc123' })
+});
+
 // Event stream (SSE)
 export const eventRoute = createRoute({
   method: 'get',
@@ -277,6 +332,59 @@ export const eventRoute = createRoute({
     200: {
       description: 'SSE stream',
       content: { 'text/event-stream': { schema: EventEnvelopeSchema } }
+    }
+  }
+});
+
+// Event stream (WebSocket)
+export const eventWSRoute = createRoute({
+  method: 'get',
+  path: '/event/ws',
+  tags: ['WebSocket'],
+  summary: 'Event stream (WebSocket)',
+  description:
+    'Subscribe to real-time events over WebSocket. Uses the same flow/session filters as /event and supports replay with afterSeq.',
+  request: {
+    query: EventWsQuerySchema
+  },
+  responses: {
+    101: {
+      description: 'WebSocket upgraded'
+    },
+    400: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'Invalid query parameters'
+    },
+    501: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'WebSocket runtime is not enabled yet'
+    }
+  }
+});
+
+// Request session control socket (WebSocket)
+export const wsSessionRoute = createRoute({
+  method: 'get',
+  path: '/ws/session/{wsSessionId}',
+  tags: ['WebSocket'],
+  summary: 'WebSocket session control socket',
+  description:
+    'Upgrade to a WebSocket control/data channel for a previously initialized request session. Supports replay from afterSeq.',
+  request: {
+    params: WsSessionIdParamSchema,
+    query: ReplayQuerySchema
+  },
+  responses: {
+    101: {
+      description: 'WebSocket upgraded'
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'WebSocket session not found'
+    },
+    501: {
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+      description: 'WebSocket runtime is not enabled yet'
     }
   }
 });

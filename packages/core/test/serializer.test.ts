@@ -226,4 +226,24 @@ Content-Type: application/json
     });
     expect(noHeadersSerialized).toBe('POST https://api.example.com/no-headers\n\nplain text');
   });
+
+  test('serializes and reparses websocket directives with protocol options', () => {
+    const serialized = serializeRequest({
+      method: 'GET',
+      url: 'wss://api.example.com/socket',
+      directives: [
+        { name: 'ws', value: '' },
+        { name: 'ws-subprotocols', value: 'chat, json' },
+        { name: 'ws-connect-timeout', value: '30000' }
+      ]
+    });
+
+    const reparsed = parse(serialized);
+    expect(reparsed).toHaveLength(1);
+    expect(reparsed[0]?.protocol).toBe('ws');
+    if (reparsed[0]?.protocolOptions?.type === 'ws') {
+      expect(reparsed[0].protocolOptions.subprotocols).toEqual(['chat', 'json']);
+      expect(reparsed[0].protocolOptions.connectTimeoutMs).toBe(30000);
+    }
+  });
 });

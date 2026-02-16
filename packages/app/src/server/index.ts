@@ -21,11 +21,14 @@ export {
   createSessionRoute,
   deleteSessionRoute,
   eventRoute,
+  eventWSRoute,
   executeRoute,
+  executeWSRoute,
   getSessionRoute,
   healthRoute,
   parseRoute,
-  updateSessionVariablesRoute
+  updateSessionVariablesRoute,
+  wsSessionRoute
 } from './openapi';
 export * from './schemas';
 export type { Service, ServiceConfig, Session } from './service';

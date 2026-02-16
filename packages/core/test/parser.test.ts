@@ -657,6 +657,90 @@ GET https://api.example.com/stream
   });
 });
 
+describe('parse WebSocket protocol detection', () => {
+  test('detects WebSocket from @ws directive', () => {
+    const requests = parse(`
+# @ws
+GET https://api.example.com/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
+  });
+
+  test('detects WebSocket from ws:// URL scheme', () => {
+    const requests = parse(`
+GET ws://localhost:8080/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
+  });
+
+  test('detects WebSocket from wss:// URL scheme', () => {
+    const requests = parse(`
+GET wss://api.example.com/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
+  });
+
+  test('parses @ws-subprotocols directive', () => {
+    const requests = parse(`
+# @ws
+# @ws-subprotocols chat, json,graphql-ws
+GET wss://api.example.com/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    if (requests[0]?.protocolOptions?.type === 'ws') {
+      expect(requests[0].protocolOptions.subprotocols).toEqual(['chat', 'json', 'graphql-ws']);
+    }
+  });
+
+  test('parses @ws-connect-timeout directive', () => {
+    const requests = parse(`
+# @ws
+# @ws-connect-timeout 45000
+GET wss://api.example.com/socket
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    if (requests[0]?.protocolOptions?.type === 'ws') {
+      expect(requests[0].protocolOptions.connectTimeoutMs).toBe(45000);
+    }
+  });
+
+  test('@ws directive takes precedence over SSE Accept header detection', () => {
+    const requests = parse(`
+# @ws
+GET https://api.example.com/stream
+Accept: text/event-stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('ws');
+    expect(requests[0]?.protocolOptions?.type).toBe('ws');
+  });
+
+  test('@sse directive takes precedence over ws:// URL scheme', () => {
+    const requests = parse(`
+# @sse
+GET wss://api.example.com/stream
+`);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.protocol).toBe('sse');
+    expect(requests[0]?.protocolOptions?.type).toBe('sse');
+  });
+});
+
 describe('parse hyphenated directives', () => {
   test('@no-redirect is parsed as meta directive', () => {
     const requests = parse(`
