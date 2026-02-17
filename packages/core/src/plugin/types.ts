@@ -111,6 +111,22 @@ export interface RetrySignal {
   reason?: string;
 }
 
+/**
+ * Execution-scoped context for report stamping.
+ */
+export interface PluginExecutionContext {
+  /** Execution run ID */
+  runId: string;
+  /** Optional flow scope */
+  flowId?: string;
+  /** Optional request execution scope */
+  reqExecId?: string;
+  /** Optional deterministic timestamp source */
+  now?: () => number;
+  /** Optional deterministic sequence source */
+  nextSeq?: () => number;
+}
+
 // ============================================================================
 // Hook Context
 // ============================================================================

@@ -72,6 +72,7 @@ export type {
   PluginDiagnostic,
   // Events
   PluginEvent,
+  PluginExecutionContext,
   PluginFactory,
   // Hooks
   PluginHooks,

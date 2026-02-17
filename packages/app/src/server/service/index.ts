@@ -71,17 +71,19 @@ export function createService(config: ServiceConfig) {
     };
   }
 
+  function finishFlow(flowId: string) {
+    const result = flowManager.finish(flowId);
+    configService.clearPluginReportsForFlow(flowId);
+    return result;
+  }
+
   // Cleanup
   async function dispose(): Promise<void> {
     scriptService.dispose();
     testService.dispose();
     sessionManager.dispose();
     flowManager.dispose();
-    // Teardown plugin manager if initialized
-    const workspaceConfig = await configService.getWorkspaceConfig();
-    if (workspaceConfig.config.pluginManager) {
-      await workspaceConfig.config.pluginManager.teardown();
-    }
+    await configService.dispose();
   }
 
   return {
@@ -100,7 +102,7 @@ export function createService(config: ServiceConfig) {
     deleteSession: sessionManager.delete,
     // Flow management
     createFlow: flowManager.create,
-    finishFlow: flowManager.finish,
+    finishFlow,
     getExecution: flowManager.getExecution,
     // Workspace discovery
     listWorkspaceFiles: workspaceService.listWorkspaceFiles,

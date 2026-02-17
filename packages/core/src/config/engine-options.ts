@@ -1,5 +1,5 @@
 import type { EngineConfig } from '../engine/engine';
-import type { CombinedEvent } from '../plugin/types';
+import type { CombinedEvent, PluginExecutionContext } from '../plugin/types';
 import type { CookieStore, EngineEvent } from '../runtime/types';
 import type { ResolvedConfig } from './types';
 
@@ -19,6 +19,8 @@ export type BuildEngineOptionsInput = {
   cookieStore?: CookieStore;
   /** Event handler for both engine and plugin events */
   onEvent?: (event: CombinedEvent) => void;
+  /** Optional per-run execution context for plugin report stamping */
+  executionContext?: PluginExecutionContext;
 };
 
 export type BuildEngineOptionsResult = {
@@ -59,7 +61,7 @@ export type BuildEngineOptionsResult = {
  * @returns Engine options and request defaults
  */
 export function buildEngineOptions(input: BuildEngineOptionsInput): BuildEngineOptionsResult {
-  const { config, cookieStore, onEvent } = input;
+  const { config, cookieStore, onEvent, executionContext } = input;
 
   // Build engine options conditionally to handle exactOptionalPropertyTypes
   const engineOptions: EngineConfig = {};
@@ -84,6 +86,9 @@ export function buildEngineOptions(input: BuildEngineOptionsInput): BuildEngineO
   // Plugin manager - only include if available
   if (config.pluginManager) {
     engineOptions.pluginManager = config.pluginManager;
+    if (executionContext) {
+      engineOptions.pluginExecutionContext = executionContext;
+    }
 
     // Wire up plugin event sink so plugin events are also forwarded
     if (onEvent) {

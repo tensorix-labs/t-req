@@ -1,5 +1,5 @@
 import { createEngine, type SSEMessage } from '@t-req/core';
-import { buildEngineOptions, resolveProjectConfig } from '@t-req/core/config';
+import { buildEngineOptions } from '@t-req/core/config';
 import { createCookieJar } from '@t-req/core/cookies';
 import { createCookieJarManager, scheduleCookieJarSave } from '@t-req/core/cookies/persistence';
 import type { CookieStore } from '@t-req/core/runtime';
@@ -75,81 +75,141 @@ export function createExecutionEngine(
     const sessionVars = request.sessionId
       ? (sessionManager.getInternal(request.sessionId)?.variables ?? {})
       : {};
-    const overrideLayers: Array<{
-      name: string;
-      overrides: { variables: Record<string, unknown> };
-    }> = [];
-
-    if (Object.keys(sessionVars).length > 0) {
-      overrideLayers.push({ name: 'session', overrides: { variables: sessionVars } });
-    }
-
-    if (request.variables && Object.keys(request.variables).length > 0) {
-      overrideLayers.push({ name: 'request', overrides: { variables: request.variables } });
-    }
-
-    const resolvedConfig = await resolveProjectConfig({
+    const resolvedConfig = await configService.getExecutionBaseConfig({
       startDir,
-      stopDir: context.workspaceRoot,
-      profile: request.profile,
-      overrideLayers
+      profile: request.profile
     });
 
     const { config: projectConfig } = resolvedConfig;
-
-    // Stamp execution context for plugin reports
-    projectConfig.pluginManager?.setExecutionContext({
+    const pluginExecutionContext = {
       runId,
-      flowId,
-      reqExecId,
+      ...(flowId !== undefined ? { flowId } : {}),
+      ...(reqExecId !== undefined ? { reqExecId } : {}),
       now: context.now
-    });
+    };
+    const effectiveVariables: Record<string, unknown> = {
+      ...fileVariables,
+      ...projectConfig.variables,
+      ...sessionVars,
+      ...(request.variables ?? {})
+    };
+    const pluginManager = projectConfig.pluginManager;
 
-    // Build execution source info
-    const executionSource: ExecutionSource | undefined = request.path
-      ? {
-          kind: 'file' as const,
-          path: request.path,
-          requestIndex: selectedIndex,
-          requestName: request.requestName
+    try {
+      // Build execution source info
+      const executionSource: ExecutionSource | undefined = request.path
+        ? {
+            kind: 'file' as const,
+            path: request.path,
+            requestIndex: selectedIndex,
+            requestName: request.requestName
+          }
+        : {
+            kind: 'string' as const,
+            requestIndex: selectedIndex,
+            requestName: request.requestName
+          };
+
+      // Init pending execution in flow tracker
+      if (reqExecId) {
+        tracker.initPendingExecution({
+          reqExecId,
+          sessionId: request.sessionId,
+          reqLabel: request.reqLabel ?? request.path,
+          source: executionSource,
+          selectedRequest,
+          startTime
+        });
+      }
+
+      // Execute
+      const runStateless = async (): Promise<{
+        response: Response;
+        session?: Session;
+        cookiesChanged: boolean;
+      }> => {
+        const eventHandler = tracker.createEventHandler(undefined);
+
+        if (!projectConfig.cookies.enabled) {
+          const { engineOptions, requestDefaults } = buildEngineOptions({
+            config: projectConfig,
+            onEvent: eventHandler,
+            executionContext: pluginExecutionContext
+          });
+
+          const engine = createEngine(engineOptions);
+
+          try {
+            const response = await engine.runString(selectedRequest.raw, {
+              variables: effectiveVariables,
+              basePath,
+              timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+              followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+              validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+            });
+            return { response, session: undefined, cookiesChanged: false };
+          } catch (err) {
+            throw new ExecuteError(
+              `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
         }
-      : {
-          kind: 'string' as const,
-          requestIndex: selectedIndex,
-          requestName: request.requestName
-        };
 
-    // Init pending execution in flow tracker
-    if (reqExecId) {
-      tracker.initPendingExecution({
-        reqExecId,
-        sessionId: request.sessionId,
-        reqLabel: request.reqLabel ?? request.path,
-        source: executionSource,
-        selectedRequest,
-        startTime
-      });
-    }
+        // Cookies enabled: persistent
+        if (projectConfig.cookies.mode === 'persistent' && projectConfig.cookies.jarPath) {
+          const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
+          const manager = createCookieJarManager(jarPath);
 
-    // Execute
-    const runStateless = async (): Promise<{
-      response: Response;
-      session?: Session;
-      cookiesChanged: boolean;
-    }> => {
-      const eventHandler = tracker.createEventHandler(undefined);
+          return await manager.withLock(async () => {
+            const cookieJar = createCookieJar();
+            restoreCookieJarFromData(cookieJar, manager.load());
 
-      if (!projectConfig.cookies.enabled) {
+            const cookieStore = createCookieStoreFromJar(cookieJar);
+
+            const { engineOptions, requestDefaults } = buildEngineOptions({
+              config: projectConfig,
+              cookieStore,
+              onEvent: eventHandler,
+              executionContext: pluginExecutionContext
+            });
+
+            const engine = createEngine(engineOptions);
+
+            try {
+              const response = await engine.runString(selectedRequest.raw, {
+                variables: effectiveVariables,
+                basePath,
+                timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+                followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+                validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+              });
+
+              manager.save(cookieJar);
+              return { response, session: undefined, cookiesChanged: false };
+            } catch (err) {
+              throw new ExecuteError(
+                `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+              );
+            }
+          });
+        }
+
+        // Memory mode
+        const cookieJar = createCookieJar();
+        const cookieStore = createCookieStoreFromJar(cookieJar);
+
         const { engineOptions, requestDefaults } = buildEngineOptions({
           config: projectConfig,
-          onEvent: eventHandler
+          cookieStore,
+          onEvent: eventHandler,
+          executionContext: pluginExecutionContext
         });
 
         const engine = createEngine(engineOptions);
 
         try {
           const response = await engine.runString(selectedRequest.raw, {
-            variables: { ...fileVariables, ...projectConfig.variables },
+            variables: effectiveVariables,
             basePath,
             timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
             followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
@@ -161,255 +221,195 @@ export function createExecutionEngine(
             `Execution failed: ${err instanceof Error ? err.message : String(err)}`
           );
         }
-      }
-
-      // Cookies enabled: persistent
-      if (projectConfig.cookies.mode === 'persistent' && projectConfig.cookies.jarPath) {
-        const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
-        const manager = createCookieJarManager(jarPath);
-
-        return await manager.withLock(async () => {
-          const cookieJar = createCookieJar();
-          restoreCookieJarFromData(cookieJar, manager.load());
-
-          const cookieStore = createCookieStoreFromJar(cookieJar);
-
-          const { engineOptions, requestDefaults } = buildEngineOptions({
-            config: projectConfig,
-            cookieStore,
-            onEvent: eventHandler
-          });
-
-          const engine = createEngine(engineOptions);
-
-          try {
-            const response = await engine.runString(selectedRequest.raw, {
-              variables: { ...fileVariables, ...projectConfig.variables },
-              basePath,
-              timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-              followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-              validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-            });
-
-            manager.save(cookieJar);
-            return { response, session: undefined, cookiesChanged: false };
-          } catch (err) {
-            throw new ExecuteError(
-              `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-            );
-          }
-        });
-      }
-
-      // Memory mode
-      const cookieJar = createCookieJar();
-      const cookieStore = createCookieStoreFromJar(cookieJar);
-
-      const { engineOptions, requestDefaults } = buildEngineOptions({
-        config: projectConfig,
-        cookieStore,
-        onEvent: eventHandler
-      });
-
-      const engine = createEngine(engineOptions);
-
-      try {
-        const response = await engine.runString(selectedRequest.raw, {
-          variables: { ...fileVariables, ...projectConfig.variables },
-          basePath,
-          timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-          followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-          validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-        });
-        return { response, session: undefined, cookiesChanged: false };
-      } catch (err) {
-        throw new ExecuteError(
-          `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-    };
-
-    const runInSession = async (
-      session: Session
-    ): Promise<{
-      response: Response;
-      session: Session;
-      cookiesChanged: boolean;
-    }> => {
-      session.lastUsedAt = bumpTime(session.lastUsedAt);
-
-      let cookiesChanged = false;
-
-      if (
-        projectConfig.cookies.enabled &&
-        projectConfig.cookies.mode === 'persistent' &&
-        projectConfig.cookies.jarPath
-      ) {
-        const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
-
-        if (session.cookieJarPath !== jarPath) {
-          const manager = createCookieJarManager(jarPath);
-          await manager.withLock(async () => {
-            const jar = createCookieJar();
-            restoreCookieJarFromData(jar, manager.load());
-            session.cookieJar = jar;
-            session.cookieStore = createCookieStoreFromJar(jar);
-            session.cookieJarPath = jarPath;
-          });
-        } else {
-          session.cookieJarPath = jarPath;
-        }
-      } else {
-        session.cookieJarPath = undefined;
-      }
-
-      const cookieStore: CookieStore = {
-        getCookieHeader: async (url) => {
-          return await session.cookieStore.getCookieHeader(url);
-        },
-        setFromResponse: async (url, resp) => {
-          cookiesChanged = true;
-          await session.cookieStore.setFromResponse(url, resp);
-        }
       };
 
-      const sessionEventHandler = tracker.createEventHandler(session.id);
-      const { engineOptions, requestDefaults } = buildEngineOptions({
-        config: projectConfig,
-        cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined,
-        onEvent: sessionEventHandler
-      });
+      const runInSession = async (
+        session: Session
+      ): Promise<{
+        response: Response;
+        session: Session;
+        cookiesChanged: boolean;
+      }> => {
+        session.lastUsedAt = bumpTime(session.lastUsedAt);
 
-      const engine = createEngine(engineOptions);
+        let cookiesChanged = false;
 
-      let response: Response;
-      try {
-        response = await engine.runString(selectedRequest.raw, {
-          variables: { ...fileVariables, ...projectConfig.variables },
-          basePath,
-          timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-          followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-          validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-        });
-      } catch (err) {
-        throw new ExecuteError(
-          `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
+        if (
+          projectConfig.cookies.enabled &&
+          projectConfig.cookies.mode === 'persistent' &&
+          projectConfig.cookies.jarPath
+        ) {
+          const jarPath = resolve(projectConfig.projectRoot, projectConfig.cookies.jarPath);
 
-      return { response, session, cookiesChanged };
-    };
-
-    const sessionId = request.sessionId;
-    let response: Response;
-    let session: Session | undefined;
-    let cookiesChanged: boolean;
-
-    try {
-      const result =
-        sessionId !== undefined
-          ? await (async () => {
-              const s = sessionManager.getInternal(sessionId);
-              if (!s) throw new SessionNotFoundError(sessionId);
-              return await withSessionLock(s, async () => await runInSession(s));
-            })()
-          : await runStateless();
-
-      response = result.response;
-      session = result.session;
-      cookiesChanged = result.cookiesChanged;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      tracker.failExecution('execute', message);
-      throw err;
-    }
-
-    const endTime = Date.now();
-
-    // Process response
-    const fetchResponse = response as unknown as FetchResponse;
-    const responseHeaders = extractResponseHeaders(fetchResponse);
-    const processedBody = await processResponseBody(fetchResponse, context.maxBodyBytes);
-
-    if (session && cookiesChanged) {
-      session.snapshotVersion++;
-
-      if (session.cookieJarPath) {
-        scheduleCookieJarSave(session.cookieJarPath, session.cookieJar);
-      }
-
-      context.onEvent?.(session.id, runId, {
-        type: 'sessionUpdated',
-        variablesChanged: false,
-        cookiesChanged: true
-      });
-    }
-
-    const resolved = configService.getResolvedPaths(httpFilePath, resolvedConfig);
-
-    const responseData = {
-      status: fetchResponse.status,
-      statusText: fetchResponse.statusText,
-      headers: responseHeaders,
-      bodyMode: processedBody.bodyMode,
-      body: processedBody.body,
-      encoding: processedBody.encoding,
-      truncated: processedBody.truncated,
-      bodyBytes: processedBody.bodyBytes
-    };
-
-    // Finalize flow tracking
-    if (reqExecId) {
-      tracker.finalizeExecution({
-        reqExecId,
-        selectedRequest,
-        endTime,
-        startTime,
-        responseData: {
-          status: fetchResponse.status,
-          statusText: fetchResponse.statusText,
-          headers: responseHeaders,
-          body: processedBody.body,
-          encoding: processedBody.encoding,
-          truncated: processedBody.truncated,
-          bodyBytes: processedBody.bodyBytes
-        }
-      });
-    }
-
-    return {
-      runId,
-      ...(reqExecId ? { reqExecId } : {}),
-      ...(flowId ? { flowId } : {}),
-      ...(session
-        ? {
-            session: {
-              sessionId: session.id,
-              snapshotVersion: session.snapshotVersion
-            }
+          if (session.cookieJarPath !== jarPath) {
+            const manager = createCookieJarManager(jarPath);
+            await manager.withLock(async () => {
+              const jar = createCookieJar();
+              restoreCookieJarFromData(jar, manager.load());
+              session.cookieJar = jar;
+              session.cookieStore = createCookieStoreFromJar(jar);
+              session.cookieJarPath = jarPath;
+            });
+          } else {
+            session.cookieJarPath = jarPath;
           }
-        : {}),
-      request: {
-        index: selectedIndex,
-        name: selectedRequest.name,
-        method: selectedRequest.method,
-        url: selectedRequest.url
-      },
-      resolved,
-      response: responseData,
-      limits: {
-        maxBodyBytes: context.maxBodyBytes
-      },
-      timing: {
-        startTime,
-        endTime,
-        durationMs: endTime - startTime
-      },
-      pluginReports: projectConfig.pluginManager?.getReports() ?? []
-    };
+        } else {
+          session.cookieJarPath = undefined;
+        }
+
+        const cookieStore: CookieStore = {
+          getCookieHeader: async (url) => {
+            return await session.cookieStore.getCookieHeader(url);
+          },
+          setFromResponse: async (url, resp) => {
+            cookiesChanged = true;
+            await session.cookieStore.setFromResponse(url, resp);
+          }
+        };
+
+        const sessionEventHandler = tracker.createEventHandler(session.id);
+        const { engineOptions, requestDefaults } = buildEngineOptions({
+          config: projectConfig,
+          cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined,
+          onEvent: sessionEventHandler,
+          executionContext: pluginExecutionContext
+        });
+
+        const engine = createEngine(engineOptions);
+
+        let response: Response;
+        try {
+          response = await engine.runString(selectedRequest.raw, {
+            variables: effectiveVariables,
+            basePath,
+            timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+            followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+            validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+          });
+        } catch (err) {
+          throw new ExecuteError(
+            `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+
+        return { response, session, cookiesChanged };
+      };
+
+      const sessionId = request.sessionId;
+      let response: Response;
+      let session: Session | undefined;
+      let cookiesChanged: boolean;
+
+      try {
+        const result =
+          sessionId !== undefined
+            ? await (async () => {
+                const s = sessionManager.getInternal(sessionId);
+                if (!s) throw new SessionNotFoundError(sessionId);
+                return await withSessionLock(s, async () => await runInSession(s));
+              })()
+            : await runStateless();
+
+        response = result.response;
+        session = result.session;
+        cookiesChanged = result.cookiesChanged;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        tracker.failExecution('execute', message);
+        throw err;
+      }
+
+      const endTime = Date.now();
+
+      // Process response
+      const fetchResponse = response as unknown as FetchResponse;
+      const responseHeaders = extractResponseHeaders(fetchResponse);
+      const processedBody = await processResponseBody(fetchResponse, context.maxBodyBytes);
+
+      if (session && cookiesChanged) {
+        session.snapshotVersion++;
+
+        if (session.cookieJarPath) {
+          scheduleCookieJarSave(session.cookieJarPath, session.cookieJar);
+        }
+
+        context.onEvent?.(session.id, runId, {
+          type: 'sessionUpdated',
+          variablesChanged: false,
+          cookiesChanged: true
+        });
+      }
+
+      const resolved = configService.getResolvedPaths(httpFilePath, resolvedConfig);
+
+      const responseData = {
+        status: fetchResponse.status,
+        statusText: fetchResponse.statusText,
+        headers: responseHeaders,
+        bodyMode: processedBody.bodyMode,
+        body: processedBody.body,
+        encoding: processedBody.encoding,
+        truncated: processedBody.truncated,
+        bodyBytes: processedBody.bodyBytes
+      };
+
+      // Finalize flow tracking
+      if (reqExecId) {
+        tracker.finalizeExecution({
+          reqExecId,
+          selectedRequest,
+          endTime,
+          startTime,
+          responseData: {
+            status: fetchResponse.status,
+            statusText: fetchResponse.statusText,
+            headers: responseHeaders,
+            body: processedBody.body,
+            encoding: processedBody.encoding,
+            truncated: processedBody.truncated,
+            bodyBytes: processedBody.bodyBytes
+          }
+        });
+      }
+
+      return {
+        runId,
+        ...(reqExecId ? { reqExecId } : {}),
+        ...(flowId ? { flowId } : {}),
+        ...(session
+          ? {
+              session: {
+                sessionId: session.id,
+                snapshotVersion: session.snapshotVersion
+              }
+            }
+          : {}),
+        request: {
+          index: selectedIndex,
+          name: selectedRequest.name,
+          method: selectedRequest.method,
+          url: selectedRequest.url
+        },
+        resolved,
+        response: responseData,
+        limits: {
+          maxBodyBytes: context.maxBodyBytes
+        },
+        timing: {
+          startTime,
+          endTime,
+          durationMs: endTime - startTime
+        },
+        pluginReports: pluginManager?.getReportsForRun(runId) ?? []
+      };
+    } finally {
+      pluginManager?.clearReportsForRun(runId);
+    }
   }
 
   async function* executeSSE(request: ExecuteSSERequest): AsyncGenerator<SSEMessage> {
+    const runId = generateId();
+
     // Load + parse + select (reusing content-loader)
     const { content, basePath } = await loadContent(context.workspaceRoot, request);
     const { requests: parsedRequests, fileVariables: sseFileVariables } =
@@ -434,27 +434,35 @@ export function createExecutionEngine(
       ? dirname(resolve(context.workspaceRoot, request.path))
       : context.workspaceRoot;
 
-    const resolvedConfig = await resolveProjectConfig({
+    const resolvedConfig = await configService.getExecutionBaseConfig({
       startDir,
-      stopDir: context.workspaceRoot,
-      profile: request.profile,
-      overrideLayers: request.variables
-        ? [{ name: 'request', overrides: { variables: request.variables } }]
-        : []
+      profile: request.profile
     });
 
     const { config: projectConfig } = resolvedConfig;
+    const pluginExecutionContext = {
+      runId,
+      ...(request.flowId !== undefined ? { flowId: request.flowId } : {}),
+      now: context.now
+    };
+    const variables: Record<string, unknown> = {
+      ...sseFileVariables,
+      ...projectConfig.variables,
+      ...(request.variables ?? {})
+    };
+    const pluginManager = projectConfig.pluginManager;
 
     // Build engine options
     const { engineOptions } = buildEngineOptions({
-      config: projectConfig
+      config: projectConfig,
+      executionContext: pluginExecutionContext
     });
 
     const engine = createEngine(engineOptions);
 
     try {
       const stream = await engine.streamString(selectedRequest.raw, {
-        variables: { ...sseFileVariables, ...projectConfig.variables },
+        variables,
         basePath,
         timeoutMs: request.timeout,
         lastEventId: request.lastEventId
@@ -467,6 +475,8 @@ export function createExecutionEngine(
       throw new ExecuteError(
         `SSE execution failed: ${err instanceof Error ? err.message : String(err)}`
       );
+    } finally {
+      pluginManager?.clearReportsForRun(runId);
     }
   }
 

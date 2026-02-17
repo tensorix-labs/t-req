@@ -10,21 +10,29 @@ import type { ConfigSummaryResponse, ResolvedPaths } from '../schemas';
 import type { ServiceContext } from './types';
 import { sanitizeVariables } from './utils';
 
+type ResolvedConfigResult = { config: ResolvedConfig; meta: ConfigMeta };
+
 export interface ConfigService {
-  getWorkspaceConfig(): Promise<{ config: ResolvedConfig; meta: ConfigMeta }>;
+  getWorkspaceConfig(): Promise<ResolvedConfigResult>;
+  getExecutionBaseConfig(options: {
+    startDir: string;
+    profile?: string;
+  }): Promise<ResolvedConfigResult>;
   getConfig(options: { profile?: string; path?: string }): Promise<ConfigSummaryResponse>;
-  getResolvedPaths(
-    httpFilePath?: string,
-    resolvedConfig?: { config: ResolvedConfig; meta: ConfigMeta }
-  ): ResolvedPaths;
+  clearPluginReportsForFlow(flowId: string): void;
+  getResolvedPaths(httpFilePath?: string, resolvedConfig?: ResolvedConfigResult): ResolvedPaths;
+  dispose(): Promise<void>;
 }
 
 export function createConfigService(context: ServiceContext): ConfigService {
   // Cached workspace-level config for plugins
-  let workspaceConfigCache: { config: ResolvedConfig; meta: ConfigMeta } | null = null;
-  let workspaceConfigPromise: Promise<{ config: ResolvedConfig; meta: ConfigMeta }> | null = null;
+  let workspaceConfigCache: ResolvedConfigResult | null = null;
+  let workspaceConfigPromise: Promise<ResolvedConfigResult> | null = null;
+  const executionConfigCache = new Map<string, ResolvedConfigResult>();
+  const executionConfigPromises = new Map<string, Promise<ResolvedConfigResult>>();
+  let disposed = false;
 
-  async function getWorkspaceConfig(): Promise<{ config: ResolvedConfig; meta: ConfigMeta }> {
+  async function getWorkspaceConfig(): Promise<ResolvedConfigResult> {
     if (workspaceConfigCache) {
       return workspaceConfigCache;
     }
@@ -35,12 +43,57 @@ export function createConfigService(context: ServiceContext): ConfigService {
       startDir: context.workspaceRoot,
       stopDir: context.workspaceRoot,
       profile: context.profile
-    }).then((result) => {
-      workspaceConfigCache = result;
-      workspaceConfigPromise = null;
-      return result;
-    });
+    })
+      .then((result) => {
+        workspaceConfigCache = result;
+        workspaceConfigPromise = null;
+        return result;
+      })
+      .catch((error) => {
+        workspaceConfigPromise = null;
+        throw error;
+      });
     return workspaceConfigPromise;
+  }
+
+  function getExecutionConfigCacheKey(startDir: string, profile?: string): string {
+    const normalizedStartDir = resolve(startDir);
+    return `${normalizedStartDir}::${profile ?? ''}`;
+  }
+
+  async function getExecutionBaseConfig(options: {
+    startDir: string;
+    profile?: string;
+  }): Promise<ResolvedConfigResult> {
+    const cacheKey = getExecutionConfigCacheKey(options.startDir, options.profile);
+
+    const cached = executionConfigCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = executionConfigPromises.get(cacheKey);
+    if (pending) {
+      return pending;
+    }
+
+    const promise = resolveProjectConfig({
+      startDir: resolve(options.startDir),
+      stopDir: context.workspaceRoot,
+      profile: options.profile
+    })
+      .then((result) => {
+        executionConfigCache.set(cacheKey, result);
+        executionConfigPromises.delete(cacheKey);
+        return result;
+      })
+      .catch((error) => {
+        executionConfigPromises.delete(cacheKey);
+        throw error;
+      });
+
+    executionConfigPromises.set(cacheKey, promise);
+    return promise;
   }
 
   async function getConfig(options: {
@@ -83,9 +136,32 @@ export function createConfigService(context: ServiceContext): ConfigService {
     };
   }
 
+  function clearPluginReportsForFlow(flowId: string): void {
+    if (!flowId) {
+      return;
+    }
+
+    const clear = (resolved?: ResolvedConfigResult | null) => {
+      resolved?.config.pluginManager?.clearReportsForFlow(flowId);
+    };
+
+    clear(workspaceConfigCache);
+    for (const value of executionConfigCache.values()) {
+      clear(value);
+    }
+
+    // Best-effort cleanup for in-flight config resolutions.
+    if (workspaceConfigPromise) {
+      void workspaceConfigPromise.then(clear).catch(() => {});
+    }
+    for (const pending of executionConfigPromises.values()) {
+      void pending.then(clear).catch(() => {});
+    }
+  }
+
   function getResolvedPaths(
     httpFilePath?: string,
-    resolvedConfig?: { config: ResolvedConfig; meta: ConfigMeta }
+    resolvedConfig?: ResolvedConfigResult
   ): ResolvedPaths {
     const basePath = httpFilePath
       ? dirname(resolve(context.workspaceRoot, httpFilePath))
@@ -100,9 +176,57 @@ export function createConfigService(context: ServiceContext): ConfigService {
     };
   }
 
+  async function dispose(): Promise<void> {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+
+    const pluginManagers = new Set<NonNullable<ResolvedConfig['pluginManager']>>();
+    const collectPluginManager = (resolved?: ResolvedConfigResult | null) => {
+      const pluginManager = resolved?.config.pluginManager;
+      if (pluginManager) {
+        pluginManagers.add(pluginManager);
+      }
+    };
+
+    collectPluginManager(workspaceConfigCache);
+    for (const value of executionConfigCache.values()) {
+      collectPluginManager(value);
+    }
+
+    if (workspaceConfigPromise) {
+      try {
+        collectPluginManager(await workspaceConfigPromise);
+      } catch {
+        // Ignore failed in-flight config resolution on shutdown.
+      }
+    }
+
+    for (const pending of executionConfigPromises.values()) {
+      try {
+        collectPluginManager(await pending);
+      } catch {
+        // Ignore failed in-flight config resolution on shutdown.
+      }
+    }
+
+    workspaceConfigCache = null;
+    workspaceConfigPromise = null;
+    executionConfigCache.clear();
+    executionConfigPromises.clear();
+
+    for (const pluginManager of pluginManagers) {
+      await pluginManager.teardown();
+    }
+  }
+
   return {
     getWorkspaceConfig,
+    getExecutionBaseConfig,
     getConfig,
-    getResolvedPaths
+    clearPluginReportsForFlow,
+    getResolvedPaths,
+    dispose
   };
 }
