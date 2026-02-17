@@ -87,6 +87,7 @@ treq serve
 | POST | `/parse` | Parse `.http` file content |
 | POST | `/execute` | Execute an HTTP request |
 | POST | `/execute/sse` | Execute an SSE streaming request |
+| POST | `/execute/ws` | Execute a WebSocket request definition |
 | POST | `/session` | Create a session |
 | GET | `/session/:id` | Get session state |
 | PUT | `/session/:id/variables` | Update session variables |
@@ -95,6 +96,8 @@ treq serve
 | POST | `/flows/:flowId/finish` | Mark flow as complete |
 | GET | `/flows/:flowId/executions/:id` | Get execution details |
 | GET | `/event` | SSE event stream |
+| GET | `/event/ws` | WebSocket event stream |
+| GET | `/ws/session/:wsSessionId` | WebSocket request-session control channel |
 | GET | `/workspace/files` | List `.http` files |
 | GET | `/workspace/requests` | List requests in a file |
 | POST | `/script` | Run a script |

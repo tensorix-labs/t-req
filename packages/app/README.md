@@ -209,6 +209,7 @@ treq serve --stdio
 | `POST` | `/parse` | Parse `.http` file content |
 | `POST` | `/execute` | Execute HTTP request |
 | `POST` | `/execute/sse` | Execute SSE streaming request |
+| `POST` | `/execute/ws` | Execute WebSocket request definition (server-owned session) |
 | `POST` | `/session` | Create new session |
 | `GET` | `/session/:id` | Get session state |
 | `PUT` | `/session/:id/variables` | Update session variables |
@@ -220,9 +221,12 @@ treq serve --stdio
 | `GET` | `/workspace/requests?path=...` | List requests within a `.http` file |
 | `GET` | `/event?sessionId=...` | SSE event stream filtered by session |
 | `GET` | `/event?flowId=...` | SSE event stream filtered by flow |
+| `GET` | `/event/ws?sessionId=...` | WebSocket event stream filtered by session |
+| `GET` | `/event/ws?flowId=...` | WebSocket event stream filtered by flow |
+| `GET` | `/ws/session/:wsSessionId` | Request session downstream control socket (WebSocket upgrade) |
 | `GET` | `/doc` | OpenAPI documentation |
 
-> When `--token` auth is enabled, `/event` requires either `sessionId` or `flowId` to prevent cross-session leakage.
+> When `--token` auth is enabled, `/event` and `/event/ws` require either `sessionId` or `flowId` to prevent cross-session leakage.
 
 #### Example: Python Client
 
@@ -250,6 +254,14 @@ resp, _ := http.Post("http://localhost:4097/execute", "application/json",
 curl -N -X POST http://localhost:4097/execute/sse \
   -H "Content-Type: application/json" \
   -d '{"content": "# @sse\nGET https://sse.dev/test\n"}'
+```
+
+#### Example: WebSocket Session Execute (curl)
+
+```bash
+curl -X POST http://localhost:4097/execute/ws \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# @ws\nGET wss://echo.websocket.events\n"}'
 ```
 
 See `examples/app/` for complete client examples in Python, Go, and TypeScript.
@@ -349,7 +361,24 @@ The injected token is scoped to the specific flow and session, and is revoked wh
 
 ## Protocol Version
 
-The server uses protocol version `1.0`.
+The server uses protocol version `1.1`.
+
+### Migration note: `1.0 -> 1.1`
+
+`1.1` is additive:
+
+- Existing `/execute`, `/execute/sse`, and `/event` workflows are unchanged.
+- New WebSocket capabilities are available via:
+  - `POST /execute/ws`
+  - `GET /ws/session/{wsSessionId}`
+  - `GET /event/ws`
+
+### WebSocket scope in `1.1`
+
+- `.http` WebSocket blocks are connection definitions (messages are runtime-driven).
+- Binary WebSocket payloads are not supported in `1.1` (`binaryPayloads: false`).
+- Replay is bounded in-memory only (no durable event history).
+- Client-specific UI workflows are intentionally out of scope at the protocol layer.
 
 `/health` is intentionally lean  and only returns a basic status and server version:
 

@@ -268,6 +268,41 @@ GET https://api.example.com/prices/stream
 Authorization: Bearer {{token}}
 ```
 
+## WebSocket (protocol v1.1)
+
+WebSocket request blocks define connection metadata only. Message interaction is runtime-driven through API/SDK clients.
+
+```http
+# @ws
+# @ws-subprotocols graphql-ws,json
+# @ws-connect-timeout 30000
+GET wss://api.example.com/graphql
+Authorization: Bearer {{token}}
+```
+
+WebSocket is detected by:
+
+- `@ws` directive, or
+- `ws://` / `wss://` URL scheme
+
+### WebSocket directives
+
+| Directive | Description |
+|-----------|-------------|
+| `@ws` | Mark request as WebSocket |
+| `@ws-subprotocols` | Comma-separated requested subprotocols |
+| `@ws-connect-timeout` | Connect timeout in milliseconds |
+
+### v1.1 body restriction
+
+WebSocket definitions cannot include:
+
+- inline request body
+- body file references (`< ./file`)
+- form-data blocks
+
+The parser still captures raw blocks, but server execution (`POST /execute/ws`) rejects these with validation errors in protocol `1.1`.
+
 ## Form data
 
 t-req supports a friendly form syntax with `name = value` on separate lines:

@@ -37,6 +37,7 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'HTTP File Format', slug: 'docs/reference/http-file-format' },
+            { label: 'WebSocket Protocol', slug: 'docs/reference/websocket-protocol' },
             { label: 'Configuration', slug: 'docs/reference/configuration' },
             { label: 'CLI', slug: 'docs/reference/cli' }
           ]

@@ -68,6 +68,62 @@ for await (const event of stream) {
 }
 ```
 
+## WebSocket Helpers (protocol v1.1)
+
+The SDK includes manual typed helpers for observer and request-session WebSocket flows on top of the generated REST client.
+
+### Observer stream (`/event/ws`)
+
+```ts
+import { connectObserverWs } from "@t-req/sdk/client";
+
+const observer = await connectObserverWs({
+  baseUrl: "http://localhost:4097",
+  flowId: "flow_abc",
+  afterSeq: 42,
+});
+
+for await (const envelope of observer) {
+  console.log(envelope.seq, envelope.type);
+}
+```
+
+### Request session flow (`/execute/ws` + `/ws/session/{id}`)
+
+```ts
+import { createTreqClient, executeAndConnectRequestWs } from "@t-req/sdk/client";
+
+const client = createTreqClient({ baseUrl: "http://localhost:4097" });
+
+const { execute, connection } = await executeAndConnectRequestWs({
+  client,
+  request: {
+    content: "# @ws\nGET wss://echo.websocket.events\n",
+  },
+});
+
+connection.sendText("hello");
+connection.sendJson({ type: "ping" });
+
+for await (const envelope of connection) {
+  console.log(envelope.type, envelope.payload);
+}
+```
+
+### Reconnect + replay
+
+Both helpers support reconnect with `afterSeq`:
+
+- `observer.reconnect(afterSeq)`
+- `connection.reconnect(afterSeq)`
+
+Replay is bounded to server in-memory buffers (no durable history).
+
+### v1.1 limitations
+
+- Binary WebSocket payloads are unsupported in protocol `1.1`.
+- `.http` WebSocket blocks are connection definitions only; message scripts are runtime-driven.
+
 ## Exports
 
 | Path | Description |
