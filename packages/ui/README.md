@@ -1,6 +1,12 @@
 # @t-req/ui
 
-Shared UI components and Tailwind CSS configuration for t-req applications. Provides a warm industrial aesthetic with light and dark mode support.
+Shared UI components and styling foundation for t-req applications.
+
+`@t-req/ui/styles` now bundles:
+- Tailwind CSS v4 output
+- t-req design tokens and utilities
+- DaisyUI v5 components (for example `btn`, `card`, `input`)
+- Custom DaisyUI themes: `treq` and `treq-dark`
 
 ## Installation
 
@@ -29,13 +35,70 @@ import "@t-req/ui/styles";
 ```
 
 This includes:
-- Tailwind CSS base styles
-- t-req theme CSS variables
-- Light and dark mode color tokens
+- Tailwind base + utilities
+- DaisyUI component classes
+- t-req theme CSS variables and utility classes
 
-### Importing Tailwind Config
+### Importing Fonts
 
-Extend your Tailwind configuration with the t-req theme:
+For Inter + JetBrains Mono font support:
+
+```ts
+import "@t-req/ui/fonts";
+```
+
+### DaisyUI Themes
+
+`@t-req/ui/styles` ships with three custom DaisyUI themes:
+- `treq` (default light theme)
+- `treq-dark` (default dark theme when `prefers-color-scheme: dark`)
+- `treq-contract` (high-contrast black/white contract style with restrained blue accent)
+
+You can also force a theme explicitly:
+
+```html
+<html data-theme="treq">
+  ...
+</html>
+```
+
+```html
+<html data-theme="treq-dark">
+  ...
+</html>
+```
+
+```html
+<html data-theme="treq-contract">
+  ...
+</html>
+```
+
+### DaisyUI Class Usage
+
+No prefix is configured. Use standard DaisyUI classes directly:
+
+```html
+<button class="btn btn-primary">Run</button>
+<div class="card bg-base-100 shadow-sm">
+  <div class="card-body">
+    <h2 class="card-title">Request</h2>
+  </div>
+</div>
+```
+
+### Incremental Migration
+
+Existing t-req utilities and helper functions remain supported while you migrate:
+- Existing Tailwind utility usage is unchanged
+- Existing token classes like `bg-treq-bg`, `text-treq-text`, and `rounded-treq` remain available
+- Existing utility helpers from `@t-req/ui` (for example `getButtonClasses`, `getMethodClasses`) continue to work
+
+This lets you move component-by-component to DaisyUI without a flag day migration.
+
+### Tailwind Config Compatibility
+
+`@t-req/ui/tailwind` is still exported for compatibility:
 
 ```ts
 // tailwind.config.ts
@@ -51,6 +114,8 @@ export default {
 } satisfies Config;
 ```
 
+Note: DaisyUI itself is configured in `@t-req/ui/styles` via Tailwind v4 CSS plugins.
+
 ### Using Theme Colors Programmatically
 
 Access theme colors in JavaScript/TypeScript:
@@ -59,73 +124,8 @@ Access theme colors in JavaScript/TypeScript:
 import { themeColors } from "@t-req/ui";
 
 // Use colors in your code
-const getMethodColor = themeColors.http.get; // "#238636"
-const postMethodColor = themeColors.http.post; // "#1f6feb"
-```
-
-### Importing Fonts
-
-For JetBrains Mono font support:
-
-```ts
-import "@t-req/ui/fonts";
-```
-
-## Theme Reference
-
-### Light Mode Colors
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `treq-bg` | `#e8e4e0` | Main background |
-| `treq-bg-nav` | `#e8e4e0` | Navigation background |
-| `treq-bg-card` | `#f5f2ee` | Card/panel background |
-| `treq-accent` | `#ff6b35` | Primary accent |
-| `treq-accent-light` | `#ff8555` | Light accent variant |
-| `treq-text` | `#666666` | Body text |
-| `treq-text-strong` | `#000000` | Headings, emphasis |
-| `treq-text-muted` | `#888888` | Secondary text |
-| `treq-border` | `#000000` | Primary borders |
-| `treq-border-light` | `rgba(0, 0, 0, 0.2)` | Subtle borders |
-
-### Dark Mode Colors
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `treq-dark-bg` | `#1a1816` | Main background |
-| `treq-dark-bg-nav` | `#1a1816` | Navigation background |
-| `treq-dark-bg-card` | `#222018` | Card/panel background |
-| `treq-dark-text` | `#b0aca8` | Body text |
-| `treq-dark-text-strong` | `#e8e4e0` | Headings, emphasis |
-| `treq-dark-text-muted` | `#8a8682` | Secondary text |
-| `treq-dark-border` | `#3a3632` | Primary borders |
-| `treq-dark-border-light` | `rgba(232, 228, 224, 0.1)` | Subtle borders |
-
-### HTTP Method Colors
-
-| Method | Color | Hex |
-|--------|-------|-----|
-| GET | Green | `#238636` |
-| POST | Blue | `#1f6feb` |
-| PUT | Orange | `#9e6a03` |
-| DELETE | Red | `#da3633` |
-| PATCH | Purple | `#8957e5` |
-
-## Tailwind Classes
-
-Use the theme colors in your Tailwind classes:
-
-```html
-<!-- Backgrounds -->
-<div class="bg-treq-bg dark:bg-treq-dark-bg">
-
-<!-- Text -->
-<p class="text-treq-text dark:text-treq-dark-text">
-
-<!-- HTTP method badges -->
-<span class="bg-http-get text-white">GET</span>
-<span class="bg-http-post text-white">POST</span>
-<span class="bg-http-delete text-white">DELETE</span>
+const getMethodColor = themeColors.http.get; // "#22c55e"
+const postMethodColor = themeColors.http.post; // "#3b82f6"
 ```
 
 ## License
