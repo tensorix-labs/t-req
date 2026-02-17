@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import type {
   ExecuteAndConnectRequestWsResult,
@@ -8,6 +10,8 @@ import type {
 import {
   applySlashCommand,
   parseSlashCommand,
+  parseWsHeaders,
+  parseWsSubprotocols,
   parseWsVariables,
   renderHumanEvent,
   renderNdjsonEvent,
@@ -219,6 +223,23 @@ describe('ws command argument validation', () => {
     });
   });
 
+  test('applies URL mode header/subprotocol overrides and input path', () => {
+    const validated = validateWsArgs({
+      url: 'wss://api.example.com/realtime',
+      header: ['Authorization: Bearer abc', 'X-Trace: ws-cli'],
+      subprotocol: ['json', 'graphql-ws'],
+      input: 'fixtures/messages.txt',
+      wait: 1
+    });
+
+    expect(validated.source).toBe('url');
+    expect(validated.inputPath).toBe('fixtures/messages.txt');
+    expect(validated.executeRequest.content).toContain('# @ws');
+    expect(validated.executeRequest.content).toContain('# @ws-subprotocols json, graphql-ws');
+    expect(validated.executeRequest.content).toContain('Authorization: Bearer abc');
+    expect(validated.executeRequest.content).toContain('X-Trace: ws-cli');
+  });
+
   test('rejects non-websocket URLs in URL mode', () => {
     expect(() =>
       validateWsArgs({
@@ -260,6 +281,31 @@ describe('ws command argument validation', () => {
         wait: 1
       })
     ).toThrow('Cannot specify both --name and --index');
+
+    expect(() =>
+      validateWsArgs({
+        file: 'collection/chat.http',
+        header: ['Authorization: Bearer abc'],
+        wait: 1
+      })
+    ).toThrow('--header and --subprotocol are only supported in URL mode');
+
+    expect(() =>
+      validateWsArgs({
+        url: 'ws://localhost:8080/socket',
+        execute: 'ping',
+        input: 'messages.txt',
+        wait: 1
+      })
+    ).toThrow('Cannot specify both --execute and --input');
+
+    expect(() =>
+      validateWsArgs({
+        url: 'ws://localhost:8080/socket',
+        input: '   ',
+        wait: 1
+      })
+    ).toThrow('--input cannot be empty');
   });
 });
 
@@ -278,6 +324,32 @@ describe('ws variable parsing', () => {
       region: 'us',
       empty: ''
     });
+  });
+});
+
+describe('ws override parsing', () => {
+  test('parses headers and subprotocols', () => {
+    expect(parseWsHeaders(['Authorization: Bearer abc', 'X-Empty:'])).toEqual({
+      Authorization: 'Bearer abc',
+      'X-Empty': ''
+    });
+    expect(parseWsSubprotocols(['json, graphql-ws', 'chat', 'json'])).toEqual([
+      'json',
+      'graphql-ws',
+      'chat'
+    ]);
+  });
+
+  test('rejects invalid header and subprotocol values', () => {
+    expect(() => parseWsHeaders(['invalid-header'])).toThrow(
+      'Invalid --header value "invalid-header", expected name:value'
+    );
+    expect(() => parseWsHeaders([': value'])).toThrow(
+      'Invalid --header value ": value", header name cannot be empty'
+    );
+    expect(() => parseWsSubprotocols([' ,  '])).toThrow(
+      'Invalid --subprotocol value " ,  ", expected non-empty value'
+    );
   });
 });
 
@@ -327,6 +399,20 @@ describe('ws slash command parser', () => {
     if (!ping.ok) return;
     expect(ping.command.kind).toBe('ping');
   });
+
+  test('parses /history and validates argument', () => {
+    const history = parseSlashCommand('/history 5');
+    expect(history.ok).toBe(true);
+    if (!history.ok) return;
+    expect(history.command.kind).toBe('history');
+    if (history.command.kind !== 'history') return;
+    expect(history.command.limit).toBe(5);
+
+    const invalid = parseSlashCommand('/history nope');
+    expect(invalid.ok).toBe(false);
+    if (invalid.ok) return;
+    expect(invalid.error).toBe('Usage: /history [positive-count]');
+  });
 });
 
 describe('ws event renderers', () => {
@@ -364,6 +450,19 @@ describe('ws event renderers', () => {
     expect(line).toContain('"type":"meta.summary"');
     expect(line).toContain('"sent":1');
   });
+
+  test('includes payload type in verbose mode', () => {
+    const outbound = renderHumanEvent(
+      {
+        type: 'ws.outbound',
+        ts: 1,
+        payloadType: 'json',
+        payload: { ok: true }
+      },
+      { colorEnabled: false, verbose: true }
+    );
+    expect(outbound).toBe('> [json] {"ok":true}');
+  });
 });
 
 describe('ws integration-like command behavior', () => {
@@ -386,10 +485,15 @@ describe('ws integration-like command behavior', () => {
     if (!close.ok) throw new Error(close.error);
     applySlashCommand(connection, close.command);
 
+    const history = parseSlashCommand('/history 2');
+    if (!history.ok) throw new Error(history.error);
+    const historyResult = applySlashCommand(connection, history.command);
+
     expect(connection.sentText).toEqual(['hello']);
     expect(connection.sentJson).toEqual([{ ok: true }]);
     expect(connection.pingCalls).toBe(1);
     expect(connection.closeCalls[0]).toEqual({ code: 1000, reason: 'done' });
+    expect(historyResult.historyLimit).toBe(2);
   });
 
   test('batch mode sends --execute payload then closes after wait', async () => {
@@ -563,6 +667,108 @@ describe('ws integration-like command behavior', () => {
     });
     expect(connection.sentText).toEqual(['{"op":"ping"}']);
     expect(stderr.chunks.join('')).toBe('');
+  });
+
+  test('runWs builds URL-mode request content with overrides', async () => {
+    const connection = new FakeConnection();
+    let capturedRequest: unknown;
+
+    const exitCode = await runWs(
+      {
+        url: 'wss://echo.websocket.events',
+        header: ['Authorization: Bearer abc'],
+        subprotocol: ['json', 'chat'],
+        server: 'http://127.0.0.1:4097',
+        execute: 'hello',
+        wait: 0,
+        json: true,
+        verbose: false,
+        noColor: true
+      },
+      {
+        executeAndConnect: async (options) => {
+          capturedRequest = options.request;
+          return {
+            execute: {
+              runId: 'run_ws_url_1',
+              request: {
+                index: 0,
+                method: 'GET',
+                url: 'wss://echo.websocket.events'
+              },
+              resolved: {
+                workspaceRoot: '/tmp',
+                basePath: '/tmp'
+              },
+              ws: {
+                wsSessionId: 'ws_test',
+                downstreamPath: '/ws/session/ws_test',
+                upstreamUrl: 'wss://echo.websocket.events',
+                replayBufferSize: 500,
+                lastSeq: 0
+              }
+            } as ExecuteAndConnectRequestWsResult['execute'],
+            connection
+          };
+        },
+        sleep: async () => {}
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(capturedRequest).toEqual({
+      content:
+        '# @ws\n# @ws-subprotocols json, chat\nGET wss://echo.websocket.events\nAuthorization: Bearer abc\n'
+    });
+    expect(connection.sentText).toEqual(['hello']);
+  });
+
+  test('runWs reads outbound lines from --input file', async () => {
+    const connection = new FakeConnection();
+    const tempPath = join(tmpdir(), `treq-ws-input-${Date.now()}.txt`);
+    await Bun.write(tempPath, 'first\n\nsecond\n');
+
+    const exitCode = await runWs(
+      {
+        url: 'ws://localhost:8080/socket',
+        input: tempPath,
+        server: 'http://127.0.0.1:4097',
+        wait: 0,
+        json: true,
+        verbose: false,
+        noColor: true
+      },
+      {
+        executeAndConnect: async () =>
+          ({
+            execute: {
+              runId: 'run_ws_input_1',
+              request: {
+                index: 0,
+                method: 'GET',
+                url: 'ws://localhost:8080/socket'
+              },
+              resolved: {
+                workspaceRoot: '/tmp',
+                basePath: '/tmp'
+              },
+              ws: {
+                wsSessionId: 'ws_test',
+                downstreamPath: '/ws/session/ws_test',
+                upstreamUrl: 'ws://localhost:8080/socket',
+                replayBufferSize: 500,
+                lastSeq: 0
+              }
+            } as ExecuteAndConnectRequestWsResult['execute'],
+            connection
+          }) as ExecuteAndConnectRequestWsResult,
+        stdin: { isTTY: true } as NodeJS.ReadStream,
+        sleep: async () => {}
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(connection.sentText).toEqual(['first', 'second']);
   });
 });
 

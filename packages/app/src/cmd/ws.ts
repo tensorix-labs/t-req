@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import {
   createTreqClient,
@@ -13,6 +14,8 @@ const DEFAULT_SERVER_URL = 'http://127.0.0.1:4097';
 const DEFAULT_BATCH_WAIT_SECONDS = 2;
 const CLOSE_DRAIN_TIMEOUT_MS = 1500;
 const SIGINT_CLOSE_REASON = 'CLI interrupted';
+const DEFAULT_HISTORY_LIMIT = 20;
+const MAX_HISTORY_MESSAGES = 200;
 
 interface WsOptions {
   url?: string;
@@ -21,10 +24,13 @@ interface WsOptions {
   index?: number;
   profile?: string;
   var?: string[];
+  header?: string[];
+  subprotocol?: string[];
   server: string;
   token?: string;
   timeout?: number;
   execute?: string;
+  input?: string;
   wait?: number;
   json?: boolean;
   verbose?: boolean;
@@ -92,7 +98,8 @@ export type SlashCommand =
   | { kind: 'ping' }
   | { kind: 'close'; code: number; reason: string }
   | { kind: 'json'; payload: unknown }
-  | { kind: 'raw'; payload: string };
+  | { kind: 'raw'; payload: string }
+  | { kind: 'history'; limit: number };
 
 export type SlashCommandParseResult =
   | { ok: true; command: SlashCommand }
@@ -105,6 +112,7 @@ interface WsRunState {
   failed: boolean;
   closed: boolean;
   closeRequested: boolean;
+  history: Array<{ direction: 'out' | 'in'; payloadType?: string; payload?: unknown }>;
 }
 
 interface InteractiveOptions {
@@ -165,6 +173,17 @@ export const wsCommand: CommandModule<object, WsOptions> = {
         alias: 'v',
         describe: 'Variables in format key=value'
       })
+      .option('header', {
+        type: 'array',
+        string: true,
+        alias: 'H',
+        describe: 'Add upstream WebSocket handshake header (name:value)'
+      })
+      .option('subprotocol', {
+        type: 'array',
+        string: true,
+        describe: 'Request WebSocket subprotocol (repeatable)'
+      })
       .option('server', {
         type: 'string',
         alias: 's',
@@ -184,6 +203,11 @@ export const wsCommand: CommandModule<object, WsOptions> = {
         type: 'string',
         alias: 'x',
         describe: 'Send one message and then wait/exit'
+      })
+      .option('input', {
+        type: 'string',
+        alias: 'I',
+        describe: 'Read outbound messages from file (one line per message)'
       })
       .option('wait', {
         type: 'number',
@@ -269,10 +293,14 @@ export function renderHumanEvent(
       const subprotocol = event.subprotocol ? ` (subprotocol: ${event.subprotocol})` : '';
       return `${prefix('!', options.colorEnabled)} Connected to ${event.url}${subprotocol}`;
     }
-    case 'ws.outbound':
-      return `${prefix('>', options.colorEnabled)} ${stringifyPayload(event.payload)}`;
-    case 'ws.inbound':
-      return `${prefix('<', options.colorEnabled)} ${stringifyPayload(event.payload)}`;
+    case 'ws.outbound': {
+      const payloadType = options.verbose && event.payloadType ? `[${event.payloadType}] ` : '';
+      return `${prefix('>', options.colorEnabled)} ${payloadType}${stringifyPayload(event.payload)}`;
+    }
+    case 'ws.inbound': {
+      const payloadType = options.verbose && event.payloadType ? `[${event.payloadType}] ` : '';
+      return `${prefix('<', options.colorEnabled)} ${payloadType}${stringifyPayload(event.payload)}`;
+    }
     case 'ws.error': {
       const code = event.code ? `[${event.code}] ` : '';
       const payload =
@@ -368,6 +396,72 @@ export function parseWsVariables(vars: string[] | undefined): Record<string, str
   return result;
 }
 
+export function parseWsHeaders(headers: string[] | undefined): Record<string, string> {
+  if (!headers) return {};
+
+  const result: Record<string, string> = {};
+  for (const entry of headers) {
+    const separatorIndex = entry.indexOf(':');
+    if (separatorIndex === -1) {
+      throw new Error(`Invalid --header value "${entry}", expected name:value`);
+    }
+
+    const headerName = entry.slice(0, separatorIndex).trim();
+    if (!headerName) {
+      throw new Error(`Invalid --header value "${entry}", header name cannot be empty`);
+    }
+
+    const headerValue = entry.slice(separatorIndex + 1).trimStart();
+    result[headerName] = headerValue;
+  }
+
+  return result;
+}
+
+export function parseWsSubprotocols(subprotocols: string[] | undefined): string[] {
+  if (!subprotocols) return [];
+
+  const parsed: string[] = [];
+  for (const entry of subprotocols) {
+    const values = entry
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    if (values.length === 0) {
+      throw new Error(`Invalid --subprotocol value "${entry}", expected non-empty value`);
+    }
+    parsed.push(...values);
+  }
+
+  const deduped: string[] = [];
+  for (const value of parsed) {
+    if (!deduped.includes(value)) {
+      deduped.push(value);
+    }
+  }
+
+  return deduped;
+}
+
+function buildUrlModeRequestContent(
+  url: string,
+  headers: Record<string, string>,
+  subprotocols: string[]
+): string {
+  const lines: string[] = ['# @ws'];
+  if (subprotocols.length > 0) {
+    lines.push(`# @ws-subprotocols ${subprotocols.join(', ')}`);
+  }
+  lines.push(`GET ${url}`);
+
+  for (const [name, value] of Object.entries(headers)) {
+    lines.push(value.length > 0 ? `${name}: ${value}` : `${name}:`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
 function validateWsUrl(url: string | undefined): string {
   if (url === undefined) {
     throw new Error('WebSocket URL is required');
@@ -397,10 +491,25 @@ export interface ValidatedWsArgs {
   target: string;
   executeRequest: Parameters<typeof executeAndConnectRequestWs>[0]['request'];
   waitSeconds: number;
+  inputPath?: string;
 }
 
 export function validateWsArgs(
-  argv: Pick<WsOptions, 'url' | 'file' | 'name' | 'index' | 'profile' | 'var' | 'timeout' | 'wait'>
+  argv: Pick<
+    WsOptions,
+    | 'url'
+    | 'file'
+    | 'name'
+    | 'index'
+    | 'profile'
+    | 'var'
+    | 'header'
+    | 'subprotocol'
+    | 'timeout'
+    | 'execute'
+    | 'input'
+    | 'wait'
+  >
 ): ValidatedWsArgs {
   if (argv.timeout !== undefined) {
     if (!Number.isFinite(argv.timeout) || !Number.isInteger(argv.timeout)) {
@@ -436,8 +545,19 @@ export function validateWsArgs(
     throw new Error('--name and --index require --file mode');
   }
 
+  if (argv.execute !== undefined && argv.input !== undefined) {
+    throw new Error('Cannot specify both --execute and --input');
+  }
+
+  const inputPath = argv.input?.trim();
+  if (argv.input !== undefined && !inputPath) {
+    throw new Error('--input cannot be empty');
+  }
+
   const waitSeconds = resolveBatchWaitSeconds(argv.wait);
   const cliVariables = parseWsVariables(argv.var);
+  const headerOverrides = parseWsHeaders(argv.header);
+  const subprotocolOverrides = parseWsSubprotocols(argv.subprotocol);
 
   const baseRequest: Record<string, unknown> = {
     ...(argv.timeout !== undefined ? { connectTimeoutMs: argv.timeout } : {}),
@@ -450,6 +570,9 @@ export function validateWsArgs(
     if (!filePath) {
       throw new Error('--file cannot be empty');
     }
+    if (Object.keys(headerOverrides).length > 0 || subprotocolOverrides.length > 0) {
+      throw new Error('--header and --subprotocol are only supported in URL mode');
+    }
 
     return {
       source: 'file',
@@ -460,7 +583,8 @@ export function validateWsArgs(
         ...(argv.index !== undefined ? { requestIndex: argv.index } : {}),
         ...baseRequest
       },
-      waitSeconds
+      waitSeconds,
+      ...(inputPath ? { inputPath } : {})
     };
   }
 
@@ -469,10 +593,11 @@ export function validateWsArgs(
     source: 'url',
     target: url,
     executeRequest: {
-      content: `# @ws\nGET ${url}\n`,
+      content: buildUrlModeRequestContent(url, headerOverrides, subprotocolOverrides),
       ...baseRequest
     },
-    waitSeconds
+    waitSeconds,
+    ...(inputPath ? { inputPath } : {})
   };
 }
 
@@ -524,6 +649,17 @@ export function parseSlashCommand(input: string): SlashCommandParseResult {
     const payload = trimmed.slice('/raw'.length).trimStart();
     return { ok: true, command: { kind: 'raw', payload } };
   }
+  if (head === '/history') {
+    let limit = DEFAULT_HISTORY_LIMIT;
+    if (args[0] !== undefined) {
+      const parsed = Number.parseInt(args[0], 10);
+      if (Number.isNaN(parsed) || parsed <= 0) {
+        return { ok: false, error: 'Usage: /history [positive-count]' };
+      }
+      limit = parsed;
+    }
+    return { ok: true, command: { kind: 'history', limit } };
+  }
 
   return { ok: false, error: `Unknown command: ${headRaw ?? ''}` };
 }
@@ -531,13 +667,13 @@ export function parseSlashCommand(input: string): SlashCommandParseResult {
 export function applySlashCommand(
   connection: Pick<RequestWsSessionConnection, 'sendText' | 'sendJson' | 'ping' | 'close'>,
   command: SlashCommand
-): { closeRequested: boolean; help?: string; pingSent: boolean } {
+): { closeRequested: boolean; help?: string; pingSent: boolean; historyLimit?: number } {
   switch (command.kind) {
     case 'help':
       return {
         closeRequested: false,
         pingSent: false,
-        help: 'Commands: /help, /ping, /close [code] [reason], /json <data>, /raw <data>'
+        help: 'Commands: /help, /ping, /close [code] [reason], /json <data>, /raw <data>, /history [count]'
       };
     case 'ping':
       connection.ping();
@@ -551,6 +687,8 @@ export function applySlashCommand(
     case 'raw':
       connection.sendText(command.payload);
       return { closeRequested: false, pingSent: false };
+    case 'history':
+      return { closeRequested: false, pingSent: false, historyLimit: command.limit };
     default:
       return { closeRequested: false, pingSent: false };
   }
@@ -633,12 +771,26 @@ async function consumeConnection(
 
       if (mapped.type === 'ws.outbound') {
         state.sent++;
+        state.history.push({
+          direction: 'out',
+          payloadType: mapped.payloadType,
+          payload: mapped.payload
+        });
       } else if (mapped.type === 'ws.inbound') {
         state.received++;
+        state.history.push({
+          direction: 'in',
+          payloadType: mapped.payloadType,
+          payload: mapped.payload
+        });
       } else if (mapped.type === 'ws.error') {
         state.failed = true;
       } else if (mapped.type === 'meta.closed') {
         state.closed = true;
+      }
+
+      if (state.history.length > MAX_HISTORY_MESSAGES) {
+        state.history.splice(0, state.history.length - MAX_HISTORY_MESSAGES);
       }
 
       emit(mapped);
@@ -704,7 +856,7 @@ async function* emptyLineSource(): AsyncGenerator<string> {
   // Intentional empty generator.
 }
 
-async function* streamLines(stream: NodeJS.ReadStream): AsyncGenerator<string> {
+async function* streamLines(stream: NodeJS.ReadableStream): AsyncGenerator<string> {
   const rl = createInterface({
     input: stream,
     crlfDelay: Number.POSITIVE_INFINITY
@@ -716,6 +868,45 @@ async function* streamLines(stream: NodeJS.ReadStream): AsyncGenerator<string> {
     }
   } finally {
     rl.close();
+  }
+}
+
+async function* streamLinesFromFile(path: string): AsyncGenerator<string> {
+  const content = await readFile(path, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    yield line;
+  }
+}
+
+function emitHistory(
+  argv: WsOptions,
+  stdout: NodeJS.WriteStream,
+  colorEnabled: boolean,
+  state: WsRunState,
+  limit: number
+): void {
+  if (argv.json) return;
+
+  const visible = state.history.slice(-limit);
+  if (visible.length === 0) {
+    emitLocalInfo(argv, stdout, colorEnabled, 'No messages in history yet');
+    return;
+  }
+
+  emitLocalInfo(
+    argv,
+    stdout,
+    colorEnabled,
+    `History (${visible.length} message${visible.length === 1 ? '' : 's'})`
+  );
+
+  for (const entry of visible) {
+    const symbol = entry.direction === 'out' ? '>' : '<';
+    const payloadType = argv.verbose && entry.payloadType ? `[${entry.payloadType}] ` : '';
+    writeLine(
+      stdout,
+      `${prefix(symbol, colorEnabled)} ${payloadType}${stringifyPayload(entry.payload)}`
+    );
   }
 }
 
@@ -750,7 +941,7 @@ async function runInteractiveSession(options: InteractiveOptions): Promise<void>
     argv,
     stdout,
     colorEnabled,
-    'Type messages to send. Commands: /help, /ping, /close, /json, /raw'
+    'Type messages to send. Commands: /help, /ping, /close, /json, /raw, /history'
   );
 
   const rl = createInterface({
@@ -783,6 +974,9 @@ async function runInteractiveSession(options: InteractiveOptions): Promise<void>
       }
       if (result.pingSent) {
         emitVerboseFrame(argv, stdout, colorEnabled, 'ping');
+      }
+      if (result.historyLimit !== undefined) {
+        emitHistory(argv, stdout, colorEnabled, state, result.historyLimit);
       }
       if (result.closeRequested) {
         state.closeRequested = true;
@@ -873,18 +1067,21 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
     received: 0,
     failed: false,
     closed: false,
-    closeRequested: false
+    closeRequested: false,
+    history: []
   };
 
   let validatedTarget = '';
   let executeRequest: Parameters<typeof executeAndConnectRequestWs>[0]['request'] | undefined;
   let waitSeconds = DEFAULT_BATCH_WAIT_SECONDS;
+  let inputPath: string | undefined;
 
   try {
     const validated = validateWsArgs(argv);
     validatedTarget = validated.target;
     executeRequest = validated.executeRequest;
     waitSeconds = validated.waitSeconds;
+    inputPath = validated.inputPath;
   } catch (error) {
     state.failed = true;
     emit({
@@ -982,7 +1179,8 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
   signalTarget.on('SIGINT', onSigint);
 
   try {
-    const interactiveMode = argv.execute === undefined && stdin.isTTY === true;
+    const interactiveMode =
+      argv.execute === undefined && inputPath === undefined && stdin.isTTY === true;
     if (interactiveMode) {
       await runInteractiveSession({
         argv,
@@ -1000,7 +1198,12 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
         await consumePromise;
       }
     } else {
-      const inputLines = argv.execute !== undefined ? emptyLineSource() : streamLines(stdin);
+      const inputLines =
+        argv.execute !== undefined
+          ? emptyLineSource()
+          : inputPath !== undefined
+            ? streamLinesFromFile(inputPath)
+            : streamLines(stdin);
       const batchResult = await runBatchSession({
         connection,
         execute: argv.execute,

@@ -73,16 +73,21 @@ treq ws [url]
 | `--index` | `-i` | number | — | Select request by index (0-based, file mode) |
 | `--profile` | `-p` | string | — | Config profile to use |
 | `--var` | `-v` | string[] | — | Variables as `key=value` pairs |
+| `--header` | `-H` | string[] | — | Add upstream handshake header as `name:value` (URL mode only) |
+| `--subprotocol` | — | string[] | — | Request upstream subprotocol(s) (repeatable/comma-separated, URL mode only) |
 | `--server` | `-s` | string | `http://127.0.0.1:4097` | Server URL to connect to |
 | `--token` | `-t` | string | — | Bearer token for authentication |
 | `--timeout` | — | number | — | WebSocket connect timeout in milliseconds |
 | `--execute` | `-x` | string | — | Send one message, then follow batch wait behavior |
+| `--input` | `-I` | string | — | Read outbound messages from file (one line per message; batch mode) |
 | `--wait` | `-w` | number | `2` | Batch wait seconds before close (`-1` waits indefinitely) |
 | `--json` | — | boolean | false | Emit live NDJSON events |
-| `--verbose` | — | boolean | false | Show verbose output |
+| `--verbose` | — | boolean | false | Show verbose output (payload types and detailed error payloads) |
 | `--no-color` | — | boolean | false | Disable ANSI colors in human-readable mode |
 
 Exactly one source is required: positional `url` or `--file`.
+
+Interactive commands: `/help`, `/ping`, `/close [code] [reason]`, `/json <data>`, `/raw <data>`, `/history [count]`.
 
 ## treq serve
 

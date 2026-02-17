@@ -174,11 +174,17 @@ Open an interactive or batch WebSocket session through a running t-req server.
 # URL mode (interactive)
 treq ws wss://echo.websocket.events
 
+# URL mode with handshake overrides
+treq ws wss://echo.websocket.events -H "Authorization: Bearer token" --subprotocol json
+
 # File mode (select by name)
 treq ws --file collection/chat.http --name connect --profile dev
 
 # Batch mode with one-shot payload
 treq ws wss://echo.websocket.events --execute '{"ping":true}' --wait 2
+
+# Batch mode from file input (one line per message)
+treq ws wss://echo.websocket.events --input ./messages.txt --wait 1
 
 # NDJSON output for automation
 echo '{"ping":true}' | treq ws wss://echo.websocket.events --json
@@ -194,16 +200,21 @@ echo '{"ping":true}' | treq ws wss://echo.websocket.events --json
 | `--index, -i` | Select request by index (0-based, file mode) |
 | `--profile, -p` | Config profile to use |
 | `--var, -v` | Variables in `key=value` format (repeatable) |
+| `--header, -H` | Add upstream handshake header in `name:value` format (repeatable, URL mode only) |
+| `--subprotocol` | Request upstream subprotocol (repeatable/comma-separated, URL mode only) |
 | `--server, -s` | Server URL to connect to (default: `http://127.0.0.1:4097`) |
 | `--token, -t` | Bearer token for authentication |
 | `--timeout` | WebSocket connect timeout in milliseconds |
 | `--execute, -x` | Send one message and switch to batch wait behavior |
+| `--input, -I` | Read outbound messages from file (one line per message; batch mode) |
 | `--wait, -w` | Batch wait seconds before close (`-1` waits indefinitely, default: `2`) |
 | `--json` | Emit live NDJSON events (`meta.connected`, `ws.outbound`, `ws.inbound`, `ws.error`, `meta.closed`, `meta.summary`) |
-| `--verbose` | Show verbose output (`~` frames and detailed error payloads) |
+| `--verbose` | Show verbose output (`~` frames, payload types, and detailed error payloads) |
 | `--no-color` | Disable ANSI colors in human-readable mode |
 
 Use exactly one request source: URL positional argument or `--file`.
+
+Interactive commands: `/help`, `/ping`, `/close [code] [reason]`, `/json <data>`, `/raw <data>`, `/history [count]`.
 
 ### `treq serve` - Start HTTP server
 
