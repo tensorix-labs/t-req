@@ -74,8 +74,8 @@ describe('GET /capabilities', () => {
     expect(data.version).toBeDefined();
     expect(data.features.sessions).toBe(true);
     expect(data.features.observerWebSocket).toBe(false);
-    expect(data.features.requestWebSocket).toBe(false);
-    expect(data.features.replayBuffer).toBe(false);
+    expect(data.features.requestWebSocket).toBe(true);
+    expect(data.features.replayBuffer).toBe(true);
     expect(data.features.binaryPayloads).toBe(false);
   });
 });
@@ -282,6 +282,39 @@ GET https://api.example.com/second
     expect(data.timing.startTime).toBeDefined();
     expect(data.timing.endTime).toBeDefined();
     expect(data.timing.durationMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('POST /execute/ws', () => {
+  let tmp: TempDir;
+  let server: TestServer;
+
+  beforeEach(async () => {
+    tmp = await tmpdir();
+    const { app } = createApp(createTestConfig(tmp.path));
+    server = createTestServer(app);
+  });
+
+  afterEach(async () => {
+    await tmp[Symbol.asyncDispose]();
+  });
+
+  test('should reject non-WebSocket request definitions', async () => {
+    const { status, data } = await server.post<ErrorResponse>('/execute/ws', {
+      content: 'GET https://api.example.com/users\n'
+    });
+
+    expect(status).toBe(400);
+    expect(data.error.code).toBe('EXECUTE_ERROR');
+  });
+
+  test('should reject WebSocket definitions containing body', async () => {
+    const { status, data } = await server.post<ErrorResponse>('/execute/ws', {
+      content: '# @ws\nGET wss://example.com/socket\n\n{"hello":"world"}\n'
+    });
+
+    expect(status).toBe(400);
+    expect(data.error.code).toBe('VALIDATION_ERROR');
   });
 });
 

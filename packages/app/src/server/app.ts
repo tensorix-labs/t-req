@@ -7,6 +7,7 @@ import {
 } from '@t-req/core/import';
 import type { MiddlewareFunction } from '@t-req/core/plugin';
 import type { Context } from 'hono';
+import { createBunWebSocket } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { streamSSE } from 'hono/streaming';
@@ -59,8 +60,10 @@ import {
   wsSessionRoute
 } from './openapi';
 import type { ErrorResponse } from './schemas';
+import { WsSessionClientEnvelopeSchema } from './schemas';
 import { createService, resolveWorkspaceRoot } from './service';
 import { ImportApplyError } from './service/import-service';
+import { createWsSessionManager } from './service/ws-session-manager';
 import { formatSSEMessage } from './sse-format';
 import { createWebRoutes, isApiPath, type WebConfig } from './web';
 
@@ -184,8 +187,56 @@ export type ServerConfig = {
 
 export function createApp(config: ServerConfig) {
   const app = new OpenAPIHono();
+  const { upgradeWebSocket, websocket } = createBunWebSocket();
   const workspaceRoot = resolveWorkspaceRoot(config.workspace);
   const eventManager = createEventManager();
+  const wsSessionManager = createWsSessionManager({
+    maxWsSessions: config.maxSessions
+  });
+  const explicitlyClosingWsSessions = new Set<string>();
+  const downstreamControlSockets = new Map<
+    string,
+    { socket: unknown; send: (data: string) => void; close: () => void }
+  >();
+
+  const mapNativeReadyState = (
+    readyState: number
+  ): 'connecting' | 'open' | 'closing' | 'closed' => {
+    if (readyState === WebSocket.OPEN) return 'open';
+    if (readyState === WebSocket.CLOSING) return 'closing';
+    if (readyState === WebSocket.CLOSED) return 'closed';
+    return 'connecting';
+  };
+
+  const sendEnvelopeToControlSocket = (wsSessionId: string, envelope: unknown): void => {
+    const controlSocket = downstreamControlSockets.get(wsSessionId);
+    if (!controlSocket) return;
+
+    try {
+      controlSocket.send(JSON.stringify(envelope));
+    } catch {
+      downstreamControlSockets.delete(wsSessionId);
+    }
+  };
+
+  const classifyInboundPayload = (
+    payload: unknown
+  ): { payloadType: 'text' | 'json' | 'binary'; payload: unknown } => {
+    if (typeof payload !== 'string') {
+      return { payloadType: 'binary', payload };
+    }
+
+    const trimmed = payload.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return { payloadType: 'json', payload: JSON.parse(payload) };
+      } catch {
+        // Fall through to text if it isn't valid JSON
+      }
+    }
+
+    return { payloadType: 'text', payload };
+  };
 
   const service = createService({
     workspaceRoot,
@@ -458,14 +509,128 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
-  // Execute WebSocket Endpoint (contract only, runtime disabled)
+  // Execute WebSocket Endpoint
   // ============================================================================
 
-  app.openapi(executeWSRoute, (c) => {
-    c.req.valid('json');
+  app.openapi(executeWSRoute, async (c) => {
+    const request = c.req.valid('json');
+
+    // Script tokens can execute WS, but must use their assigned flow/session
+    const payload = c.get('scriptTokenPayload') as ScriptTokenPayload | undefined;
+    if (payload) {
+      enforceScriptScope(c, {
+        allowedEndpoint: true,
+        requiredFlowId: request.flowId,
+        requiredSessionId: request.sessionId
+      });
+    }
+
+    const result = await service.executeWS(request);
+    const upstreamSocket = result.upstreamSocket;
+
+    const wsState = wsSessionManager.open({
+      upstreamUrl: result.upstreamUrl,
+      upstream: {
+        get readyState() {
+          return mapNativeReadyState(upstreamSocket.readyState);
+        },
+        get subprotocol() {
+          return upstreamSocket.protocol || undefined;
+        },
+        send(data: string) {
+          upstreamSocket.send(data);
+        },
+        close(code?: number, reason?: string) {
+          upstreamSocket.close(code, reason);
+        }
+      },
+      flowId: result.flowId,
+      reqExecId: result.reqExecId,
+      idleTimeoutMs: request.idleTimeoutMs,
+      replayBufferSize: request.replayBufferSize
+    });
+
+    const wsSessionId = wsState.wsSessionId;
+
+    const onUpstreamMessage = (event: MessageEvent) => {
+      if (!wsSessionManager.getSessions().has(wsSessionId)) return;
+      const { payloadType, payload: inboundPayload } = classifyInboundPayload(event.data);
+      const envelope = wsSessionManager.recordInbound(wsSessionId, payloadType, inboundPayload);
+      sendEnvelopeToControlSocket(wsSessionId, envelope);
+    };
+
+    const onUpstreamError = () => {
+      if (!wsSessionManager.getSessions().has(wsSessionId)) return;
+      const envelope = wsSessionManager.recordError(
+        wsSessionId,
+        'WS_UPSTREAM_ERROR',
+        `Upstream WebSocket error for ${result.upstreamUrl}`
+      );
+      sendEnvelopeToControlSocket(wsSessionId, envelope);
+    };
+
+    const detachUpstreamListeners = () => {
+      upstreamSocket.removeEventListener('message', onUpstreamMessage);
+      upstreamSocket.removeEventListener('error', onUpstreamError);
+    };
+
+    const onUpstreamClose = (event: CloseEvent) => {
+      detachUpstreamListeners();
+
+      if (explicitlyClosingWsSessions.has(wsSessionId)) {
+        explicitlyClosingWsSessions.delete(wsSessionId);
+        return;
+      }
+
+      if (!wsSessionManager.getSessions().has(wsSessionId)) {
+        const controlSocket = downstreamControlSockets.get(wsSessionId);
+        if (controlSocket) {
+          setTimeout(() => {
+            try {
+              controlSocket.close();
+            } catch {
+              // no-op
+            }
+          }, 0);
+        }
+        return;
+      }
+
+      const envelope = wsSessionManager.close(wsSessionId, event.code || 1000, event.reason || '');
+      sendEnvelopeToControlSocket(wsSessionId, envelope);
+
+      const controlSocket = downstreamControlSockets.get(wsSessionId);
+      if (controlSocket) {
+        try {
+          controlSocket.close();
+        } catch {
+          // no-op
+        }
+        downstreamControlSockets.delete(wsSessionId);
+      }
+    };
+
+    upstreamSocket.addEventListener('message', onUpstreamMessage);
+    upstreamSocket.addEventListener('error', onUpstreamError);
+    upstreamSocket.addEventListener('close', onUpstreamClose, { once: true });
+
     return c.json(
-      createNotImplementedResponse('WebSocket request execution is not enabled in this phase'),
-      501
+      {
+        runId: result.runId,
+        ...(result.flowId ? { flowId: result.flowId } : {}),
+        ...(result.reqExecId ? { reqExecId: result.reqExecId } : {}),
+        request: result.request,
+        resolved: result.resolved,
+        ws: {
+          wsSessionId,
+          downstreamPath: `/ws/session/${wsSessionId}`,
+          upstreamUrl: result.upstreamUrl,
+          ...(wsState.subprotocol ? { subprotocol: wsState.subprotocol } : {}),
+          replayBufferSize: wsState.replayBufferSize,
+          lastSeq: wsState.lastSeq
+        }
+      },
+      200
     );
   });
 
@@ -872,16 +1037,158 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
-  // Request Session WebSocket - contract only, runtime disabled
+  // Request Session WebSocket
   // ============================================================================
 
-  app.openapi(wsSessionRoute, (c) => {
-    c.req.valid('param');
-    c.req.valid('query');
-    return c.json(
-      createNotImplementedResponse('WebSocket session control is not enabled in this phase'),
-      501
-    );
+  app.openapi(wsSessionRoute, async (c) => {
+    const { wsSessionId } = c.req.valid('param');
+    const { afterSeq } = c.req.valid('query');
+
+    // Script tokens are not allowed to open control sockets directly in this phase.
+    enforceScriptScope(c, { allowedEndpoint: false });
+
+    wsSessionManager.get(wsSessionId);
+
+    return await upgradeWebSocket(c, {
+      onOpen: (_event, ws) => {
+        const existing = downstreamControlSockets.get(wsSessionId);
+        if (existing) {
+          try {
+            existing.close();
+          } catch {
+            // no-op
+          }
+        }
+
+        const controlSocketRef = {
+          socket: ws,
+          send: (data: string) => ws.send(data),
+          close: () => ws.close(1000, 'Replaced by a new control connection')
+        };
+        downstreamControlSockets.set(wsSessionId, controlSocketRef);
+
+        try {
+          const replayEvents = wsSessionManager.replay(wsSessionId, afterSeq ?? 0);
+          for (const envelope of replayEvents) {
+            ws.send(JSON.stringify(envelope));
+          }
+        } catch (error) {
+          ws.send(
+            JSON.stringify({
+              type: 'session.error',
+              ts: Date.now(),
+              seq: 0,
+              wsSessionId,
+              error: {
+                code: 'WS_REPLAY_FAILED',
+                message: errorMessage(error)
+              }
+            })
+          );
+          ws.close(1011, 'Replay failed');
+          return;
+        }
+      },
+
+      onMessage: (event, ws) => {
+        if (!wsSessionManager.getSessions().has(wsSessionId)) {
+          ws.close(1008, 'Session no longer exists');
+          downstreamControlSockets.delete(wsSessionId);
+          return;
+        }
+
+        const rawPayload = event.data;
+        let rawData: string | undefined;
+        if (typeof rawPayload === 'string') {
+          rawData = rawPayload;
+        } else if (rawPayload instanceof Uint8Array) {
+          rawData = new TextDecoder().decode(rawPayload);
+        } else if (rawPayload instanceof ArrayBuffer) {
+          rawData = new TextDecoder().decode(new Uint8Array(rawPayload));
+        } else if (ArrayBuffer.isView(rawPayload)) {
+          rawData = new TextDecoder().decode(
+            new Uint8Array(rawPayload.buffer, rawPayload.byteOffset, rawPayload.byteLength)
+          );
+        }
+
+        if (rawData === undefined) {
+          const envelope = wsSessionManager.recordError(
+            wsSessionId,
+            'WS_PROTOCOL_ERROR',
+            'Downstream control message must be UTF-8 JSON text'
+          );
+          ws.send(JSON.stringify(envelope));
+          return;
+        }
+
+        let parsedJson: unknown;
+        try {
+          parsedJson = JSON.parse(rawData);
+        } catch {
+          const envelope = wsSessionManager.recordError(
+            wsSessionId,
+            'WS_PROTOCOL_ERROR',
+            'Downstream control message must be valid JSON'
+          );
+          ws.send(JSON.stringify(envelope));
+          return;
+        }
+
+        const parsedEnvelope = WsSessionClientEnvelopeSchema.safeParse(parsedJson);
+        if (!parsedEnvelope.success) {
+          const envelope = wsSessionManager.recordError(
+            wsSessionId,
+            'WS_PROTOCOL_ERROR',
+            `Invalid control envelope: ${parsedEnvelope.error.message}`
+          );
+          ws.send(JSON.stringify(envelope));
+          return;
+        }
+
+        const command = parsedEnvelope.data;
+        if (command.type === 'session.ping') {
+          wsSessionManager.touch(wsSessionId);
+          return;
+        }
+
+        if (command.type === 'session.close') {
+          explicitlyClosingWsSessions.add(wsSessionId);
+          const closeEnvelope = wsSessionManager.close(wsSessionId, command.code, command.reason);
+          ws.send(JSON.stringify(closeEnvelope));
+          setTimeout(() => {
+            try {
+              ws.close(1000, 'Session closed');
+            } catch {
+              // no-op
+            }
+          }, 0);
+          return;
+        }
+
+        const payloadType =
+          command.payloadType ??
+          (typeof command.payload === 'string' ? ('text' as const) : ('json' as const));
+
+        const outboundEnvelope = wsSessionManager.send(wsSessionId, payloadType, command.payload);
+        ws.send(JSON.stringify(outboundEnvelope));
+      },
+
+      onClose: (_event, ws) => {
+        explicitlyClosingWsSessions.delete(wsSessionId);
+        const activeSocket = downstreamControlSockets.get(wsSessionId);
+        if (activeSocket?.socket === ws) {
+          downstreamControlSockets.delete(wsSessionId);
+        }
+      },
+
+      onError: (_event, ws) => {
+        explicitlyClosingWsSessions.delete(wsSessionId);
+        const activeSocket = downstreamControlSockets.get(wsSessionId);
+        if (activeSocket?.socket === ws) {
+          downstreamControlSockets.delete(wsSessionId);
+        }
+      }
+    });
   });
 
   const openApiDocConfig = {
@@ -952,9 +1259,19 @@ export function createApp(config: ServerConfig) {
 
   // Cleanup function for graceful shutdown
   const dispose = () => {
+    for (const controlSocket of downstreamControlSockets.values()) {
+      try {
+        controlSocket.close();
+      } catch {
+        // no-op
+      }
+    }
+    downstreamControlSockets.clear();
+    explicitlyClosingWsSessions.clear();
+    wsSessionManager.dispose();
     stopSessionCleanup();
     stopScriptTokenCleanup();
   };
 
-  return { app, service, eventManager, workspaceRoot, dispose };
+  return { app, service, eventManager, workspaceRoot, dispose, websocket };
 }

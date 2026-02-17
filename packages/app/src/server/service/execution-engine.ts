@@ -9,10 +9,12 @@ import type {
   ExecuteRequest,
   ExecuteResponse,
   ExecuteSSERequest,
+  ExecuteWSRequest,
   ExecutionSource
 } from '../schemas';
 import type { ConfigService } from './config-service';
 import { loadContent, parseDocumentContent, selectRequest } from './content-loader';
+import { createWsExecutor, type ExecuteWSResult } from './execution/ws-executor';
 import type { FlowManager } from './flow-manager';
 import { createFlowTracker } from './flow-tracker';
 import { extractResponseHeaders, processResponseBody } from './response-processor';
@@ -28,6 +30,7 @@ import {
 export interface ExecutionEngine {
   execute(request: ExecuteRequest): Promise<ExecuteResponse>;
   executeSSE(request: ExecuteSSERequest): AsyncIterable<SSEMessage>;
+  executeWS(request: ExecuteWSRequest): Promise<ExecuteWSResult>;
 }
 
 export function createExecutionEngine(
@@ -467,8 +470,16 @@ export function createExecutionEngine(
     }
   }
 
+  const executeWS = createWsExecutor({
+    context,
+    sessionManager,
+    flowManager,
+    configService
+  });
+
   return {
     execute,
-    executeSSE
+    executeSSE,
+    executeWS
   };
 }

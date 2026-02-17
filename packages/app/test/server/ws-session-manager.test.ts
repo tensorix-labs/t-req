@@ -196,4 +196,22 @@ describe('ws-session-manager lifecycle', () => {
 
     manager.dispose();
   });
+
+  test('touch refreshes lastActivityAt for keepalive use-cases', () => {
+    const manager = createManager();
+    const socket = new FakeUpstreamSocket();
+    const opened = manager.open({
+      upstreamUrl: 'wss://example.com/ws',
+      upstream: socket
+    });
+
+    const original = manager.get(opened.wsSessionId).lastActivityAt;
+    now += 25;
+
+    const touched = manager.touch(opened.wsSessionId);
+    expect(touched.lastActivityAt).toBeGreaterThan(original);
+    expect(touched.lastActivityAt).toBe(now);
+
+    manager.dispose();
+  });
 });

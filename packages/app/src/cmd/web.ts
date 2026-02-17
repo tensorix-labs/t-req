@@ -62,10 +62,11 @@ async function runWeb(argv: WebOptions): Promise<void> {
     web: { enabled: true }
   };
 
-  const { app, service, eventManager, dispose } = createApp(config);
+  const { app, service, eventManager, dispose, websocket } = createApp(config);
 
   const server = Bun.serve({
     fetch: app.fetch,
+    websocket,
     port,
     hostname: host
   });
