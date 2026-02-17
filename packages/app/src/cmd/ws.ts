@@ -356,8 +356,12 @@ export function parseWsVariables(vars: string[] | undefined): Record<string, str
       continue;
     }
 
-    const key = entry.slice(0, eqIndex);
+    const key = entry.slice(0, eqIndex).trim();
     const value = entry.slice(eqIndex + 1);
+    if (!key) {
+      console.warn(`Warning: Invalid variable key in "${entry}", key cannot be empty`);
+      continue;
+    }
     result[key] = value;
   }
 

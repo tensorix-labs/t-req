@@ -265,10 +265,18 @@ describe('ws command argument validation', () => {
 
 describe('ws variable parsing', () => {
   test('parses key=value pairs and skips invalid entries', () => {
-    const vars = parseWsVariables(['token=abc', 'region=us', 'invalid']);
+    const vars = parseWsVariables([
+      'token=abc',
+      'region=us',
+      'invalid',
+      '=missingKey',
+      '   =blankKey',
+      'empty='
+    ]);
     expect(vars).toEqual({
       token: 'abc',
-      region: 'us'
+      region: 'us',
+      empty: ''
     });
   });
 });
