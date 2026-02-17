@@ -57,6 +57,26 @@ treq run <file>
 | `--no-plugins` | — | boolean | false | Disable plugin loading |
 | `--plugin` | `-P` | string[] | — | Load additional plugins (npm package or `file://` path) |
 
+## treq ws
+
+Open a WebSocket session through a running t-req server.
+
+```bash
+treq ws <url>
+```
+
+| Option | Alias | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `url` | — | string | required | WebSocket URL (`ws://` or `wss://`) (positional) |
+| `--server` | `-s` | string | `http://127.0.0.1:4097` | Server URL to connect to |
+| `--token` | `-t` | string | — | Bearer token for authentication |
+| `--timeout` | — | number | — | WebSocket connect timeout in milliseconds |
+| `--execute` | `-x` | string | — | Send one message, then follow batch wait behavior |
+| `--wait` | `-w` | number | `2` | Batch wait seconds before close (`-1` waits indefinitely) |
+| `--json` | — | boolean | false | Emit live NDJSON events |
+| `--verbose` | — | boolean | false | Show verbose output |
+| `--no-color` | — | boolean | false | Disable ANSI colors in human-readable mode |
+
 ## treq serve
 
 Start the HTTP API server.

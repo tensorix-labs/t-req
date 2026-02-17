@@ -166,6 +166,34 @@ treq run collection/auth/login.http --verbose
 | `--workspace, -w` | Workspace root directory |
 | `--verbose, -v` | Show response headers |
 
+### `treq ws` - Test WebSocket sessions
+
+Open an interactive or batch WebSocket session through a running t-req server.
+
+```bash
+# Interactive mode
+treq ws wss://echo.websocket.events
+
+# Batch mode with one-shot payload
+treq ws wss://echo.websocket.events --execute '{"ping":true}' --wait 2
+
+# NDJSON output for automation
+echo '{"ping":true}' | treq ws wss://echo.websocket.events --json
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--server, -s` | Server URL to connect to (default: `http://127.0.0.1:4097`) |
+| `--token, -t` | Bearer token for authentication |
+| `--timeout` | WebSocket connect timeout in milliseconds |
+| `--execute, -x` | Send one message and switch to batch wait behavior |
+| `--wait, -w` | Batch wait seconds before close (`-1` waits indefinitely, default: `2`) |
+| `--json` | Emit live NDJSON events (`meta.connected`, `ws.outbound`, `ws.inbound`, `ws.error`, `meta.closed`, `meta.summary`) |
+| `--verbose` | Show verbose output (`~` frames and detailed error payloads) |
+| `--no-color` | Disable ANSI colors in human-readable mode |
+
 ### `treq serve` - Start HTTP server
 
 Start an HTTP server that exposes the t-req API, enabling any programming language to execute `.http` files:
@@ -303,6 +331,7 @@ treq upgrade 0.3.0
 treq --help
 treq init --help
 treq run --help
+treq ws --help
 treq serve --help
 treq open --help
 ```
