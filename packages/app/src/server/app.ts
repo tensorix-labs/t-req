@@ -130,10 +130,6 @@ function createValidationErrorResponse(message: string): ErrorResponse {
   return { error: { code: 'VALIDATION_ERROR', message } };
 }
 
-function createNotImplementedResponse(message: string): ErrorResponse {
-  return { error: { code: 'NOT_IMPLEMENTED', message } };
-}
-
 function hasErrorDiagnostics(result: ImportResult): boolean {
   return result.diagnostics.some((diagnostic) => diagnostic.severity === 'error');
 }
@@ -1025,15 +1021,67 @@ export function createApp(config: ServerConfig) {
   });
 
   // ============================================================================
-  // Event Streaming (WebSocket) - contract only, runtime disabled
+  // Event Streaming (WebSocket)
   // ============================================================================
 
   app.openapi(eventWSRoute, (c) => {
-    c.req.valid('query');
-    return c.json(
-      createNotImplementedResponse('WebSocket event streaming is not enabled in this phase'),
-      501
-    );
+    const { sessionId, flowId, afterSeq } = c.req.valid('query');
+
+    // Require sessionId or flowId when auth is enabled (prevents cross-session leakage)
+    if (config.token && !sessionId && !flowId) {
+      throw new ValidationError(
+        'sessionId or flowId query parameter is required when authentication is enabled'
+      );
+    }
+
+    // Script tokens can subscribe to events, but only for their own flow
+    if (flowId) {
+      enforceScriptScope(c, { allowedEndpoint: true, requiredFlowId: flowId });
+    } else {
+      // If no flowId but script token, deny (scripts must use flowId)
+      enforceScriptScope(c, { allowedEndpoint: !!flowId, requiredFlowId: flowId });
+    }
+
+    let subscriberId: string | undefined;
+
+    const unsubscribe = () => {
+      if (!subscriberId) return;
+      eventManager.unsubscribe(subscriberId);
+      subscriberId = undefined;
+    };
+
+    return upgradeWebSocket(c, {
+      onOpen: (_event, ws) => {
+        const send = (event: EventEnvelope) => {
+          ws.send(JSON.stringify(event));
+        };
+
+        const close = () => {
+          try {
+            ws.close(1000, 'Observer stream closed');
+          } catch {
+            // no-op
+          }
+        };
+
+        subscriberId = eventManager.subscribe(sessionId, send, close, flowId);
+
+        if (afterSeq !== undefined) {
+          const replayEvents = eventManager.replay(sessionId, flowId, afterSeq);
+          for (const replayEvent of replayEvents) {
+            ws.send(JSON.stringify(replayEvent));
+          }
+        }
+      },
+
+      onClose: () => {
+        unsubscribe();
+      },
+
+      onError: () => {
+        unsubscribe();
+      }
+    });
   });
 
   // ============================================================================

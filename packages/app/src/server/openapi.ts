@@ -350,10 +350,6 @@ export const eventWSRoute = createRoute({
     400: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'Invalid query parameters'
-    },
-    501: {
-      content: { 'application/json': { schema: ErrorResponseSchema } },
-      description: 'WebSocket runtime is not enabled yet'
     }
   }
 });

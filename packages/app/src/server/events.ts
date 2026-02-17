@@ -29,19 +29,38 @@ export type EventSubscriber = {
 const RUN_SEQUENCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const RUN_SEQUENCE_CLEANUP_THRESHOLD = 100;
 const RUN_SEQUENCE_CLEANUP_PROBABILITY = 0.01; // 1% chance
+const DEFAULT_EVENT_REPLAY_BUFFER_SIZE = 500;
 
 type RunSequenceEntry = { seq: number; lastUsed: number };
 
-export function createEventManager() {
+export interface EventManagerConfig {
+  replayBufferSize?: number;
+  now?: () => number;
+}
+
+function eventMatchesFilters(
+  event: EventEnvelope,
+  sessionId: string | undefined,
+  flowId: string | undefined
+): boolean {
+  const sessionMatches = sessionId === undefined || sessionId === event.sessionId;
+  const flowMatches = flowId === undefined || flowId === event.flowId;
+  return sessionMatches && flowMatches;
+}
+
+export function createEventManager(config: EventManagerConfig = {}) {
   const subscribers = new Map<string, EventSubscriber>();
   const runSequences = new Map<string, RunSequenceEntry>();
+  const replayBuffer: EventEnvelope[] = [];
+  const replayBufferSize = config.replayBufferSize ?? DEFAULT_EVENT_REPLAY_BUFFER_SIZE;
+  const now = config.now ?? Date.now;
 
   function generateId(): string {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
   }
 
   function getNextSeq(runId: string): number {
-    const now = Date.now();
+    const currentTs = now();
 
     // Probabilistic cleanup (1% of calls when over threshold)
     if (
@@ -49,15 +68,15 @@ export function createEventManager() {
       Math.random() < RUN_SEQUENCE_CLEANUP_PROBABILITY
     ) {
       for (const [id, entry] of runSequences) {
-        if (now - entry.lastUsed > RUN_SEQUENCE_TTL_MS) {
+        if (currentTs - entry.lastUsed > RUN_SEQUENCE_TTL_MS) {
           runSequences.delete(id);
         }
       }
     }
 
-    const entry = runSequences.get(runId) ?? { seq: 0, lastUsed: now };
+    const entry = runSequences.get(runId) ?? { seq: 0, lastUsed: currentTs };
     entry.seq++;
-    entry.lastUsed = now;
+    entry.lastUsed = currentTs;
     runSequences.set(runId, entry);
     return entry.seq;
   }
@@ -89,7 +108,7 @@ export function createEventManager() {
 
     const envelope: EventEnvelope = {
       type: event.type,
-      ts: Date.now(),
+      ts: now(),
       runId,
       sessionId,
       flowId: eventFlowId,
@@ -100,16 +119,14 @@ export function createEventManager() {
       payload: event
     };
 
+    replayBuffer.push(envelope);
+    if (replayBuffer.length > replayBufferSize) {
+      replayBuffer.shift();
+    }
+
     // Send to subscribers that match the filters
     for (const subscriber of subscribers.values()) {
-      // Check session filter
-      const sessionMatches =
-        subscriber.sessionId === undefined || subscriber.sessionId === sessionId;
-
-      // Check flow filter
-      const flowMatches = subscriber.flowId === undefined || subscriber.flowId === eventFlowId;
-
-      if (sessionMatches && flowMatches) {
+      if (eventMatchesFilters(envelope, subscriber.sessionId, subscriber.flowId)) {
         try {
           subscriber.send(envelope);
         } catch {
@@ -120,18 +137,30 @@ export function createEventManager() {
     }
   }
 
+  function replay(
+    sessionId: string | undefined,
+    flowId: string | undefined,
+    afterSeq = 0
+  ): EventEnvelope[] {
+    return replayBuffer.filter(
+      (event) => event.seq > afterSeq && eventMatchesFilters(event, sessionId, flowId)
+    );
+  }
+
   function closeAll(): void {
     for (const subscriber of subscribers.values()) {
       subscriber.close();
     }
     subscribers.clear();
     runSequences.clear();
+    replayBuffer.length = 0;
   }
 
   return {
     subscribe,
     unsubscribe,
     emit,
+    replay,
     closeAll,
     getSubscriberCount: () => subscribers.size
   };

@@ -341,6 +341,41 @@ describe('sequence management per runId', () => {
   });
 });
 
+describe('replay buffer', () => {
+  test('should replay filtered events after a sequence', () => {
+    const manager = createEventManager({ replayBufferSize: 10 });
+
+    manager.emit('session-1', 'run-1', { type: 'event1', flowId: 'flow-1' });
+    manager.emit('session-1', 'run-1', { type: 'event2', flowId: 'flow-1' });
+    manager.emit('session-2', 'run-2', { type: 'event3', flowId: 'flow-2' });
+
+    const replayed = manager.replay('session-1', 'flow-1', 1);
+
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]?.type).toBe('event2');
+    expect(replayed[0]?.sessionId).toBe('session-1');
+    expect(replayed[0]?.flowId).toBe('flow-1');
+
+    manager.closeAll();
+  });
+
+  test('should keep replay buffer bounded', () => {
+    const manager = createEventManager({ replayBufferSize: 2 });
+
+    manager.emit(undefined, 'run-1', { type: 'event1' });
+    manager.emit(undefined, 'run-1', { type: 'event2' });
+    manager.emit(undefined, 'run-1', { type: 'event3' });
+
+    const replayed = manager.replay(undefined, undefined, 0);
+
+    expect(replayed).toHaveLength(2);
+    expect(replayed[0]?.type).toBe('event2');
+    expect(replayed[1]?.type).toBe('event3');
+
+    manager.closeAll();
+  });
+});
+
 describe('error handling', () => {
   test('should handle send errors gracefully', () => {
     const manager = createEventManager();

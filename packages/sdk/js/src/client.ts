@@ -8,6 +8,7 @@
 export { createClient, createConfig } from './gen/client';
 export { type Options, TreqClient } from './gen/sdk.gen';
 export * from './gen/types.gen';
+export * from './ws';
 
 import { createClient, createConfig } from './gen/client';
 import { TreqClient } from './gen/sdk.gen';

@@ -73,7 +73,7 @@ describe('GET /capabilities', () => {
     expect(data.protocolVersion).toBe('1.1');
     expect(data.version).toBeDefined();
     expect(data.features.sessions).toBe(true);
-    expect(data.features.observerWebSocket).toBe(false);
+    expect(data.features.observerWebSocket).toBe(true);
     expect(data.features.requestWebSocket).toBe(true);
     expect(data.features.replayBuffer).toBe(true);
     expect(data.features.binaryPayloads).toBe(false);
