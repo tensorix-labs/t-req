@@ -3,6 +3,9 @@ import type { Config } from 'tailwindcss';
 /**
  * Shared t-req Tailwind CSS configuration
  * Modern developer-focused aesthetic with light and dark modes
+ *
+ * DaisyUI is configured in `src/styles/base.css` using Tailwind v4 CSS plugins.
+ * This file stays exported for backwards compatibility with existing consumers.
  */
 export default {
   content: [],
