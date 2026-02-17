@@ -1,15 +1,12 @@
-import HealthCheck from './components/HealthCheck';
 import ServerGate from './components/ServerGate';
 import { ServerProvider } from './context/server-context';
-import './App.css';
+import { ExplorerScreen } from './features/explorer';
 
 function App() {
   return (
     <ServerProvider>
       <ServerGate>
-        <main class="container">
-          <HealthCheck />
-        </main>
+        <ExplorerScreen />
       </ServerGate>
     </ServerProvider>
   );
