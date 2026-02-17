@@ -125,6 +125,56 @@
   --noise: 0;
 }
 
+@plugin "daisyui/theme" {
+  name: "treq-desktop";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #1a1e26;
+  --color-base-200: #20242d;
+  --color-base-300: #2a303b;
+  --color-base-content: #d7dae0;
+
+  --color-primary: #4e9cf9;
+  --color-primary-content: #f0f6ff;
+  --color-secondary: #2d3441;
+  --color-secondary-content: #d7dae0;
+  --color-accent: #efc36a;
+  --color-accent-content: #32270f;
+  --color-neutral: #151821;
+  --color-neutral-content: #d7dae0;
+
+  --color-info: #4e9cf9;
+  --color-info-content: #f0f6ff;
+  --color-success: #75be7e;
+  --color-success-content: #0d2111;
+  --color-warning: #efc36a;
+  --color-warning-content: #32270f;
+  --color-error: #ff8f95;
+  --color-error-content: #3f1014;
+
+  --desktop-bg: #1a1e26;
+  --desktop-surface: #20242d;
+  --desktop-border: #313844;
+  --desktop-muted: #8e97a8;
+  --desktop-row-hover: #2a303b;
+  --desktop-row-selected: #2b4f79;
+  --desktop-row-selected-text: #ecf3ff;
+  --desktop-focus: #6aa9ff;
+  --desktop-folder: #efc36a;
+  --desktop-file: #9ca5b8;
+
+  --radius-selector: 0.35rem;
+  --radius-field: 0.35rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
 /* t-req.ai theme - Modern developer-focused aesthetic */
 @theme {
   /* Typography */

@@ -69,7 +69,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@opentui/core": "^0.1.74",
     "@opentui/solid": "^0.1.74",
-    "@t-req/core": "^0.2.4",
+    "@t-req/core": "workspace:*",
     "@t-req/plugin-base": "workspace:*",
     "@t-req/sdk": "workspace:*",
     "fuzzysort": "^3.1.0",
