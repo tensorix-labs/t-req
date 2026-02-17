@@ -305,6 +305,48 @@ describe('Primitive 3: ctx.report()', () => {
     );
     expect(manager.getReportsForRun(runId)[0]?.seq).toBe(1);
   });
+
+  test('clearReportsForFlow also clears flow sequence state', async () => {
+    const plugin = definePlugin({
+      name: 'flow-seq-reporter',
+      version: '1.0.0',
+      hooks: {
+        'response.after'(input) {
+          input.ctx.report({ ok: true });
+        }
+      }
+    });
+
+    const manager = await makeManager([plugin]);
+    const flowId = 'flow-reused';
+
+    const firstCtx = manager.createHookContext({ executionContext: { runId: 'run-1', flowId } });
+    await manager.triggerResponseAfter(
+      {
+        request: { method: 'GET', url: 'https://example.com', headers: {} },
+        response: mockResponse,
+        timing: mockTiming,
+        ctx: firstCtx
+      },
+      {}
+    );
+    expect(manager.getReports()[0]?.seq).toBe(1);
+
+    manager.clearReportsForFlow(flowId);
+    expect(manager.getReports()).toHaveLength(0);
+
+    const secondCtx = manager.createHookContext({ executionContext: { runId: 'run-2', flowId } });
+    await manager.triggerResponseAfter(
+      {
+        request: { method: 'GET', url: 'https://example.com', headers: {} },
+        response: mockResponse,
+        timing: mockTiming,
+        ctx: secondCtx
+      },
+      {}
+    );
+    expect(manager.getReports()[0]?.seq).toBe(1);
+  });
 });
 
 // ============================================================================

@@ -71,6 +71,12 @@ export function createService(config: ServiceConfig) {
     };
   }
 
+  function finishFlow(flowId: string) {
+    const result = flowManager.finish(flowId);
+    configService.clearPluginReportsForFlow(flowId);
+    return result;
+  }
+
   // Cleanup
   async function dispose(): Promise<void> {
     scriptService.dispose();
@@ -96,7 +102,7 @@ export function createService(config: ServiceConfig) {
     deleteSession: sessionManager.delete,
     // Flow management
     createFlow: flowManager.create,
-    finishFlow: flowManager.finish,
+    finishFlow,
     getExecution: flowManager.getExecution,
     // Workspace discovery
     listWorkspaceFiles: workspaceService.listWorkspaceFiles,

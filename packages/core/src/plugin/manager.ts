@@ -435,6 +435,15 @@ export class PluginManager {
     this.scopeSequences.delete(`run:${runId}`);
   }
 
+  /**
+   * Remove reports for a specific flow ID.
+   */
+  clearReportsForFlow(flowId: string): void {
+    if (!flowId) return;
+    this.session.reports = this.session.reports.filter((report) => report.flowId !== flowId);
+    this.scopeSequences.delete(`flow:${flowId}`);
+  }
+
   private createRunId(): string {
     return `run-${crypto.randomUUID()}`;
   }

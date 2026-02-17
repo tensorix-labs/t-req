@@ -19,6 +19,7 @@ export interface ConfigService {
     profile?: string;
   }): Promise<ResolvedConfigResult>;
   getConfig(options: { profile?: string; path?: string }): Promise<ConfigSummaryResponse>;
+  clearPluginReportsForFlow(flowId: string): void;
   getResolvedPaths(httpFilePath?: string, resolvedConfig?: ResolvedConfigResult): ResolvedPaths;
   dispose(): Promise<void>;
 }
@@ -135,6 +136,29 @@ export function createConfigService(context: ServiceContext): ConfigService {
     };
   }
 
+  function clearPluginReportsForFlow(flowId: string): void {
+    if (!flowId) {
+      return;
+    }
+
+    const clear = (resolved?: ResolvedConfigResult | null) => {
+      resolved?.config.pluginManager?.clearReportsForFlow(flowId);
+    };
+
+    clear(workspaceConfigCache);
+    for (const value of executionConfigCache.values()) {
+      clear(value);
+    }
+
+    // Best-effort cleanup for in-flight config resolutions.
+    if (workspaceConfigPromise) {
+      void workspaceConfigPromise.then(clear).catch(() => {});
+    }
+    for (const pending of executionConfigPromises.values()) {
+      void pending.then(clear).catch(() => {});
+    }
+  }
+
   function getResolvedPaths(
     httpFilePath?: string,
     resolvedConfig?: ResolvedConfigResult
@@ -201,6 +225,7 @@ export function createConfigService(context: ServiceContext): ConfigService {
     getWorkspaceConfig,
     getExecutionBaseConfig,
     getConfig,
+    clearPluginReportsForFlow,
     getResolvedPaths,
     dispose
   };
