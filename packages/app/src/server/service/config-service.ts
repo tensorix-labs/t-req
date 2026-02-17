@@ -42,11 +42,16 @@ export function createConfigService(context: ServiceContext): ConfigService {
       startDir: context.workspaceRoot,
       stopDir: context.workspaceRoot,
       profile: context.profile
-    }).then((result) => {
-      workspaceConfigCache = result;
-      workspaceConfigPromise = null;
-      return result;
-    });
+    })
+      .then((result) => {
+        workspaceConfigCache = result;
+        workspaceConfigPromise = null;
+        return result;
+      })
+      .catch((error) => {
+        workspaceConfigPromise = null;
+        throw error;
+      });
     return workspaceConfigPromise;
   }
 

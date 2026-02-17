@@ -432,6 +432,7 @@ export class PluginManager {
   clearReportsForRun(runId: string): void {
     if (!runId) return;
     this.session.reports = this.session.reports.filter((report) => report.runId !== runId);
+    this.scopeSequences.delete(`run:${runId}`);
   }
 
   private createRunId(): string {

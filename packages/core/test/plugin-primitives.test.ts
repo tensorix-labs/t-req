@@ -263,6 +263,48 @@ describe('Primitive 3: ctx.report()', () => {
     const reports = manager.getReports();
     expect(reports[0]?.data).toEqual({ p50: 45, p99: 230 });
   });
+
+  test('clearReportsForRun also clears run sequence state', async () => {
+    const plugin = definePlugin({
+      name: 'seq-reporter',
+      version: '1.0.0',
+      hooks: {
+        'response.after'(input) {
+          input.ctx.report({ ok: true });
+        }
+      }
+    });
+
+    const manager = await makeManager([plugin]);
+    const runId = 'run-reused';
+
+    const firstCtx = manager.createHookContext({ executionContext: { runId } });
+    await manager.triggerResponseAfter(
+      {
+        request: { method: 'GET', url: 'https://example.com', headers: {} },
+        response: mockResponse,
+        timing: mockTiming,
+        ctx: firstCtx
+      },
+      {}
+    );
+    expect(manager.getReportsForRun(runId)[0]?.seq).toBe(1);
+
+    manager.clearReportsForRun(runId);
+    expect(manager.getReportsForRun(runId)).toHaveLength(0);
+
+    const secondCtx = manager.createHookContext({ executionContext: { runId } });
+    await manager.triggerResponseAfter(
+      {
+        request: { method: 'GET', url: 'https://example.com', headers: {} },
+        response: mockResponse,
+        timing: mockTiming,
+        ctx: secondCtx
+      },
+      {}
+    );
+    expect(manager.getReportsForRun(runId)[0]?.seq).toBe(1);
+  });
 });
 
 // ============================================================================
