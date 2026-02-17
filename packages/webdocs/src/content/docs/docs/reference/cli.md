@@ -62,12 +62,17 @@ treq run <file>
 Open a WebSocket session through a running t-req server.
 
 ```bash
-treq ws <url>
+treq ws [url]
 ```
 
 | Option | Alias | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `url` | — | string | required | WebSocket URL (`ws://` or `wss://`) (positional) |
+| `url` | — | string | — | WebSocket URL (`ws://` or `wss://`) (positional) |
+| `--file` | `-f` | string | — | Path to `.http` file containing a WebSocket request |
+| `--name` | `-n` | string | — | Select request by `@name` directive (file mode) |
+| `--index` | `-i` | number | — | Select request by index (0-based, file mode) |
+| `--profile` | `-p` | string | — | Config profile to use |
+| `--var` | `-v` | string[] | — | Variables as `key=value` pairs |
 | `--server` | `-s` | string | `http://127.0.0.1:4097` | Server URL to connect to |
 | `--token` | `-t` | string | — | Bearer token for authentication |
 | `--timeout` | — | number | — | WebSocket connect timeout in milliseconds |
@@ -76,6 +81,8 @@ treq ws <url>
 | `--json` | — | boolean | false | Emit live NDJSON events |
 | `--verbose` | — | boolean | false | Show verbose output |
 | `--no-color` | — | boolean | false | Disable ANSI colors in human-readable mode |
+
+Exactly one source is required: positional `url` or `--file`.
 
 ## treq serve
 

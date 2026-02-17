@@ -171,8 +171,11 @@ treq run collection/auth/login.http --verbose
 Open an interactive or batch WebSocket session through a running t-req server.
 
 ```bash
-# Interactive mode
+# URL mode (interactive)
 treq ws wss://echo.websocket.events
+
+# File mode (select by name)
+treq ws --file collection/chat.http --name connect --profile dev
 
 # Batch mode with one-shot payload
 treq ws wss://echo.websocket.events --execute '{"ping":true}' --wait 2
@@ -185,6 +188,12 @@ echo '{"ping":true}' | treq ws wss://echo.websocket.events --json
 
 | Option | Description |
 |--------|-------------|
+| `[url]` | WebSocket URL (`ws://` or `wss://`) |
+| `--file, -f` | Path to `.http` file containing a WebSocket request |
+| `--name, -n` | Select request by `@name` directive (file mode) |
+| `--index, -i` | Select request by index (0-based, file mode) |
+| `--profile, -p` | Config profile to use |
+| `--var, -v` | Variables in `key=value` format (repeatable) |
 | `--server, -s` | Server URL to connect to (default: `http://127.0.0.1:4097`) |
 | `--token, -t` | Bearer token for authentication |
 | `--timeout` | WebSocket connect timeout in milliseconds |
@@ -193,6 +202,8 @@ echo '{"ping":true}' | treq ws wss://echo.websocket.events --json
 | `--json` | Emit live NDJSON events (`meta.connected`, `ws.outbound`, `ws.inbound`, `ws.error`, `meta.closed`, `meta.summary`) |
 | `--verbose` | Show verbose output (`~` frames and detailed error payloads) |
 | `--no-color` | Disable ANSI colors in human-readable mode |
+
+Use exactly one request source: URL positional argument or `--file`.
 
 ### `treq serve` - Start HTTP server
 
