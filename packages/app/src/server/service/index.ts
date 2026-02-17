@@ -77,11 +77,7 @@ export function createService(config: ServiceConfig) {
     testService.dispose();
     sessionManager.dispose();
     flowManager.dispose();
-    // Teardown plugin manager if initialized
-    const workspaceConfig = await configService.getWorkspaceConfig();
-    if (workspaceConfig.config.pluginManager) {
-      await workspaceConfig.config.pluginManager.teardown();
-    }
+    await configService.dispose();
   }
 
   return {

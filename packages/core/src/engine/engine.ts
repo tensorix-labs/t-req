@@ -7,6 +7,7 @@ import type {
   ErrorOutput,
   HookContext,
   ParsedHttpFile,
+  PluginExecutionContext,
   ResponseOutput,
   RetrySignal,
   TimingInfo
@@ -38,6 +39,7 @@ export type EngineConfig = {
   onEvent?: EventSink;
   headerDefaults?: Record<string, string>;
   pluginManager?: PluginManager;
+  pluginExecutionContext?: PluginExecutionContext;
   maxRetries?: number;
 };
 
@@ -72,6 +74,7 @@ export function createEngine(config: EngineConfig = {}): Engine {
   const onEvent = config.onEvent;
   const headerDefaults = config.headerDefaults;
   const pluginManager = config.pluginManager;
+  const pluginExecutionContext = config.pluginExecutionContext;
   const maxRetries = config.maxRetries ?? 3;
 
   const interpolator = createInterpolator({ resolvers: config.resolvers ?? {} });
@@ -94,7 +97,10 @@ export function createEngine(config: EngineConfig = {}): Engine {
       pluginManager?.createHookContext({
         retries,
         maxRetries,
-        variables
+        variables,
+        ...(pluginExecutionContext !== undefined
+          ? { executionContext: pluginExecutionContext }
+          : {})
       }) ?? {
         retries,
         maxRetries,

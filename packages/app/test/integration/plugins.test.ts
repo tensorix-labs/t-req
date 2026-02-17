@@ -332,3 +332,149 @@ describe('Plugin: Execution details include plugin hooks', () => {
     expect(data.request.method).toBe('GET');
   });
 });
+
+describe('Plugin: Runtime caching and run-scoped reports', () => {
+  let tmp: TempDir;
+  let server: TestServer;
+  let restoreFetch: () => void;
+  let appDispose: (() => void) | undefined;
+  let serviceDispose: (() => Promise<void>) | undefined;
+
+  const STATS_KEY = '__treq_runtime_cache_plugin_stats__';
+  const coreIndexPath = path.join(MONOREPO_ROOT, 'packages/core/src/index');
+
+  type RuntimeStats = { setup: number; teardown: number };
+
+  function getRuntimeStats(): RuntimeStats {
+    const globals = globalThis as Record<string, unknown>;
+    const stats = globals[STATS_KEY] as RuntimeStats | undefined;
+    return stats ?? { setup: 0, teardown: 0 };
+  }
+
+  beforeEach(async () => {
+    tmp = await tmpdir();
+
+    await tmp.writeFile(
+      'test.http',
+      `# @name root
+GET https://api.example.com/root
+`
+    );
+    await tmp.writeFile(
+      'nested/test.http',
+      `# @name nested
+GET https://api.example.com/nested
+`
+    );
+
+    await tmp.writeFile(
+      'plugins/runtime-cache-plugin.ts',
+      `import { definePlugin } from '${coreIndexPath}';
+
+const key = '${STATS_KEY}';
+const globals = globalThis as Record<string, unknown>;
+const stats = (globals[key] as { setup: number; teardown: number } | undefined) ?? {
+  setup: 0,
+  teardown: 0
+};
+globals[key] = stats;
+
+export default definePlugin({
+  name: 'runtime-cache-plugin',
+  version: '1.0.0',
+  setup() {
+    stats.setup += 1;
+  },
+  teardown() {
+    stats.teardown += 1;
+  },
+  hooks: {
+    async 'request.after'(input) {
+      input.ctx.report({
+        setupCount: stats.setup,
+        url: input.request.url
+      });
+    }
+  }
+});
+`
+    );
+
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          security: {
+            allowPluginsOutsideProject: true
+          },
+          plugins: ['file://./plugins/runtime-cache-plugin.ts']
+        },
+        null,
+        2
+      )
+    );
+
+    const appInstance = createApp(createTestConfig(tmp.path));
+    server = createTestServer(appInstance.app);
+    appDispose = appInstance.dispose;
+    serviceDispose = async () => {
+      await appInstance.service.dispose();
+    };
+
+    restoreFetch = installFetchMock(async (url) => {
+      return mockResponse({ ok: true, url: url.toString() }, { status: 200 });
+    });
+  });
+
+  afterEach(async () => {
+    restoreFetch();
+    if (serviceDispose) {
+      await serviceDispose();
+    }
+    appDispose?.();
+    delete (globalThis as Record<string, unknown>)[STATS_KEY];
+    await tmp[Symbol.asyncDispose]();
+  });
+
+  test('reuses plugin setup across repeated execute calls', async () => {
+    const first = await server.post<ExecuteResponse>('/execute', { path: 'test.http' });
+    const second = await server.post<ExecuteResponse>('/execute', { path: 'test.http' });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.data.pluginReports).toHaveLength(1);
+    expect(second.data.pluginReports).toHaveLength(1);
+    expect(first.data.pluginReports[0]?.runId).toBe(first.data.runId);
+    expect(second.data.pluginReports[0]?.runId).toBe(second.data.runId);
+    expect((first.data.pluginReports[0]?.data as { setupCount?: number })?.setupCount).toBe(1);
+    expect((second.data.pluginReports[0]?.data as { setupCount?: number })?.setupCount).toBe(1);
+  });
+
+  test('keeps plugin reports scoped to each concurrent run', async () => {
+    const [first, second] = await Promise.all([
+      server.post<ExecuteResponse>('/execute', { path: 'test.http' }),
+      server.post<ExecuteResponse>('/execute', { path: 'test.http' })
+    ]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.data.pluginReports).toHaveLength(1);
+    expect(second.data.pluginReports).toHaveLength(1);
+    expect(first.data.pluginReports[0]?.runId).toBe(first.data.runId);
+    expect(second.data.pluginReports[0]?.runId).toBe(second.data.runId);
+  });
+
+  test('tears down plugin managers for all cached execution config keys', async () => {
+    await server.post<ExecuteResponse>('/execute', { path: 'test.http' });
+    await server.post<ExecuteResponse>('/execute', { path: 'nested/test.http' });
+
+    if (serviceDispose) {
+      await serviceDispose();
+      serviceDispose = undefined;
+    }
+
+    const stats = getRuntimeStats();
+    expect(stats.setup).toBe(2);
+    expect(stats.teardown).toBe(2);
+  });
+});

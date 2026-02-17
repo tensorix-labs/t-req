@@ -1,5 +1,5 @@
 import { createInterpolator, type ParsedRequest } from '@t-req/core';
-import { buildEngineOptions, resolveProjectConfig } from '@t-req/core/config';
+import { buildEngineOptions } from '@t-req/core/config';
 import { dirname, resolve } from '../../../utils';
 import {
   ExecuteError,
@@ -17,11 +17,6 @@ import { generateId, generateReqExecId } from '../utils';
 
 const DEFAULT_WS_CONNECT_TIMEOUT_MS = 30000;
 const WS_METHOD = 'GET';
-
-type OverrideLayer = {
-  name: string;
-  overrides: { variables: Record<string, unknown> };
-};
 
 type WsRequestSelection = {
   selectedRequest: ParsedRequest;
@@ -63,12 +58,6 @@ export type WsExecutorDependencies = {
   flowManager: FlowManager;
   configService: ConfigService;
 };
-
-function isNonEmptyObject(
-  value: Record<string, unknown> | undefined
-): value is Record<string, unknown> {
-  return value !== undefined && Object.keys(value).length > 0;
-}
 
 function isWebSocketUrl(url: string): boolean {
   return url.startsWith('ws://') || url.startsWith('wss://');
@@ -121,20 +110,6 @@ function getSessionVariables(
     throw new SessionNotFoundError(sessionId);
   }
   return session.variables;
-}
-
-function buildVariableOverrideLayers(
-  sessionVariables: Record<string, unknown>,
-  requestVariables?: Record<string, unknown>
-): OverrideLayer[] {
-  return [
-    isNonEmptyObject(sessionVariables)
-      ? { name: 'session', overrides: { variables: sessionVariables } }
-      : undefined,
-    isNonEmptyObject(requestVariables)
-      ? { name: 'request', overrides: { variables: requestVariables } }
-      : undefined
-  ].filter((layer): layer is OverrideLayer => layer !== undefined);
 }
 
 function getStartDir(workspaceRoot: string, httpFilePath: string | undefined): string {
@@ -357,22 +332,24 @@ export function createWsExecutor(deps: WsExecutorDependencies) {
     assertWebSocketDefinition(selectedRequest);
 
     const sessionVariables = getSessionVariables(deps.sessionManager, request.sessionId);
-    const overrideLayers = buildVariableOverrideLayers(sessionVariables, request.variables);
     const startDir = getStartDir(deps.context.workspaceRoot, httpFilePath);
 
-    const resolvedConfig = await resolveProjectConfig({
+    const resolvedConfig = await deps.configService.getExecutionBaseConfig({
       startDir,
-      stopDir: deps.context.workspaceRoot,
-      profile: request.profile,
-      overrideLayers
+      profile: request.profile
     });
     const { config: projectConfig } = resolvedConfig;
+    const projectVariables: Record<string, unknown> = {
+      ...projectConfig.variables,
+      ...sessionVariables,
+      ...(request.variables ?? {})
+    };
     const { engineOptions } = buildEngineOptions({ config: projectConfig });
 
     const wsTarget = await resolveWsTarget(
       selectedRequest,
       fileVariables,
-      projectConfig.variables,
+      projectVariables,
       engineOptions.headerDefaults,
       engineOptions.resolvers,
       request

@@ -18,6 +18,7 @@ import type {
   ParseOutput,
   PluginConfigRef,
   PluginEvent,
+  PluginExecutionContext,
   PluginHooks,
   PluginPermissionsConfig,
   RequestAfterInput,
@@ -39,6 +40,8 @@ import type {
 // ============================================================================
 
 const DEFAULT_HOOK_TIMEOUT_MS = 30000; // 30 seconds
+const MAX_STORED_REPORTS = 5000;
+const MAX_SCOPE_SEQUENCES = 1000;
 
 // ============================================================================
 // Helpers
@@ -117,15 +120,9 @@ export class PluginManager {
   private enterprise?: EnterpriseContext;
   private secrets?: Record<string, string>;
   private session: SessionState;
-  private executionContext: {
-    runId: string;
-    flowId?: string;
-    reqExecId?: string;
-    now?: () => number;
-    nextSeq?: () => number;
-  };
-  private reportSeq = 0;
-  private reportScopeKey: string;
+  private executionContext: PluginExecutionContext;
+  private hookExecutionContexts = new WeakMap<HookContext, PluginExecutionContext>();
+  private scopeSequences = new Map<string, number>();
 
   constructor(private options: PluginManagerOptions) {
     this.config = {
@@ -153,7 +150,6 @@ export class PluginManager {
     this.executionContext = {
       runId: this.createRunId()
     };
-    this.reportScopeKey = `run:${this.executionContext.runId}`;
   }
 
   // ==========================================================================
@@ -181,13 +177,6 @@ export class PluginManager {
     nextSeq?: () => number;
   }): void {
     const runId = context.runId ?? this.executionContext.runId ?? this.createRunId();
-    const scopeKey = context.flowId ? `flow:${context.flowId}` : `run:${runId}`;
-
-    if (scopeKey !== this.reportScopeKey) {
-      this.reportScopeKey = scopeKey;
-      this.reportSeq = 0;
-    }
-
     this.executionContext = {
       runId,
       ...(context.flowId !== undefined ? { flowId: context.flowId } : {}),
@@ -394,9 +383,12 @@ export class PluginManager {
     variables?: Record<string, unknown>;
     pluginName?: string;
     requestName?: string;
+    executionContext?: Partial<PluginExecutionContext>;
   }): HookContext {
     const session = this.session;
-    return {
+    const executionContext = this.resolveExecutionContext(options.executionContext);
+
+    const hookContext: HookContext = {
       retries: options.retries ?? 0,
       maxRetries: options.maxRetries ?? 3,
       session,
@@ -405,39 +397,88 @@ export class PluginManager {
       projectRoot: this.options.projectRoot,
       ...(this.enterprise !== undefined ? { enterprise: this.enterprise } : {}),
       report: (data: unknown) => {
-        this.emitReport({
-          pluginName: options.pluginName ?? 'unknown',
-          ...(options.requestName !== undefined ? { requestName: options.requestName } : {}),
-          data
-        });
+        this.emitReport(
+          {
+            pluginName: options.pluginName ?? 'unknown',
+            ...(options.requestName !== undefined ? { requestName: options.requestName } : {}),
+            data
+          },
+          executionContext
+        );
       }
     };
+
+    this.hookExecutionContexts.set(hookContext, executionContext);
+    return hookContext;
   }
 
   /**
    * Get all plugin reports accumulated during this session.
    */
   getReports(): import('./types').PluginReport[] {
-    return this.session.reports;
+    return [...this.session.reports];
+  }
+
+  /**
+   * Get reports for a specific run ID.
+   */
+  getReportsForRun(runId: string): import('./types').PluginReport[] {
+    return this.session.reports.filter((report) => report.runId === runId);
+  }
+
+  /**
+   * Remove reports for a specific run ID.
+   */
+  clearReportsForRun(runId: string): void {
+    if (!runId) return;
+    this.session.reports = this.session.reports.filter((report) => report.runId !== runId);
   }
 
   private createRunId(): string {
     return `run-${crypto.randomUUID()}`;
   }
 
-  private nextSeq(): number {
-    if (this.executionContext.nextSeq) {
-      return this.executionContext.nextSeq();
+  private resolveExecutionContext(
+    context?: Partial<PluginExecutionContext>
+  ): PluginExecutionContext {
+    const runId = context?.runId ?? this.executionContext.runId ?? this.createRunId();
+    return {
+      runId,
+      ...(context?.flowId !== undefined ? { flowId: context.flowId } : {}),
+      ...(context?.reqExecId !== undefined ? { reqExecId: context.reqExecId } : {}),
+      ...(context?.now !== undefined ? { now: context.now } : {}),
+      ...(context?.nextSeq !== undefined ? { nextSeq: context.nextSeq } : {})
+    };
+  }
+
+  private nextSeq(context: PluginExecutionContext): number {
+    if (context.nextSeq) {
+      return context.nextSeq();
     }
-    this.reportSeq += 1;
-    return this.reportSeq;
+
+    const scopeKey = context.flowId ? `flow:${context.flowId}` : `run:${context.runId}`;
+    const current = this.scopeSequences.get(scopeKey) ?? 0;
+    const next = current + 1;
+    this.scopeSequences.set(scopeKey, next);
+
+    if (this.scopeSequences.size > MAX_SCOPE_SEQUENCES) {
+      const oldestKey = this.scopeSequences.keys().next().value;
+      if (oldestKey) {
+        this.scopeSequences.delete(oldestKey);
+      }
+    }
+
+    return next;
   }
 
-  private now(): number {
-    return this.executionContext.now ? this.executionContext.now() : Date.now();
+  private now(context: PluginExecutionContext): number {
+    return context.now ? context.now() : Date.now();
   }
 
-  private emitReport(params: { pluginName: string; requestName?: string; data: unknown }): void {
+  private emitReport(
+    params: { pluginName: string; requestName?: string; data: unknown },
+    executionContext?: PluginExecutionContext
+  ): void {
     // Fail fast on non-serializable data
     try {
       JSON.stringify(params.data);
@@ -445,22 +486,23 @@ export class PluginManager {
       throw new Error('Plugin report data must be JSON-serializable');
     }
 
+    const context = executionContext ?? this.executionContext;
+
     const report = {
       pluginName: params.pluginName,
-      runId: this.executionContext.runId ?? this.createRunId(),
-      ...(this.executionContext.flowId !== undefined
-        ? { flowId: this.executionContext.flowId }
-        : {}),
-      ...(this.executionContext.reqExecId !== undefined
-        ? { reqExecId: this.executionContext.reqExecId }
-        : {}),
+      runId: context.runId ?? this.createRunId(),
+      ...(context.flowId !== undefined ? { flowId: context.flowId } : {}),
+      ...(context.reqExecId !== undefined ? { reqExecId: context.reqExecId } : {}),
       ...(params.requestName !== undefined ? { requestName: params.requestName } : {}),
-      ts: this.now(),
-      seq: this.nextSeq(),
+      ts: this.now(context),
+      seq: this.nextSeq(context),
       data: params.data
     };
 
     this.session.reports.push(report);
+    if (this.session.reports.length > MAX_STORED_REPORTS) {
+      this.session.reports.splice(0, this.session.reports.length - MAX_STORED_REPORTS);
+    }
     this.emitPluginEvent({ type: 'pluginReport', report });
   }
 
@@ -556,6 +598,7 @@ export class PluginManager {
       'ctx' in (input as Record<string, unknown>)
         ? (input as { ctx: HookContext }).ctx
         : this.createHookContext({});
+    const executionContext = this.hookExecutionContexts.get(ctx) ?? this.executionContext;
 
     // Extract requestName from input if available (e.g., response.after has input.request.name)
     const inputRecord = input as Record<string, unknown>;
@@ -573,11 +616,14 @@ export class PluginManager {
 
       // Update ctx.report to stamp the current plugin's identity
       ctx.report = (data: unknown) => {
-        this.emitReport({
-          pluginName: loaded.plugin.name,
-          ...(requestName !== undefined ? { requestName } : {}),
-          data
-        });
+        this.emitReport(
+          {
+            pluginName: loaded.plugin.name,
+            ...(requestName !== undefined ? { requestName } : {}),
+            data
+          },
+          executionContext
+        );
       };
 
       const startTime = Date.now();
@@ -645,6 +691,7 @@ export class PluginManager {
       'ctx' in (input as Record<string, unknown>)
         ? (input as { ctx: HookContext }).ctx
         : this.createHookContext({});
+    const executionContext = this.hookExecutionContexts.get(ctx) ?? this.executionContext;
 
     // Extract requestName from input if available
     const inputRecord = input as Record<string, unknown>;
@@ -662,11 +709,14 @@ export class PluginManager {
 
       // Update ctx.report to stamp the current plugin's identity
       ctx.report = (data: unknown) => {
-        this.emitReport({
-          pluginName: loaded.plugin.name,
-          ...(requestName !== undefined ? { requestName } : {}),
-          data
-        });
+        this.emitReport(
+          {
+            pluginName: loaded.plugin.name,
+            ...(requestName !== undefined ? { requestName } : {}),
+            data
+          },
+          executionContext
+        );
       };
 
       const startTime = Date.now();
