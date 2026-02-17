@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteScriptByRunIdData, DeleteScriptByRunIdErrors, DeleteScriptByRunIdResponses, DeleteSessionByIdData, DeleteSessionByIdErrors, DeleteSessionByIdResponses, DeleteTestByRunIdData, DeleteTestByRunIdErrors, DeleteTestByRunIdResponses, DeleteWorkspaceFileData, DeleteWorkspaceFileErrors, DeleteWorkspaceFileResponses, GetCapabilitiesData, GetCapabilitiesResponses, GetConfigData, GetConfigResponses, GetEventData, GetEventResponses, GetFlowsByFlowIdExecutionsByReqExecIdData, GetFlowsByFlowIdExecutionsByReqExecIdErrors, GetFlowsByFlowIdExecutionsByReqExecIdResponses, GetHealthData, GetHealthResponses, GetPluginsData, GetPluginsResponses, GetScriptRunnersData, GetScriptRunnersResponses, GetSessionByIdData, GetSessionByIdErrors, GetSessionByIdResponses, GetTestFrameworksData, GetTestFrameworksResponses, GetWorkspaceFileData, GetWorkspaceFileErrors, GetWorkspaceFileResponses, GetWorkspaceFilesData, GetWorkspaceFilesResponses, GetWorkspaceRequestsData, GetWorkspaceRequestsErrors, GetWorkspaceRequestsResponses, ImportApplyData, ImportApplyErrors, ImportApplyResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, PostExecuteData, PostExecuteErrors, PostExecuteResponses, PostExecuteSseData, PostExecuteSseErrors, PostExecuteSseResponses, PostFlowsByFlowIdFinishData, PostFlowsByFlowIdFinishErrors, PostFlowsByFlowIdFinishResponses, PostFlowsData, PostFlowsErrors, PostFlowsResponses, PostParseData, PostParseErrors, PostParseResponses, PostScriptData, PostScriptErrors, PostScriptResponses, PostSessionData, PostSessionResponses, PostTestData, PostTestErrors, PostTestResponses, PostWorkspaceFileData, PostWorkspaceFileErrors, PostWorkspaceFileResponses, PutSessionByIdVariablesData, PutSessionByIdVariablesErrors, PutSessionByIdVariablesResponses, PutWorkspaceFileData, PutWorkspaceFileErrors, PutWorkspaceFileResponses } from './types.gen';
+import type { DeleteScriptByRunIdData, DeleteScriptByRunIdErrors, DeleteScriptByRunIdResponses, DeleteSessionByIdData, DeleteSessionByIdErrors, DeleteSessionByIdResponses, DeleteTestByRunIdData, DeleteTestByRunIdErrors, DeleteTestByRunIdResponses, DeleteWorkspaceFileData, DeleteWorkspaceFileErrors, DeleteWorkspaceFileResponses, GetCapabilitiesData, GetCapabilitiesResponses, GetConfigData, GetConfigResponses, GetEventData, GetEventResponses, GetEventWsData, GetEventWsErrors, GetFlowsByFlowIdExecutionsByReqExecIdData, GetFlowsByFlowIdExecutionsByReqExecIdErrors, GetFlowsByFlowIdExecutionsByReqExecIdResponses, GetHealthData, GetHealthResponses, GetPluginsData, GetPluginsResponses, GetScriptRunnersData, GetScriptRunnersResponses, GetSessionByIdData, GetSessionByIdErrors, GetSessionByIdResponses, GetTestFrameworksData, GetTestFrameworksResponses, GetWorkspaceFileData, GetWorkspaceFileErrors, GetWorkspaceFileResponses, GetWorkspaceFilesData, GetWorkspaceFilesResponses, GetWorkspaceRequestsData, GetWorkspaceRequestsErrors, GetWorkspaceRequestsResponses, GetWsSessionByWsSessionIdData, GetWsSessionByWsSessionIdErrors, ImportApplyData, ImportApplyErrors, ImportApplyResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, PostExecuteData, PostExecuteErrors, PostExecuteResponses, PostExecuteSseData, PostExecuteSseErrors, PostExecuteSseResponses, PostExecuteWsData, PostExecuteWsErrors, PostExecuteWsResponses, PostFlowsByFlowIdFinishData, PostFlowsByFlowIdFinishErrors, PostFlowsByFlowIdFinishResponses, PostFlowsData, PostFlowsErrors, PostFlowsResponses, PostParseData, PostParseErrors, PostParseResponses, PostScriptData, PostScriptErrors, PostScriptResponses, PostSessionData, PostSessionResponses, PostTestData, PostTestErrors, PostTestResponses, PostWorkspaceFileData, PostWorkspaceFileErrors, PostWorkspaceFileResponses, PutSessionByIdVariablesData, PutSessionByIdVariablesErrors, PutSessionByIdVariablesResponses, PutWorkspaceFileData, PutWorkspaceFileErrors, PutWorkspaceFileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -124,6 +124,22 @@ export class TreqClient extends HeyApiClient {
     public postExecuteSse<ThrowOnError extends boolean = false>(options?: Options<PostExecuteSseData, ThrowOnError>) {
         return (options?.client ?? this.client).sse.post<PostExecuteSseResponses, PostExecuteSseErrors, ThrowOnError>({
             url: '/execute/sse',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options?.headers
+            }
+        });
+    }
+    
+    /**
+     * Execute WebSocket request definition
+     *
+     * Validate and initialize a server-owned WebSocket session from .http content. Returns session metadata and downstream connection path.
+     */
+    public postExecuteWs<ThrowOnError extends boolean = false>(options?: Options<PostExecuteWsData, ThrowOnError>) {
+        return (options?.client ?? this.client).post<PostExecuteWsResponses, PostExecuteWsErrors, ThrowOnError>({
+            url: '/execute/ws',
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -400,5 +416,23 @@ export class TreqClient extends HeyApiClient {
      */
     public getEvent<ThrowOnError extends boolean = false>(options?: Options<GetEventData, ThrowOnError>) {
         return (options?.client ?? this.client).sse.get<GetEventResponses, unknown, ThrowOnError>({ url: '/event', ...options });
+    }
+    
+    /**
+     * Event stream (WebSocket)
+     *
+     * Subscribe to real-time events over WebSocket. Uses the same flow/session filters as /event and supports replay with afterSeq.
+     */
+    public getEventWs<ThrowOnError extends boolean = false>(options?: Options<GetEventWsData, ThrowOnError>) {
+        return (options?.client ?? this.client).get<unknown, GetEventWsErrors, ThrowOnError>({ url: '/event/ws', ...options });
+    }
+    
+    /**
+     * WebSocket session control socket
+     *
+     * Upgrade to a WebSocket control/data channel for a previously initialized request session. Supports replay from afterSeq.
+     */
+    public getWsSessionByWsSessionId<ThrowOnError extends boolean = false>(options: Options<GetWsSessionByWsSessionIdData, ThrowOnError>) {
+        return (options.client ?? this.client).get<unknown, GetWsSessionByWsSessionIdErrors, ThrowOnError>({ url: '/ws/session/{wsSessionId}', ...options });
     }
 }

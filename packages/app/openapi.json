@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "t-req Server API",
-    "version": "0.3.10",
+    "version": "0.3.11",
     "description": "HTTP API for parsing and executing .http files, managing sessions, and subscribing to real-time events.",
     "license": {
       "name": "MIT",
@@ -47,6 +47,10 @@
     {
       "name": "Tests",
       "description": "Run tests with detected frameworks (bun, vitest, jest, pytest)"
+    },
+    {
+      "name": "WebSocket",
+      "description": "WebSocket request/session and event stream endpoints"
     },
     {
       "name": "Plugins",
@@ -125,9 +129,29 @@
                         },
                         "streamingBodies": {
                           "type": "boolean"
+                        },
+                        "observerWebSocket": {
+                          "type": "boolean"
+                        },
+                        "requestWebSocket": {
+                          "type": "boolean"
+                        },
+                        "replayBuffer": {
+                          "type": "boolean"
+                        },
+                        "binaryPayloads": {
+                          "type": "boolean"
                         }
                       },
-                      "required": ["sessions", "diagnostics", "streamingBodies"]
+                      "required": [
+                        "sessions",
+                        "diagnostics",
+                        "streamingBodies",
+                        "observerWebSocket",
+                        "requestWebSocket",
+                        "replayBuffer",
+                        "binaryPayloads"
+                      ]
                     }
                   },
                   "required": ["protocolVersion", "version", "features"]
@@ -1039,6 +1063,226 @@
         }
       }
     },
+    "/execute/ws": {
+      "post": {
+        "tags": ["WebSocket"],
+        "summary": "Execute WebSocket request definition",
+        "description": "Validate and initialize a server-owned WebSocket session from .http content. Returns session metadata and downstream connection path.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 10485760
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "requestName": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "requestIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "profile": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "flowId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "reqLabel": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "connectTimeoutMs": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 300000
+                  },
+                  "idleTimeoutMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 3600000
+                  },
+                  "replayBufferSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "WebSocket session initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "flowId": {
+                      "type": "string"
+                    },
+                    "reqExecId": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "index": {
+                          "type": "number"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["index", "method", "url"]
+                    },
+                    "resolved": {
+                      "type": "object",
+                      "properties": {
+                        "workspaceRoot": {
+                          "type": "string"
+                        },
+                        "projectRoot": {
+                          "type": "string"
+                        },
+                        "httpFilePath": {
+                          "type": "string"
+                        },
+                        "basePath": {
+                          "type": "string"
+                        },
+                        "configPath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["workspaceRoot", "projectRoot", "basePath"]
+                    },
+                    "ws": {
+                      "type": "object",
+                      "properties": {
+                        "wsSessionId": {
+                          "type": "string"
+                        },
+                        "downstreamPath": {
+                          "type": "string"
+                        },
+                        "upstreamUrl": {
+                          "type": "string"
+                        },
+                        "subprotocol": {
+                          "type": "string"
+                        },
+                        "replayBufferSize": {
+                          "type": "number"
+                        },
+                        "lastSeq": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "wsSessionId",
+                        "downstreamPath",
+                        "upstreamUrl",
+                        "replayBufferSize",
+                        "lastSeq"
+                      ]
+                    }
+                  },
+                  "required": ["runId", "request", "resolved", "ws"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or non-WebSocket request definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/session": {
       "post": {
         "tags": ["Sessions"],
@@ -1845,7 +2089,7 @@
                           },
                           "protocol": {
                             "type": "string",
-                            "enum": ["http", "sse"]
+                            "enum": ["http", "sse", "ws"]
                           }
                         },
                         "required": ["index", "method", "url"]
@@ -3659,6 +3903,136 @@
                     }
                   },
                   "required": ["type", "ts", "runId", "seq", "payload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/event/ws": {
+      "get": {
+        "tags": ["WebSocket"],
+        "summary": "Event stream (WebSocket)",
+        "description": "Subscribe to real-time events over WebSocket. Uses the same flow/session filters as /event and supports replay with afterSeq.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sessionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "flowId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "afterSeq",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgraded"
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ws/session/{wsSessionId}": {
+      "get": {
+        "tags": ["WebSocket"],
+        "summary": "WebSocket session control socket",
+        "description": "Upgrade to a WebSocket control/data channel for a previously initialized request session. Supports replay from afterSeq.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "ws_abc123"
+            },
+            "required": true,
+            "name": "wsSessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "afterSeq",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgraded"
+          },
+          "404": {
+            "description": "WebSocket session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
                 }
               }
             }

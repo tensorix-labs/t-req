@@ -41,6 +41,10 @@ export type GetCapabilitiesResponses = {
             sessions: boolean;
             diagnostics: boolean;
             streamingBodies: boolean;
+            observerWebSocket: boolean;
+            requestWebSocket: boolean;
+            replayBuffer: boolean;
+            binaryPayloads: boolean;
         };
     };
 };
@@ -365,6 +369,87 @@ export type PostExecuteSseResponses = {
 };
 
 export type PostExecuteSseResponse = PostExecuteSseResponses[keyof PostExecuteSseResponses];
+
+export type PostExecuteWsData = {
+    body?: {
+        content?: string;
+        path?: string;
+        requestName?: string;
+        requestIndex?: number;
+        sessionId?: string;
+        profile?: string;
+        variables?: {
+            [key: string]: unknown;
+        };
+        flowId?: string;
+        reqLabel?: string;
+        connectTimeoutMs?: number;
+        idleTimeoutMs?: number;
+        replayBufferSize?: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/execute/ws';
+};
+
+export type PostExecuteWsErrors = {
+    /**
+     * Invalid request or non-WebSocket request definition
+     */
+    400: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+    /**
+     * Request not found
+     */
+    404: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+};
+
+export type PostExecuteWsError = PostExecuteWsErrors[keyof PostExecuteWsErrors];
+
+export type PostExecuteWsResponses = {
+    /**
+     * WebSocket session initialized
+     */
+    200: {
+        runId: string;
+        flowId?: string;
+        reqExecId?: string;
+        request: {
+            index: number;
+            name?: string;
+            method: string;
+            url: string;
+        };
+        resolved: {
+            workspaceRoot: string;
+            projectRoot: string;
+            httpFilePath?: string;
+            basePath: string;
+            configPath?: string;
+        };
+        ws: {
+            wsSessionId: string;
+            downstreamPath: string;
+            upstreamUrl: string;
+            subprotocol?: string;
+            replayBufferSize: number;
+            lastSeq: number;
+        };
+    };
+};
+
+export type PostExecuteWsResponse = PostExecuteWsResponses[keyof PostExecuteWsResponses];
 
 export type PostSessionData = {
     body?: {
@@ -754,7 +839,7 @@ export type GetWorkspaceRequestsResponses = {
             name?: string;
             method: string;
             url: string;
-            protocol?: 'http' | 'sse';
+            protocol?: 'http' | 'sse' | 'ws';
         }>;
     };
 };
@@ -1500,3 +1585,55 @@ export type GetEventResponses = {
 };
 
 export type GetEventResponse = GetEventResponses[keyof GetEventResponses];
+
+export type GetEventWsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        sessionId?: string;
+        flowId?: string;
+        afterSeq?: number | null;
+    };
+    url: '/event/ws';
+};
+
+export type GetEventWsErrors = {
+    /**
+     * Invalid query parameters
+     */
+    400: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+};
+
+export type GetEventWsError = GetEventWsErrors[keyof GetEventWsErrors];
+
+export type GetWsSessionByWsSessionIdData = {
+    body?: never;
+    path: {
+        wsSessionId: string;
+    };
+    query?: {
+        afterSeq?: number | null;
+    };
+    url: '/ws/session/{wsSessionId}';
+};
+
+export type GetWsSessionByWsSessionIdErrors = {
+    /**
+     * WebSocket session not found
+     */
+    404: {
+        error: {
+            code: string;
+            message: string;
+            details?: unknown;
+        };
+    };
+};
+
+export type GetWsSessionByWsSessionIdError = GetWsSessionByWsSessionIdErrors[keyof GetWsSessionByWsSessionIdErrors];

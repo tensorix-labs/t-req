@@ -176,10 +176,13 @@ describe('OpenAPI /doc endpoint', () => {
     const spec = await res.json();
     const paths = spec.paths as Record<string, Record<string, unknown>>;
     const eventWs = paths['/event/ws']?.get as Record<string, unknown>;
+    const responses = eventWs.responses as Record<string, unknown>;
 
     expect(eventWs).toBeDefined();
     expect(eventWs.summary).toBe('Event stream (WebSocket)');
     expect(eventWs.tags).toContain('WebSocket');
+    expect(responses['101']).toBeDefined();
+    expect(responses['501']).toBeUndefined();
   });
 
   test('should include tags with descriptions', async () => {
