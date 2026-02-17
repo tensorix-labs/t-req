@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { WsReplayGapError, WsSessionLimitReachedError, WsSessionNotFoundError } from '../errors';
 import type { WsPayloadEncoding, WsPayloadType, WsSessionServerEnvelope } from '../schemas';
 
@@ -83,7 +84,7 @@ type MutableEnvelopeFields = {
 };
 
 function generateWsSessionId(): string {
-  return `ws_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+  return `ws_${randomUUID()}`;
 }
 
 function utf8ByteLength(value: string): number {
