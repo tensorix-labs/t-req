@@ -8,6 +8,7 @@ import type {
 import {
   applySlashCommand,
   parseSlashCommand,
+  parseWsVariables,
   renderHumanEvent,
   renderNdjsonEvent,
   resolveBatchWaitSeconds,
@@ -179,7 +180,7 @@ class FakeSignalTarget {
 }
 
 describe('ws command argument validation', () => {
-  test('accepts ws:// and wss:// URLs', () => {
+  test('accepts ws:// and wss:// URLs in URL mode', () => {
     const wsValidated = validateWsArgs({
       url: 'ws://localhost:8080/socket',
       wait: 0,
@@ -191,11 +192,34 @@ describe('ws command argument validation', () => {
       timeout: 1000
     });
 
-    expect(wsValidated.url).toBe('ws://localhost:8080/socket');
-    expect(wssValidated.url).toBe('wss://api.example.com/realtime');
+    expect(wsValidated.source).toBe('url');
+    expect(wssValidated.source).toBe('url');
+    expect(wsValidated.executeRequest.content).toContain('GET ws://localhost:8080/socket');
+    expect(wssValidated.executeRequest.content).toContain('GET wss://api.example.com/realtime');
   });
 
-  test('rejects non-websocket URLs', () => {
+  test('accepts file mode and selection fields', () => {
+    const validated = validateWsArgs({
+      file: 'collection/chat.http',
+      name: 'connect',
+      profile: 'dev',
+      var: ['token=abc'],
+      timeout: 3000,
+      wait: 2
+    });
+
+    expect(validated.source).toBe('file');
+    expect(validated.target).toBe('collection/chat.http');
+    expect(validated.executeRequest).toEqual({
+      path: 'collection/chat.http',
+      requestName: 'connect',
+      profile: 'dev',
+      variables: { token: 'abc' },
+      connectTimeoutMs: 3000
+    });
+  });
+
+  test('rejects non-websocket URLs in URL mode', () => {
     expect(() =>
       validateWsArgs({
         url: 'http://example.com',
@@ -203,6 +227,49 @@ describe('ws command argument validation', () => {
         timeout: 100
       })
     ).toThrow('URL must use ws:// or wss://');
+  });
+
+  test('rejects invalid source combinations and selector conflicts', () => {
+    expect(() =>
+      validateWsArgs({
+        url: 'ws://localhost:8080/socket',
+        file: 'collection/chat.http',
+        wait: 1
+      })
+    ).toThrow('Specify either URL positional argument or --file, not both');
+
+    expect(() =>
+      validateWsArgs({
+        wait: 1
+      })
+    ).toThrow('Provide either a WebSocket URL or --file');
+
+    expect(() =>
+      validateWsArgs({
+        url: 'ws://localhost:8080/socket',
+        name: 'connect',
+        wait: 1
+      })
+    ).toThrow('--name and --index require --file mode');
+
+    expect(() =>
+      validateWsArgs({
+        file: 'collection/chat.http',
+        name: 'connect',
+        index: 0,
+        wait: 1
+      })
+    ).toThrow('Cannot specify both --name and --index');
+  });
+});
+
+describe('ws variable parsing', () => {
+  test('parses key=value pairs and skips invalid entries', () => {
+    const vars = parseWsVariables(['token=abc', 'region=us', 'invalid']);
+    expect(vars).toEqual({
+      token: 'abc',
+      region: 'us'
+    });
   });
 });
 
@@ -419,6 +486,74 @@ describe('ws integration-like command behavior', () => {
     expect(output).toContain('"type":"meta.connected"');
     expect(output).toContain('"type":"meta.closed"');
     expect(output).toContain('"type":"meta.summary"');
+    expect(stderr.chunks.join('')).toBe('');
+  });
+
+  test('runWs builds file-mode execute request payload', async () => {
+    const connection = new FakeConnection();
+    const stdout = createMemoryWriteStream();
+    const stderr = createMemoryWriteStream();
+    let capturedRequest: unknown;
+
+    const exitCode = await runWs(
+      {
+        file: 'collection/chat.http',
+        name: 'connect',
+        profile: 'dev',
+        var: ['token=abc', 'region=us'],
+        timeout: 2500,
+        server: 'http://127.0.0.1:4097',
+        execute: '{"op":"ping"}',
+        wait: 0,
+        json: true,
+        verbose: false,
+        noColor: true
+      },
+      {
+        executeAndConnect: async (options) => {
+          capturedRequest = options.request;
+          return {
+            execute: {
+              runId: 'run_ws_file_1',
+              request: {
+                index: 0,
+                name: 'connect',
+                method: 'GET',
+                url: 'wss://echo.websocket.events'
+              },
+              resolved: {
+                workspaceRoot: '/tmp',
+                basePath: '/tmp'
+              },
+              ws: {
+                wsSessionId: 'ws_test',
+                downstreamPath: '/ws/session/ws_test',
+                upstreamUrl: 'wss://echo.websocket.events',
+                replayBufferSize: 500,
+                lastSeq: 0
+              }
+            } as ExecuteAndConnectRequestWsResult['execute'],
+            connection
+          };
+        },
+        stdout: stdout.stream,
+        stderr: stderr.stream,
+        sleep: async () => {}
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(capturedRequest).toEqual({
+      path: 'collection/chat.http',
+      requestName: 'connect',
+      profile: 'dev',
+      variables: {
+        token: 'abc',
+        region: 'us'
+      },
+      connectTimeoutMs: 2500
+    });
+    expect(connection.sentText).toEqual(['{"op":"ping"}']);
     expect(stderr.chunks.join('')).toBe('');
   });
 });

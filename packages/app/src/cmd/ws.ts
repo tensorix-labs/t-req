@@ -16,6 +16,11 @@ const SIGINT_CLOSE_REASON = 'CLI interrupted';
 
 interface WsOptions {
   url?: string;
+  file?: string;
+  name?: string;
+  index?: number;
+  profile?: string;
+  var?: string[];
   server: string;
   token?: string;
   timeout?: number;
@@ -126,13 +131,39 @@ export interface RunBatchSessionResult {
 }
 
 export const wsCommand: CommandModule<object, WsOptions> = {
-  command: 'ws <url>',
+  command: 'ws [url]',
   describe: 'Open a WebSocket request session through a running t-req server',
   builder: (yargs) =>
     yargs
       .positional('url', {
         type: 'string',
         describe: 'WebSocket URL (ws:// or wss://)'
+      })
+      .option('file', {
+        type: 'string',
+        alias: 'f',
+        describe: 'Path to .http file containing a WebSocket request'
+      })
+      .option('name', {
+        type: 'string',
+        alias: 'n',
+        describe: 'Select request by @name directive (file mode)'
+      })
+      .option('index', {
+        type: 'number',
+        alias: 'i',
+        describe: 'Select request by index (0-based, file mode)'
+      })
+      .option('profile', {
+        type: 'string',
+        alias: 'p',
+        describe: 'Config profile to use'
+      })
+      .option('var', {
+        type: 'array',
+        string: true,
+        alias: 'v',
+        describe: 'Variables in format key=value'
       })
       .option('server', {
         type: 'string',
@@ -314,6 +345,25 @@ export function resolveBatchWaitSeconds(wait: number | undefined): number {
   return wait;
 }
 
+export function parseWsVariables(vars: string[] | undefined): Record<string, string> {
+  if (!vars) return {};
+
+  const result: Record<string, string> = {};
+  for (const entry of vars) {
+    const eqIndex = entry.indexOf('=');
+    if (eqIndex === -1) {
+      console.warn(`Warning: Invalid variable format "${entry}", expected key=value`);
+      continue;
+    }
+
+    const key = entry.slice(0, eqIndex);
+    const value = entry.slice(eqIndex + 1);
+    result[key] = value;
+  }
+
+  return result;
+}
+
 function validateWsUrl(url: string | undefined): string {
   if (url === undefined) {
     throw new Error('WebSocket URL is required');
@@ -338,12 +388,16 @@ function validateWsUrl(url: string | undefined): string {
   return trimmed;
 }
 
-export function validateWsArgs(argv: Pick<WsOptions, 'url' | 'timeout' | 'wait'>): {
-  url: string;
+export interface ValidatedWsArgs {
+  source: 'url' | 'file';
+  target: string;
+  executeRequest: Parameters<typeof executeAndConnectRequestWs>[0]['request'];
   waitSeconds: number;
-} {
-  const url = validateWsUrl(argv.url);
+}
 
+export function validateWsArgs(
+  argv: Pick<WsOptions, 'url' | 'file' | 'name' | 'index' | 'profile' | 'var' | 'timeout' | 'wait'>
+): ValidatedWsArgs {
   if (argv.timeout !== undefined) {
     if (!Number.isFinite(argv.timeout) || !Number.isInteger(argv.timeout)) {
       throw new Error('--timeout must be an integer');
@@ -353,8 +407,69 @@ export function validateWsArgs(argv: Pick<WsOptions, 'url' | 'timeout' | 'wait'>
     }
   }
 
+  if (argv.name !== undefined && argv.index !== undefined) {
+    throw new Error('Cannot specify both --name and --index');
+  }
+
+  if (argv.index !== undefined) {
+    if (!Number.isInteger(argv.index) || argv.index < 0) {
+      throw new Error('--index must be a non-negative integer');
+    }
+  }
+
+  const hasUrl = argv.url !== undefined && argv.url.trim().length > 0;
+  const hasFile = argv.file !== undefined && argv.file.trim().length > 0;
+
+  if (hasUrl && hasFile) {
+    throw new Error('Specify either URL positional argument or --file, not both');
+  }
+
+  if (!hasUrl && !hasFile) {
+    throw new Error('Provide either a WebSocket URL or --file');
+  }
+
+  if ((argv.name !== undefined || argv.index !== undefined) && !hasFile) {
+    throw new Error('--name and --index require --file mode');
+  }
+
   const waitSeconds = resolveBatchWaitSeconds(argv.wait);
-  return { url, waitSeconds };
+  const cliVariables = parseWsVariables(argv.var);
+
+  const baseRequest: Record<string, unknown> = {
+    ...(argv.timeout !== undefined ? { connectTimeoutMs: argv.timeout } : {}),
+    ...(argv.profile !== undefined ? { profile: argv.profile } : {}),
+    ...(Object.keys(cliVariables).length > 0 ? { variables: cliVariables } : {})
+  };
+
+  if (hasFile) {
+    const filePath = argv.file?.trim();
+    if (!filePath) {
+      throw new Error('--file cannot be empty');
+    }
+
+    return {
+      source: 'file',
+      target: filePath,
+      executeRequest: {
+        path: filePath,
+        ...(argv.name !== undefined ? { requestName: argv.name } : {}),
+        ...(argv.index !== undefined ? { requestIndex: argv.index } : {}),
+        ...baseRequest
+      },
+      waitSeconds
+    };
+  }
+
+  const url = validateWsUrl(argv.url);
+  return {
+    source: 'url',
+    target: url,
+    executeRequest: {
+      content: `# @ws\nGET ${url}\n`,
+      ...baseRequest
+    },
+    waitSeconds
+  };
 }
 
 function stripSurroundingQuotes(value: string): string {
@@ -757,12 +872,14 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
     closeRequested: false
   };
 
-  let validatedUrl = '';
+  let validatedTarget = '';
+  let executeRequest: Parameters<typeof executeAndConnectRequestWs>[0]['request'] | undefined;
   let waitSeconds = DEFAULT_BATCH_WAIT_SECONDS;
 
   try {
     const validated = validateWsArgs(argv);
-    validatedUrl = validated.url;
+    validatedTarget = validated.target;
+    executeRequest = validated.executeRequest;
     waitSeconds = validated.waitSeconds;
   } catch (error) {
     state.failed = true;
@@ -789,15 +906,31 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
     ...(argv.token ? { token: argv.token } : {})
   });
 
+  if (!executeRequest) {
+    state.failed = true;
+    emit({
+      type: 'ws.error',
+      ts: now(),
+      code: 'WS_INVALID_ARGS',
+      message: 'Missing execute request payload'
+    });
+    emit({
+      type: 'meta.summary',
+      ts: now(),
+      durationMs: now() - state.startTime,
+      sent: state.sent,
+      received: state.received,
+      failed: true
+    });
+    return 1;
+  }
+
   let connection: RequestWsSessionConnection;
   let executeResult: ExecuteAndConnectRequestWsResult['execute'];
   try {
     const result = await executeAndConnect({
       client,
-      request: {
-        content: `# @ws\nGET ${validatedUrl}\n`,
-        ...(argv.timeout !== undefined ? { connectTimeoutMs: argv.timeout } : {})
-      }
+      request: executeRequest
     });
     connection = result.connection;
     executeResult = result.execute;
@@ -807,7 +940,7 @@ export async function runWs(argv: WsOptions, deps: WsCommandDeps = {}): Promise<
       type: 'ws.error',
       ts: now(),
       code: 'WS_CONNECT_FAILED',
-      message: errorMessage(error)
+      message: `Failed to open ${validatedTarget}: ${errorMessage(error)}`
     });
     emit({
       type: 'meta.summary',
