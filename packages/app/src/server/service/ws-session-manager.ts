@@ -66,7 +66,7 @@ export interface WsSessionManager {
   hasCapacity(): boolean;
   remove(wsSessionId: string): void;
   dispose(): void;
-  getSessions(): Map<string, WsSession>;
+  getSessions(): ReadonlyMap<string, WsSession>;
 }
 
 export const DEFAULT_WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -227,10 +227,9 @@ export function createWsSessionManager(config: WsSessionManagerConfig): WsSessio
 
   const cleanupInterval = setInterval(() => {
     const t = now();
-    for (const [wsSessionId, session] of sessions) {
+    for (const session of sessions.values()) {
       if (t - session.lastActivityAt > session.idleTimeoutMs) {
         closeInternal(session, 1001, 'Idle timeout', true, true);
-        sessions.delete(wsSessionId);
       }
     }
   }, cleanupIntervalMs);
@@ -501,7 +500,7 @@ export function createWsSessionManager(config: WsSessionManagerConfig): WsSessio
     sessions.clear();
   }
 
-  function getSessions(): Map<string, WsSession> {
+  function getSessions(): ReadonlyMap<string, WsSession> {
     return sessions;
   }
 
