@@ -165,6 +165,7 @@ const API_PATHS = new Set([
   '/script',
   '/test',
   '/event',
+  '/ws',
   '/doc'
 ]);
 

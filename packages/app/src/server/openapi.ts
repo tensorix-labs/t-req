@@ -181,10 +181,6 @@ export const executeWSRoute = createRoute({
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'Request not found'
-    },
-    501: {
-      content: { 'application/json': { schema: ErrorResponseSchema } },
-      description: 'WebSocket runtime is not enabled yet'
     }
   }
 });
@@ -381,10 +377,6 @@ export const wsSessionRoute = createRoute({
     404: {
       content: { 'application/json': { schema: ErrorResponseSchema } },
       description: 'WebSocket session not found'
-    },
-    501: {
-      content: { 'application/json': { schema: ErrorResponseSchema } },
-      description: 'WebSocket runtime is not enabled yet'
     }
   }
 });

@@ -64,8 +64,8 @@ export function createService(config: ServiceConfig) {
         diagnostics: true,
         streamingBodies: false,
         observerWebSocket: false,
-        requestWebSocket: false,
-        replayBuffer: false,
+        requestWebSocket: true,
+        replayBuffer: true,
         binaryPayloads: false
       }
     };
@@ -92,6 +92,7 @@ export function createService(config: ServiceConfig) {
     parse: parseService.parseRequest,
     execute: executionEngine.execute,
     executeSSE: executionEngine.executeSSE,
+    executeWS: executionEngine.executeWS,
     // Session management
     createSession: sessionManager.create,
     getSession: sessionManager.get,

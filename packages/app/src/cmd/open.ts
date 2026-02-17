@@ -98,11 +98,12 @@ async function runOpen(argv: OpenOptions): Promise<void> {
   };
 
   // Create app (but don't start server yet - we need the Bun.serve to get actual port)
-  const { app, service, eventManager, dispose } = createApp(config);
+  const { app, service, eventManager, dispose, websocket } = createApp(config);
 
   // Start server
   const server = Bun.serve({
     fetch: app.fetch,
+    websocket,
     port,
     hostname: host
   });

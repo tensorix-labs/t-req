@@ -136,7 +136,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
     pluginMiddleware
   };
 
-  const { app, service, eventManager, dispose } = createApp(config);
+  const { app, service, eventManager, dispose, websocket } = createApp(config);
 
   console.log('t-req server starting...');
   console.log(`  Workspace: ${workspaceRoot}`);
@@ -158,11 +158,13 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
   console.log('  GET  /capabilities      - Protocol/features metadata');
   console.log('  POST /parse             - Parse .http content');
   console.log('  POST /execute           - Execute HTTP request');
+  console.log('  POST /execute/ws        - Execute WebSocket request definition');
   console.log('  POST /session           - Create session');
   console.log('  GET  /session/:id       - Get session state');
   console.log('  PUT  /session/:id/variables - Update session variables');
   console.log('  DEL  /session/:id       - Delete session');
   console.log('  GET  /event             - Event stream (SSE)');
+  console.log('  GET  /ws/session/:id    - WebSocket session control stream');
   console.log('  GET  /doc               - OpenAPI documentation');
   if (argv.web) {
     console.log('');
@@ -177,6 +179,7 @@ async function runHttpMode(argv: ServeOptions): Promise<void> {
 
   const server = Bun.serve({
     fetch: app.fetch,
+    websocket,
     port: argv.port,
     hostname: argv.host
   });
