@@ -54,6 +54,9 @@ tmp
 # Git worktrees
 .worktrees
 
+# Codex local agent runtime state
+.codex-agent/
+
 # VS Code (keep extensions.json, exclude personal settings)
 .vscode/settings.json
 .vscode/mcp.json
