@@ -49,7 +49,7 @@ import "@t-req/ui/fonts";
 
 ### DaisyUI Themes
 
-`@t-req/ui/styles` ships with two custom DaisyUI themes:
+`@t-req/ui/styles` ships with three custom DaisyUI themes:
 - `treq` (default light theme)
 - `treq-dark` (default dark theme when `prefers-color-scheme: dark`)
 - `treq-contract` (high-contrast black/white contract style with restrained blue accent)

@@ -176,7 +176,12 @@
   --transition-default: 150ms;
 }
 
-/* Daisy semantic utility aliases (always available via @t-req/ui/styles) */
+/*
+ * Daisy semantic utility aliases are defined here on purpose.
+ * This package ships precompiled CSS (`@t-req/ui/styles`) that is consumed by apps
+ * which may not compile DaisyUI utilities themselves. These aliases guarantee core
+ * semantic color utilities are available to consumers out of the box.
+ */
 @layer utilities {
   .rounded-box {
     border-radius: var(--radius-box);
