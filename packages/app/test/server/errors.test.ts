@@ -11,7 +11,10 @@ import {
   SessionLimitReachedError,
   SessionNotFoundError,
   TreqError,
-  ValidationError
+  ValidationError,
+  WsReplayGapError,
+  WsSessionLimitReachedError,
+  WsSessionNotFoundError
 } from '../../src/server/errors';
 
 describe('TreqError base class', () => {
@@ -99,11 +102,37 @@ describe('error types have correct codes', () => {
     expect(error.code).toBe('CONTENT_OR_PATH_REQUIRED');
     expect(error.name).toBe('ContentOrPathRequiredError');
   });
+
+  test('WsSessionNotFoundError has correct code', () => {
+    const error = new WsSessionNotFoundError('ws_123');
+    expect(error.code).toBe('WS_SESSION_NOT_FOUND');
+    expect(error.message).toContain('ws_123');
+    expect(error.name).toBe('WsSessionNotFoundError');
+  });
+
+  test('WsSessionLimitReachedError has correct code', () => {
+    const error = new WsSessionLimitReachedError(5);
+    expect(error.code).toBe('WS_SESSION_LIMIT_REACHED');
+    expect(error.message).toContain('5');
+    expect(error.name).toBe('WsSessionLimitReachedError');
+  });
+
+  test('WsReplayGapError has correct code', () => {
+    const error = new WsReplayGapError('ws_123', 1, 10);
+    expect(error.code).toBe('WS_REPLAY_GAP');
+    expect(error.message).toContain('ws_123');
+    expect(error.name).toBe('WsReplayGapError');
+  });
 });
 
 describe('getStatusForError status code mapping', () => {
   test('should return 404 for SessionNotFoundError', () => {
     const error = new SessionNotFoundError('test');
+    expect(getStatusForError(error)).toBe(404);
+  });
+
+  test('should return 404 for WsSessionNotFoundError', () => {
+    const error = new WsSessionNotFoundError('ws_123');
     expect(getStatusForError(error)).toBe(404);
   });
 
@@ -120,6 +149,16 @@ describe('getStatusForError status code mapping', () => {
   test('should return 429 for SessionLimitReachedError', () => {
     const error = new SessionLimitReachedError(10);
     expect(getStatusForError(error)).toBe(429);
+  });
+
+  test('should return 429 for WsSessionLimitReachedError', () => {
+    const error = new WsSessionLimitReachedError(10);
+    expect(getStatusForError(error)).toBe(429);
+  });
+
+  test('should return 400 for WsReplayGapError', () => {
+    const error = new WsReplayGapError('ws_123', 0, 10);
+    expect(getStatusForError(error)).toBe(400);
   });
 
   test('should return 400 for ValidationError', () => {
