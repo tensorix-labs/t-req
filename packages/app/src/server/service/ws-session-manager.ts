@@ -54,6 +54,7 @@ export interface WsSessionManager {
   open(request: OpenWsSessionRequest): WsSessionState;
   get(wsSessionId: string): WsSessionState;
   getOrThrow(wsSessionId: string): WsSession;
+  touch(wsSessionId: string): WsSessionState;
   send(wsSessionId: string, payloadType: WsPayloadType, payload: unknown): WsSessionServerEnvelope;
   recordInbound(
     wsSessionId: string,
@@ -284,6 +285,12 @@ export function createWsSessionManager(config: WsSessionManagerConfig): WsSessio
     return requireSession(wsSessionId);
   }
 
+  function touch(wsSessionId: string): WsSessionState {
+    const session = requireSession(wsSessionId);
+    session.lastActivityAt = now();
+    return toState(session);
+  }
+
   function send(
     wsSessionId: string,
     payloadType: WsPayloadType,
@@ -508,6 +515,7 @@ export function createWsSessionManager(config: WsSessionManagerConfig): WsSessio
     open,
     get,
     getOrThrow,
+    touch,
     send,
     recordInbound,
     recordError,

@@ -569,7 +569,14 @@ export function createApp(config: ServerConfig) {
       sendEnvelopeToControlSocket(wsSessionId, envelope);
     };
 
+    const detachUpstreamListeners = () => {
+      upstreamSocket.removeEventListener('message', onUpstreamMessage);
+      upstreamSocket.removeEventListener('error', onUpstreamError);
+    };
+
     const onUpstreamClose = (event: CloseEvent) => {
+      detachUpstreamListeners();
+
       if (explicitlyClosingWsSessions.has(wsSessionId)) {
         explicitlyClosingWsSessions.delete(wsSessionId);
         return;
@@ -1140,6 +1147,7 @@ export function createApp(config: ServerConfig) {
 
         const command = parsedEnvelope.data;
         if (command.type === 'session.ping') {
+          wsSessionManager.touch(wsSessionId);
           return;
         }
 
