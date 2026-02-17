@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { readSettings, resolveLocalConfig } from '../config/loader';
 import { getScopedProfile } from '../state/profile-state';
 import { getFolderScopeUri } from '../state/scope';
+import { buildValidationVariables } from './validation-variables';
 
 export const DIAGNOSTIC_COLLECTION_NAME = 't-req';
 
@@ -683,7 +684,9 @@ export class TreqDiagnostics implements vscode.Disposable {
         if (manager) {
           const linePositions = getLinePositions(content);
           const validateOutput = { diagnostics: [] as PluginDiagnostic[] };
-          const hookCtx = manager.createHookContext({});
+          const hookCtx = manager.createHookContext({
+            variables: buildValidationVariables(content, resolved.config.variables)
+          });
           await manager.triggerValidate(
             {
               content,
