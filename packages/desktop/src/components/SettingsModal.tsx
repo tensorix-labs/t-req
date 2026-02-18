@@ -1,5 +1,5 @@
 import type { TreqClient } from '@t-req/sdk/client';
-import { getSettingsModalClasses } from '@t-req/ui';
+import { getSettingsModalClasses, setupDialogFocusTrap } from '@t-req/ui';
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { useConfigSummary } from '../hooks/useConfigSummary';
@@ -51,6 +51,7 @@ function formatValue(value: unknown): string {
 export default function SettingsModal(props: SettingsModalProps) {
   const classes = getSettingsModalClasses();
   const [selectedProfile, setSelectedProfile] = createSignal<string | undefined>(undefined);
+  let dialogRef: HTMLDivElement | undefined;
 
   const query = createMemo(() => ({
     enabled: props.open,
@@ -68,23 +69,16 @@ export default function SettingsModal(props: SettingsModalProps) {
   );
 
   createEffect(() => {
-    if (!props.open) {
+    if (!props.open || !dialogRef) {
       return;
     }
 
-    const previousOverflow = document.body.style.overflow;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        props.onClose();
-      }
-    };
-
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
+    const cleanupFocusTrap = setupDialogFocusTrap(dialogRef, {
+      onRequestClose: props.onClose
+    });
 
     onCleanup(() => {
-      window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      cleanupFocusTrap();
     });
   });
 
@@ -99,11 +93,13 @@ export default function SettingsModal(props: SettingsModalProps) {
         <div class={classes.overlay} onClick={props.onClose} aria-hidden="true" />
         <div class={classes.container} data-theme="treq-desktop">
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="desktop-settings-title"
             aria-describedby="desktop-settings-description"
             class={classes.panel}
+            tabIndex={-1}
           >
             <header class={classes.header}>
               <div>
