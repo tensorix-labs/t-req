@@ -52,7 +52,16 @@ function parseFormField(raw: string): ParsedFormField | undefined {
 }
 
 function readAttachedValue(token: string, shortFlag: string, longFlag: string): string | undefined {
-  if (shortFlag !== '' && token.startsWith(shortFlag) && token.length > shortFlag.length) {
+  // Attached short-form values are only supported for single-char short flags:
+  // e.g. "-dVALUE". We intentionally avoid treating "--..." or exact flag tokens as attached.
+  const isSingleCharShortFlag =
+    shortFlag.length === 2 && shortFlag.startsWith('-') && !shortFlag.startsWith('--');
+  if (
+    isSingleCharShortFlag &&
+    token !== shortFlag &&
+    !token.startsWith('--') &&
+    token.startsWith(shortFlag)
+  ) {
     return token.slice(shortFlag.length);
   }
   if (token.startsWith(`${longFlag}=`)) {

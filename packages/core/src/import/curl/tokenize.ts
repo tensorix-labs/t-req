@@ -1,6 +1,10 @@
 import { createDiagnostic } from './diagnostics';
 import type { TokenizeResult } from './types';
 
+function isDoubleQuotedEscapableChar(char: string): boolean {
+  return char === '$' || char === '`' || char === '"' || char === '\\';
+}
+
 function stripCommandDecorators(input: string): string {
   const trimmed = input.trim();
   const fenced = trimmed.match(/^```(?:bash|sh|zsh|shell)?\n([\s\S]*?)\n```$/i);
@@ -27,6 +31,11 @@ export function tokenizeCurlCommand(input: string): TokenizeResult {
   for (const char of normalizedInput) {
     if (escaped) {
       if (char !== '\n') {
+        // Bash behavior in double quotes:
+        // backslash only escapes $, `, ", \, and newline.
+        if (quote === '"' && !isDoubleQuotedEscapableChar(char)) {
+          token += '\\';
+        }
         token += char;
       }
       escaped = false;
