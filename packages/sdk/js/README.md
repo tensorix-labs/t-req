@@ -53,6 +53,37 @@ console.log(`Server running at ${server.url}`);
 server.close();
 ```
 
+## Curl Import Helpers
+
+The client package includes typed curl import helpers so you don't need to pass
+`source: "curl"` or manually shape generic import payloads.
+
+```ts
+import {
+  createTreqClient,
+  importCurlPreviewStrict,
+  importCurlApplyStrict,
+} from "@t-req/sdk/client";
+
+const client = createTreqClient({ baseUrl: "http://localhost:4097" });
+
+const preview = await importCurlPreviewStrict(client, {
+  command: "curl https://api.example.com/users",
+  planOptions: { outputDir: "imports", onConflict: "fail" },
+  convertOptions: { fileName: "users", requestName: "list users" },
+});
+
+const applied = await importCurlApplyStrict(client, {
+  command: "curl https://api.example.com/users",
+  applyOptions: {
+    outputDir: "imports",
+    onConflict: "overwrite",
+    mergeVariables: false,
+    force: false,
+  },
+});
+```
+
 ## SSE Events
 
 Subscribe to real-time execution events:
