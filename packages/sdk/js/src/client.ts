@@ -11,8 +11,15 @@ export * from './gen/types.gen';
 export * from './ws';
 
 import { createClient, createConfig } from './gen/client';
+import type { Options } from './gen/sdk.gen';
 import { TreqClient } from './gen/sdk.gen';
-import type { ClientOptions } from './gen/types.gen';
+import type {
+  ClientOptions,
+  ImportApplyData,
+  ImportApplyResponse,
+  ImportPreviewData,
+  ImportPreviewResponses
+} from './gen/types.gen';
 
 // Re-export SSE types for consumers
 export type { ServerSentEventsResult, StreamEvent } from './gen/core/serverSentEvents.gen';
@@ -119,6 +126,106 @@ export type ResolvedCookies = ConfigResponse['resolvedConfig']['cookies'];
 
 /** Security settings from the config response. */
 export type SecuritySettings = ConfigResponse['resolvedConfig']['security'];
+
+// ---------------------------------------------------------------------------
+// Import helpers (typed source-specific wrappers)
+// ---------------------------------------------------------------------------
+
+export type ImportPlanOptions = NonNullable<ImportPreviewData['body']>['planOptions'];
+export type ImportApplyOptions = NonNullable<ImportApplyData['body']>['applyOptions'];
+export type CurlImportPreviewResult = ImportPreviewResponses[200];
+export type CurlImportApplyResult = ImportApplyResponse;
+
+export interface CurlImportConvertOptions {
+  /** Optional output filename base (without extension). */
+  fileName?: string;
+  /** Optional request name inside the generated .http file. */
+  requestName?: string;
+}
+
+export interface CurlImportPreviewRequest {
+  /** Raw curl command text. */
+  command: string;
+  /** Import preview planning options. */
+  planOptions: ImportPlanOptions;
+  /** Optional curl conversion options. */
+  convertOptions?: CurlImportConvertOptions;
+}
+
+export interface CurlImportApplyRequest {
+  /** Raw curl command text. */
+  command: string;
+  /** Import apply options. */
+  applyOptions: ImportApplyOptions;
+  /** Optional curl conversion options. */
+  convertOptions?: CurlImportConvertOptions;
+}
+
+type ImportRequestOverrides<TData extends { url: string }, ThrowOnError extends boolean> = Omit<
+  Options<TData, ThrowOnError>,
+  'path' | 'body'
+>;
+
+function toImportConvertOptions(
+  options: CurlImportConvertOptions | undefined
+): Record<string, unknown> | undefined {
+  if (!options) {
+    return undefined;
+  }
+  return {
+    ...options
+  };
+}
+
+export function importCurlPreview<ThrowOnError extends boolean = false>(
+  client: TreqClient,
+  request: CurlImportPreviewRequest,
+  options?: ImportRequestOverrides<ImportPreviewData, ThrowOnError>
+) {
+  const convertOptions = toImportConvertOptions(request.convertOptions);
+  return client.importPreview<ThrowOnError>({
+    ...(options ?? {}),
+    path: { source: 'curl' },
+    body: {
+      input: request.command,
+      ...(convertOptions ? { convertOptions } : {}),
+      planOptions: request.planOptions
+    }
+  });
+}
+
+export function importCurlApply<ThrowOnError extends boolean = false>(
+  client: TreqClient,
+  request: CurlImportApplyRequest,
+  options?: ImportRequestOverrides<ImportApplyData, ThrowOnError>
+) {
+  const convertOptions = toImportConvertOptions(request.convertOptions);
+  return client.importApply<ThrowOnError>({
+    ...(options ?? {}),
+    path: { source: 'curl' },
+    body: {
+      input: request.command,
+      ...(convertOptions ? { convertOptions } : {}),
+      applyOptions: request.applyOptions
+    }
+  });
+}
+
+export async function importCurlPreviewStrict(
+  client: TreqClient,
+  request: CurlImportPreviewRequest,
+  options?: ImportRequestOverrides<ImportPreviewData, false>
+): Promise<CurlImportPreviewResult> {
+  return await unwrap(importCurlPreview(client, request, options));
+}
+
+export async function importCurlApplyStrict(
+  client: TreqClient,
+  request: CurlImportApplyRequest,
+  options?: ImportRequestOverrides<ImportApplyData, false>
+): Promise<CurlImportApplyResult> {
+  return await unwrap(importCurlApply(client, request, options));
+}
 
 // ---------------------------------------------------------------------------
 // Factory
