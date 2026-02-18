@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import * as path from 'node:path';
 import {
   type CurlConvertOptions,
   convertCurlCommand,
@@ -6,6 +7,8 @@ import {
 } from '../../src/import/curl.ts';
 import type { ImportResult } from '../../src/import/types.ts';
 import type { SerializableRequest } from '../../src/serializer.ts';
+
+const fixturesDir = path.join(import.meta.dir, '../fixtures/curl');
 
 function flattenRequests(result: ImportResult): SerializableRequest[] {
   return result.files.flatMap((file) => file.document.requests);
@@ -19,21 +22,179 @@ function convert(command: string, options?: CurlConvertOptions): ImportResult {
   return convertCurlCommand(command, options);
 }
 
+async function readCurlFixture(name: string): Promise<string> {
+  const fixturePath = path.join(fixturesDir, name);
+  try {
+    return await Bun.file(fixturePath).text();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read curl fixture "${name}" at "${fixturePath}": ${message}`);
+  }
+}
+
+interface FixtureCase {
+  name: string;
+  fixture: string;
+  assert: (result: ImportResult) => void;
+}
+
 describe('convertCurlCommand', () => {
-  test('converts a basic GET curl command', () => {
-    const result = convert('curl https://api.example.com/users');
+  const fixtureCases: FixtureCase[] = [
+    {
+      name: 'converts a basic GET curl command fixture',
+      fixture: 'basic-get.sh',
+      assert: (result) => {
+        expect(result.name).toBe('curl-import');
+        expect(result.files).toHaveLength(1);
+        expect(result.files[0]?.relativePath).toBe('curl-request.http');
+        expect(result.stats.requestCount).toBe(1);
+        expect(result.stats.fileCount).toBe(1);
 
-    expect(result.name).toBe('curl-import');
-    expect(result.files).toHaveLength(1);
-    expect(result.files[0]?.relativePath).toBe('curl-request.http');
-    expect(result.stats.requestCount).toBe(1);
-    expect(result.stats.fileCount).toBe(1);
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.body).toBeUndefined();
+      }
+    },
+    {
+      name: 'preserves literal backslashes in double-quoted payload fixture',
+      fixture: 'double-quoted-backslashes.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('POST');
+        expect(request?.body).toBe('path\\to\\file\\nraw');
+        expect(request?.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded');
+      }
+    },
+    {
+      name: 'supports attached method/url/json option values fixture',
+      fixture: 'attached-options-json.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('POST');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.body).toBe('{"name":"Ada"}');
+        expect(request?.headers?.['Content-Type']).toBe('application/json');
+        expect(request?.headers?.Accept).toBe('application/json');
+      }
+    },
+    {
+      name: 'supports fenced shell input with line continuations fixture',
+      fixture: 'fenced-multiline.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.headers?.['X-Test']).toBe('1');
+      }
+    },
+    {
+      name: 'does not treat unrelated --d* long flags as data flags fixture',
+      fixture: 'unsupported-digest.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.body).toBeUndefined();
+        expect(
+          result.diagnostics.some(
+            (diagnostic) =>
+              diagnostic.code === 'unsupported-option' && diagnostic.message.includes('--digest')
+          )
+        ).toBe(true);
+      }
+    },
+    {
+      name: 'emits warning when --get includes data file payloads fixture',
+      fixture: 'get-data-file-warning.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/search?q=hello');
+        expect(
+          result.diagnostics.some((diagnostic) => diagnostic.code === 'unsupported-data-file')
+        ).toBe(true);
+      }
+    },
+    {
+      name: 'maps user-agent, referer, and cookie header flags fixture',
+      fixture: 'header-flags.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.headers?.['User-Agent']).toBe('my-agent/1.0');
+        expect(request?.headers?.Referer).toBe('https://ref.example.com');
+        expect(request?.headers?.Cookie).toBe('sid=abc; mode=test');
+      }
+    },
+    {
+      name: 'reports cookie file references as unsupported fixture',
+      fixture: 'cookie-file.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(request?.headers?.Cookie).toBeUndefined();
+        expect(
+          result.diagnostics.some((diagnostic) => diagnostic.code === 'unsupported-cookie-file')
+        ).toBe(true);
+      }
+    },
+    {
+      name: 'consumes ignored option values without positional spillover fixture',
+      fixture: 'ignored-value-options.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(
+          result.diagnostics.filter((diagnostic) => diagnostic.code === 'unsupported-option')
+        ).toHaveLength(3);
+        expect(
+          result.diagnostics.some((diagnostic) => diagnostic.code === 'unexpected-argument')
+        ).toBe(false);
+      }
+    },
+    {
+      name: 'ignores runtime transport flags without affecting request extraction fixture',
+      fixture: 'runtime-flags.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(
+          result.diagnostics.filter((diagnostic) => diagnostic.code === 'unsupported-option')
+        ).toHaveLength(7);
+        expect(
+          result.diagnostics.some((diagnostic) => diagnostic.code === 'unexpected-argument')
+        ).toBe(false);
+      }
+    },
+    {
+      name: 'reports missing values for ignored required options fixture',
+      fixture: 'missing-ignored-value.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(
+          result.diagnostics.some(
+            (diagnostic) =>
+              diagnostic.code === 'missing-option-value' && diagnostic.message.includes('--retry')
+          )
+        ).toBe(true);
+      }
+    }
+  ];
 
-    const request = firstRequest(result);
-    expect(request?.method).toBe('GET');
-    expect(request?.url).toBe('https://api.example.com/users');
-    expect(request?.body).toBeUndefined();
-  });
+  for (const fixtureCase of fixtureCases) {
+    test(fixtureCase.name, async () => {
+      const command = await readCurlFixture(fixtureCase.fixture);
+      const result = convert(command);
+      fixtureCase.assert(result);
+    });
+  }
 
   test('converts method, headers, and body flags', () => {
     const result = convert(
