@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import type { ImportResult } from '@t-req/core/import';
 import {
+  curlImportBuilder,
+  curlImportCommand,
   formatImportDiagnosticLine,
   type ImportCommandDependencies,
   importCommand,
   postmanImportBuilder,
   postmanImportCommand,
+  runCurlImport,
   runPostmanImport
 } from '../../src/cmd/import';
 import { ValidationError } from '../../src/server/errors';
@@ -49,7 +52,8 @@ function createDeps(overrides?: Partial<ImportCommandDependencies>): {
     workspaceRoot: () => '/tmp/workspace',
     colorEnabled: () => false,
     readInput: async () => '{"info":{"name":"x"},"item":[]}',
-    convert: () => makeResult(),
+    convertPostman: () => makeResult(),
+    convertCurl: () => makeResult({ name: 'curl-import' }),
     createImportService: () => ({
       preview: async () => ({
         written: ['imports/users/list.http'],
@@ -79,9 +83,10 @@ function createDeps(overrides?: Partial<ImportCommandDependencies>): {
 }
 
 describe('import command definition', () => {
-  test('registers top-level import command and postman subcommand', () => {
+  test('registers top-level import command and source subcommands', () => {
     expect(importCommand.command).toBe('import');
     expect(postmanImportCommand.command).toBe('postman <file>');
+    expect(curlImportCommand.command).toBe('curl <command>');
   });
 
   test('postman builder has expected defaults', () => {
@@ -90,6 +95,13 @@ describe('import command definition', () => {
     expect(postmanImportBuilder['dry-run'].default).toBe(false);
     expect(postmanImportBuilder['merge-variables'].default).toBe(false);
     expect(postmanImportBuilder.force.default).toBe(false);
+  });
+
+  test('curl builder has expected defaults', () => {
+    expect(curlImportBuilder['on-conflict'].default).toBe('fail');
+    expect(curlImportBuilder['dry-run'].default).toBe(false);
+    expect(curlImportBuilder['merge-variables'].default).toBe(false);
+    expect(curlImportBuilder.force.default).toBe(false);
   });
 });
 
@@ -119,7 +131,7 @@ describe('runPostmanImport', () => {
     let previewOptions: unknown;
     let convertOptions: unknown;
     const { deps, stdout } = createDeps({
-      convert: (_input, options) => {
+      convertPostman: (_input, options) => {
         convertOptions = options;
         return makeResult({ name: 'My Collection' });
       },
@@ -262,5 +274,59 @@ describe('runPostmanImport', () => {
         deps
       )
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('runCurlImport', () => {
+  test('uses preview in dry-run mode and passes curl convert options', async () => {
+    let previewCalls = 0;
+    let applyCalls = 0;
+    let convertOptions: unknown;
+    const { deps, stdout } = createDeps({
+      convertCurl: (_input, options) => {
+        convertOptions = options;
+        return makeResult({ name: 'curl-import' });
+      },
+      createImportService: () => ({
+        preview: async () => {
+          previewCalls += 1;
+          return {
+            written: ['curl-import/curl-request.http'],
+            skipped: [],
+            renamed: [],
+            failed: [],
+            variablesMerged: false
+          };
+        },
+        apply: async () => {
+          applyCalls += 1;
+          return {
+            written: [],
+            skipped: [],
+            renamed: [],
+            failed: [],
+            variablesMerged: false
+          };
+        }
+      })
+    });
+
+    await runCurlImport(
+      {
+        command: 'curl https://api.example.com/users',
+        dryRun: true,
+        fileName: 'custom-curl',
+        requestName: 'custom request'
+      },
+      deps
+    );
+
+    expect(previewCalls).toBe(1);
+    expect(applyCalls).toBe(0);
+    expect(convertOptions).toEqual({
+      fileName: 'custom-curl',
+      requestName: 'custom request'
+    });
+    expect(stdout.some((line) => line.includes('Import preview complete.'))).toBe(true);
   });
 });
