@@ -7,6 +7,7 @@
  * - Import components: import { ComponentName } from "@t-req/ui"
  */
 
+export * from './accessibility/index.js';
 export * from './components/index.js';
 
 // Re-export theme colors for programmatic access

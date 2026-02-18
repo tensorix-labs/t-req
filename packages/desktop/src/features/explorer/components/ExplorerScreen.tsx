@@ -1,14 +1,26 @@
-import { Match, Show, Switch } from 'solid-js';
+import { createMemo, Match, Show, Switch } from 'solid-js';
 import { useExplorerStore } from '../use-explorer-store';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
 
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
+  const selectedPath = createMemo(() => explorer.selectedPath());
+  const selectedRequestCount = createMemo(() => {
+    const path = selectedPath();
+    if (!path) {
+      return 0;
+    }
+
+    const item = explorer
+      .flattenedVisible()
+      .find((entry) => !entry.node.isDir && entry.node.path === path);
+    return item?.node.requestCount ?? 0;
+  });
 
   return (
-    <main class="explorer-screen" data-theme="treq-desktop">
-      <section class="explorer-frame">
+    <main class="explorer-screen">
+      <section class="explorer-pane explorer-tree-panel" aria-label="Workspace files">
         <ExplorerToolbar
           onRefresh={() => void explorer.refresh()}
           isRefreshing={explorer.isLoading()}
@@ -43,19 +55,45 @@ export default function ExplorerScreen() {
             <Match when={explorer.flattenedVisible().length > 0}>
               <ExplorerTree
                 items={explorer.flattenedVisible()}
-                selectedPath={explorer.selectedPath()}
+                selectedPath={selectedPath()}
                 onToggleDir={explorer.toggleDir}
                 onSelectFile={explorer.selectPath}
               />
             </Match>
           </Switch>
         </div>
+      </section>
 
-        <footer class="explorer-footer">
-          <span class="explorer-workspace" title={explorer.workspaceRoot()}>
-            {explorer.workspaceRoot() || 'No workspace selected'}
-          </span>
-        </footer>
+      <section class="explorer-pane explorer-details" aria-label="Workspace detail">
+        <header class="explorer-details-header">
+          <h2 class="explorer-details-title">Request Workspace</h2>
+          <Show when={selectedPath()}>
+            <span class="explorer-details-count">{selectedRequestCount()} req</span>
+          </Show>
+        </header>
+        <div class="explorer-details-body">
+          <Show
+            when={selectedPath()}
+            fallback={
+              <div class="explorer-state">
+                <strong>Select a request file from the tree.</strong>
+                <span>The details pane is ready for request and response tooling.</span>
+              </div>
+            }
+          >
+            {(path) => (
+              <div class="explorer-details-card">
+                <div class="explorer-details-label">Selected file</div>
+                <div class="explorer-details-path" title={path()}>
+                  {path()}
+                </div>
+                <p class="explorer-details-note">
+                  Request editing and execution surfaces plug into this pane.
+                </p>
+              </div>
+            )}
+          </Show>
+        </div>
       </section>
     </main>
   );

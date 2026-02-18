@@ -7,6 +7,7 @@ const desktopDir = path.resolve(import.meta.dirname, '..');
 const appDir = path.resolve(desktopDir, '../app');
 const coreDir = path.resolve(desktopDir, '../core');
 const sdkDir = path.resolve(desktopDir, '../sdk/js');
+const pluginBaseDir = path.resolve(desktopDir, '../plugins/base');
 const appOpenApiPath = path.resolve(desktopDir, '../app/openapi.json');
 const sidecarDir = path.join(desktopDir, 'src-tauri', 'sidecars');
 
@@ -142,6 +143,12 @@ async function main(): Promise<void> {
     sdkDir,
     ['dist/index.js', 'dist/client.js'],
     ['src', 'script', 'package.json', appOpenApiPath]
+  );
+  await ensureWorkspacePackageBuilt(
+    '@t-req/plugin-base',
+    pluginBaseDir,
+    ['dist/index.js'],
+    ['src', 'package.json', 'tsconfig.build.json']
   );
 
   const targetTriple = readHostTriple();
