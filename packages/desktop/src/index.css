@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+@import '@t-req/ui/styles';
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}

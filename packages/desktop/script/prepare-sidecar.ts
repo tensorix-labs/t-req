@@ -6,6 +6,9 @@ import * as path from 'node:path';
 const desktopDir = path.resolve(import.meta.dirname, '..');
 const appDir = path.resolve(desktopDir, '../app');
 const sidecarDir = path.join(desktopDir, 'src-tauri', 'sidecars');
+const coreDir = path.resolve(desktopDir, '../core');
+const sdkDir = path.resolve(desktopDir, '../sdk/js');
+const pluginBaseDir = path.resolve(desktopDir, '../plugins/base');
 
 // Intentionally macOS-only for this phase. Add Linux/Windows mappings in a later phase.
 const tripleToAppDistDir: Record<string, string> = {
@@ -33,6 +36,61 @@ function readHostTriple(): string {
   return triple;
 }
 
+type WorkspaceBuildDependency = {
+  name: string;
+  dir: string;
+  requiredFiles: string[];
+};
+
+const workspaceBuildDependencies: WorkspaceBuildDependency[] = [
+  {
+    name: '@t-req/core',
+    dir: coreDir,
+    requiredFiles: ['dist/index.js', 'dist/config/index.js']
+  },
+  {
+    name: '@t-req/sdk',
+    dir: sdkDir,
+    requiredFiles: ['dist/index.js', 'dist/client.js']
+  },
+  {
+    name: '@t-req/plugin-base',
+    dir: pluginBaseDir,
+    requiredFiles: ['dist/index.js']
+  }
+];
+
+async function ensureWorkspaceDependencyBuilds(): Promise<void> {
+  for (const dependency of workspaceBuildDependencies) {
+    const missingFiles: string[] = [];
+
+    for (const relativeFilePath of dependency.requiredFiles) {
+      const absoluteFilePath = path.join(dependency.dir, relativeFilePath);
+      try {
+        await stat(absoluteFilePath);
+      } catch {
+        missingFiles.push(relativeFilePath);
+      }
+    }
+
+    if (missingFiles.length === 0) {
+      continue;
+    }
+
+    console.log(`[sidecar] building ${dependency.name} (missing: ${missingFiles.join(', ')})`);
+    const buildProcess = Bun.spawn(['bun', 'run', 'build'], {
+      cwd: dependency.dir,
+      stdout: 'inherit',
+      stderr: 'inherit'
+    });
+
+    const buildExitCode = await buildProcess.exited;
+    if (buildExitCode !== 0) {
+      throw new Error(`failed building ${dependency.name} with exit code ${buildExitCode}`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const targetTriple = readHostTriple();
   const appDistDir = tripleToAppDistDir[targetTriple];
@@ -44,6 +102,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`[sidecar] target triple: ${targetTriple}`);
+  await ensureWorkspaceDependencyBuilds();
   console.log('[sidecar] building @t-req/app single-target binary');
   const buildProcess = Bun.spawn(['bun', 'run', 'build:single'], {
     cwd: appDir,
