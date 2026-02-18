@@ -23,7 +23,13 @@ function convert(command: string, options?: CurlConvertOptions): ImportResult {
 }
 
 async function readCurlFixture(name: string): Promise<string> {
-  return await Bun.file(path.join(fixturesDir, name)).text();
+  const fixturePath = path.join(fixturesDir, name);
+  try {
+    return await Bun.file(fixturePath).text();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read curl fixture "${name}" at "${fixturePath}": ${message}`);
+  }
 }
 
 interface FixtureCase {
@@ -163,6 +169,21 @@ describe('convertCurlCommand', () => {
         expect(
           result.diagnostics.some((diagnostic) => diagnostic.code === 'unexpected-argument')
         ).toBe(false);
+      }
+    },
+    {
+      name: 'reports missing values for ignored required options fixture',
+      fixture: 'missing-ignored-value.sh',
+      assert: (result) => {
+        const request = firstRequest(result);
+        expect(request?.method).toBe('GET');
+        expect(request?.url).toBe('https://api.example.com/users');
+        expect(
+          result.diagnostics.some(
+            (diagnostic) =>
+              diagnostic.code === 'missing-option-value' && diagnostic.message.includes('--retry')
+          )
+        ).toBe(true);
       }
     }
   ];

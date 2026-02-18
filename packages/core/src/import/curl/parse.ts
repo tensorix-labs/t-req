@@ -153,31 +153,6 @@ function matchOption(context: ParseContext, token: string, option: OptionDefinit
   };
 }
 
-function matchOptionWithOptionalValue(
-  context: ParseContext,
-  token: string,
-  option: OptionDefinition
-): OptionMatch {
-  const attached = readAttachedValue(token, option.short ?? '', option.long);
-  const matchesLong = token === option.long;
-  const matchesShort = option.short !== undefined && token === option.short;
-  if (!matchesLong && !matchesShort && attached === undefined) {
-    return { matched: false };
-  }
-
-  if (attached !== undefined) {
-    return { matched: true, value: attached };
-  }
-
-  const next = context.tokens[context.index + 1];
-  if (next === undefined) {
-    return { matched: true, value: undefined };
-  }
-
-  context.index += 1;
-  return { matched: true, value: next };
-}
-
 function handleGetOption(context: ParseContext, token: string): boolean {
   if (token !== '-G' && token !== '--get') {
     return false;
@@ -376,7 +351,7 @@ function handleIgnoredOption(context: ParseContext, token: string): boolean {
   }
 
   for (const option of IGNORED_VALUE_OPTIONS) {
-    const match = matchOptionWithOptionalValue(context, token, option);
+    const match = matchOption(context, token, option);
     if (!match.matched) {
       continue;
     }
