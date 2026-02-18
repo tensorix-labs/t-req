@@ -189,8 +189,9 @@ describe('curl import helpers', () => {
       })
     });
 
-    await expect(
-      importCurlApplyStrict(client, {
+    expect.assertions(4);
+    try {
+      await importCurlApplyStrict(client, {
         command: 'curl https://api.example.com/users',
         applyOptions: {
           outputDir: 'imports',
@@ -198,22 +199,13 @@ describe('curl import helpers', () => {
           mergeVariables: false,
           force: false
         }
-      })
-    ).rejects.toBeInstanceOf(SDKError);
-
-    await importCurlApplyStrict(client, {
-      command: 'curl https://api.example.com/users',
-      applyOptions: {
-        outputDir: 'imports',
-        onConflict: 'fail',
-        mergeVariables: false,
-        force: false
-      }
-    }).catch((error: unknown) => {
+      });
+    } catch (error: unknown) {
       const sdkError = error as SDKError;
+      expect(sdkError).toBeInstanceOf(SDKError);
       expect(sdkError.status).toBe(400);
       expect(sdkError.code).toBe('VALIDATION_ERROR');
       expect(sdkError.message).toBe('Invalid convertOptions');
-    });
+    }
   });
 });
