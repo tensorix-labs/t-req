@@ -1,5 +1,11 @@
 import type { ImportDiagnostic, ImportResult } from '@t-req/core/import';
-import { convertPostmanCollection, type PostmanConvertOptions, slugify } from '@t-req/core/import';
+import {
+  type CurlConvertOptions,
+  convertCurlCommand,
+  convertPostmanCollection,
+  type PostmanConvertOptions,
+  slugify
+} from '@t-req/core/import';
 import type { CommandModule } from 'yargs';
 import { ValidationError } from '../server/errors';
 import {
@@ -25,12 +31,24 @@ export interface PostmanImportOptions {
   force?: boolean;
 }
 
+export interface CurlImportOptions {
+  command: string;
+  output?: string;
+  fileName?: string;
+  requestName?: string;
+  dryRun?: boolean;
+  onConflict?: ConflictPolicy;
+  mergeVariables?: boolean;
+  force?: boolean;
+}
+
 export interface ImportCommandDependencies {
   cwd(): string;
   workspaceRoot(): string;
   colorEnabled(): boolean;
   readInput(path: string): Promise<string>;
-  convert(input: string, options?: PostmanConvertOptions): ImportResult;
+  convertPostman(input: string, options?: PostmanConvertOptions): ImportResult;
+  convertCurl(input: string, options?: CurlConvertOptions): ImportResult;
   createImportService(context: ServiceContext): ImportService;
   stdout(message: string): void;
   stderr(message: string): void;
@@ -58,7 +76,8 @@ export function createDefaultImportCommandDependencies(): ImportCommandDependenc
       }
       return await file.text();
     },
-    convert: convertPostmanCollection,
+    convertPostman: convertPostmanCollection,
+    convertCurl: convertCurlCommand,
     createImportService,
     stdout: (message: string) => console.log(message),
     stderr: (message: string) => console.error(message)
@@ -173,7 +192,10 @@ function printSummary(
   }
 }
 
-function buildApplyOptions(argv: PostmanImportOptions, outputDir: string): ApplyImportOptions {
+function buildApplyOptions(
+  argv: { onConflict?: ConflictPolicy; mergeVariables?: boolean; force?: boolean },
+  outputDir: string
+): ApplyImportOptions {
   return {
     outputDir,
     onConflict: argv.onConflict ?? 'fail',
@@ -182,18 +204,17 @@ function buildApplyOptions(argv: PostmanImportOptions, outputDir: string): Apply
   };
 }
 
-export async function runPostmanImport(
-  argv: PostmanImportOptions,
-  deps: ImportCommandDependencies = createDefaultImportCommandDependencies()
+async function runImportResult(
+  result: ImportResult,
+  argv: {
+    output?: string;
+    dryRun?: boolean;
+    onConflict?: ConflictPolicy;
+    mergeVariables?: boolean;
+    force?: boolean;
+  },
+  deps: ImportCommandDependencies
 ): Promise<void> {
-  const inputPath = isAbsolute(argv.file) ? argv.file : resolve(deps.cwd(), argv.file);
-  const input = await deps.readInput(inputPath);
-
-  const result = deps.convert(input, {
-    fileStrategy: argv.strategy,
-    reportDisabled: argv.reportDisabled
-  });
-
   const color = deps.colorEnabled();
   printDiagnostics(result.diagnostics, deps, color);
 
@@ -219,10 +240,49 @@ export async function runPostmanImport(
   }
 }
 
+export async function runPostmanImport(
+  argv: PostmanImportOptions,
+  deps: ImportCommandDependencies = createDefaultImportCommandDependencies()
+): Promise<void> {
+  const inputPath = isAbsolute(argv.file) ? argv.file : resolve(deps.cwd(), argv.file);
+  const input = await deps.readInput(inputPath);
+
+  const result = deps.convertPostman(input, {
+    fileStrategy: argv.strategy,
+    reportDisabled: argv.reportDisabled
+  });
+  await runImportResult(result, argv, deps);
+}
+
+export async function runCurlImport(
+  argv: CurlImportOptions,
+  deps: ImportCommandDependencies = createDefaultImportCommandDependencies()
+): Promise<void> {
+  const result = deps.convertCurl(argv.command, {
+    fileName: argv.fileName,
+    requestName: argv.requestName
+  });
+  await runImportResult(result, argv, deps);
+}
+
 async function handlePostmanImport(argv: PostmanImportOptions): Promise<void> {
   const deps = createDefaultImportCommandDependencies();
   try {
     await runPostmanImport(argv, deps);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.stderr(`Import failed: ${message}`);
+    if (error instanceof ValidationError && message.includes('force=true')) {
+      deps.stderr('Tip: rerun with --force to proceed despite error diagnostics.');
+    }
+    process.exit(1);
+  }
+}
+
+async function handleCurlImport(argv: CurlImportOptions): Promise<void> {
+  const deps = createDefaultImportCommandDependencies();
+  try {
+    await runCurlImport(argv, deps);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     deps.stderr(`Import failed: ${message}`);
@@ -287,10 +347,64 @@ export const postmanImportCommand: CommandModule<object, PostmanImportOptions> =
   }
 };
 
+export const curlImportBuilder = {
+  command: {
+    type: 'string' as const,
+    describe: 'Quoted curl command string',
+    demandOption: true
+  },
+  output: {
+    type: 'string' as const,
+    alias: 'o',
+    describe: 'Output directory (default: ./curl-import)'
+  },
+  'file-name': {
+    type: 'string' as const,
+    describe: 'Output .http filename base (default: curl-request)'
+  },
+  'request-name': {
+    type: 'string' as const,
+    describe: 'Request name inside generated .http file'
+  },
+  'dry-run': {
+    type: 'boolean' as const,
+    default: false,
+    describe: 'Preview the import without writing files'
+  },
+  'on-conflict': {
+    type: 'string' as const,
+    choices: ['fail', 'skip', 'overwrite', 'rename'] as const,
+    default: 'fail' as const,
+    describe: 'How to handle existing files'
+  },
+  'merge-variables': {
+    type: 'boolean' as const,
+    default: false,
+    describe: 'Merge variables into t-req config'
+  },
+  force: {
+    type: 'boolean' as const,
+    default: false,
+    describe: 'Proceed even when converter emitted error diagnostics'
+  }
+};
+
+export const curlImportCommand: CommandModule<object, CurlImportOptions> = {
+  command: 'curl <command>',
+  describe: 'Import a curl command',
+  builder: curlImportBuilder,
+  handler: async (argv) => {
+    await handleCurlImport(argv);
+  }
+};
+
 export const importCommand: CommandModule = {
   command: 'import',
   describe: 'Import requests from external formats',
   builder: (yargs) =>
-    yargs.command(postmanImportCommand).demandCommand(1, 'Specify an import source: postman'),
+    yargs
+      .command(postmanImportCommand)
+      .command(curlImportCommand)
+      .demandCommand(1, 'Specify an import source: postman, curl'),
   handler: () => {}
 };

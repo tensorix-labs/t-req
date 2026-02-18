@@ -35,6 +35,10 @@ function makePostmanCollectionJson(requestNames: string[]): string {
   });
 }
 
+function makeCurlCommand(): string {
+  return `curl -X POST https://api.example.com/users -H 'Authorization: Bearer abc' -d '{"name":"Ada"}'`;
+}
+
 describe('import endpoints', () => {
   let tmp: TempDir;
   let server: TestServer;
@@ -80,6 +84,31 @@ describe('import endpoints', () => {
     });
   });
 
+  test('POST /import/curl/preview returns 200 with response shape', async () => {
+    const { status, data } = await server.post<{
+      result: {
+        written: string[];
+        skipped: string[];
+        renamed: Array<{ original: string; actual: string }>;
+        failed: Array<{ path: string; error: string }>;
+        variablesMerged: boolean;
+      };
+      diagnostics: Array<{ severity: 'error' | 'warning' | 'info' }>;
+      stats: { requestCount: number; fileCount: number; diagnosticCount: number };
+    }>('/import/curl/preview', {
+      input: makeCurlCommand(),
+      planOptions: { outputDir: 'imported', onConflict: 'fail' }
+    });
+
+    expect(status).toBe(200);
+    expect(data.result.written).toEqual(['imported/curl-request.http']);
+    expect(data.result.failed).toEqual([]);
+    expect(data.stats).toMatchObject({
+      requestCount: 1,
+      fileCount: 1
+    });
+  });
+
   test('POST /import/{source}/preview returns 400 for unknown source', async () => {
     const { status, data } = await server.post<ErrorResponse>('/import/unknown/preview', {
       input: makePostmanCollectionJson(['get-users']),
@@ -95,6 +124,18 @@ describe('import endpoints', () => {
     const { status, data } = await server.post<ErrorResponse>('/import/postman/preview', {
       input: makePostmanCollectionJson(['get-users']),
       convertOptions: { fileStrategy: 'not-a-strategy' },
+      planOptions: { outputDir: 'imported', onConflict: 'fail' }
+    });
+
+    expect(status).toBe(400);
+    expect(data.error.code).toBe('VALIDATION_ERROR');
+    expect(data.error.message).toContain('Invalid convertOptions');
+  });
+
+  test('POST /import/curl/preview returns 400 for invalid convertOptions', async () => {
+    const { status, data } = await server.post<ErrorResponse>('/import/curl/preview', {
+      input: makeCurlCommand(),
+      convertOptions: { fileName: '' },
       planOptions: { outputDir: 'imported', onConflict: 'fail' }
     });
 

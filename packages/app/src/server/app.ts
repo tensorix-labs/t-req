@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import {
+  createCurlImporter,
   createImporterRegistry,
   createPostmanImporter,
   type Importer,
@@ -244,6 +245,7 @@ export function createApp(config: ServerConfig) {
   });
 
   const importerRegistry = createImporterRegistry();
+  importerRegistry.register(createCurlImporter());
   importerRegistry.register(createPostmanImporter());
 
   const allowedOrigins = new Set(config.corsOrigins ?? []);
