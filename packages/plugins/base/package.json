@@ -54,7 +54,7 @@
     "prepublishOnly": "bun run build && bun run test"
   },
   "peerDependencies": {
-    "@t-req/core": "^0.2.4"
+    "@t-req/core": "^0.2.5"
   },
   "devDependencies": {
     "@t-req/core": "workspace:*",
