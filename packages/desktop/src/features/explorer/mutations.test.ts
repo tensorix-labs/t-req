@@ -5,9 +5,12 @@ import {
   runConfirmedDelete,
   runCreateFileMutation,
   runDeleteFileMutation,
+  runRenameFileMutation,
+  runSaveFileContentMutation,
+  toCreateDirectory,
   toCreateHttpPath
 } from './mutations';
-import type { ExplorerFlatNode } from './types';
+import type { ExplorerFileDocument, ExplorerFlatNode } from './types';
 
 function file(path: string): ExplorerFlatNode {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
@@ -34,6 +37,14 @@ function directory(path: string): ExplorerFlatNode {
       children: []
     },
     isExpanded: true
+  };
+}
+
+function fileDocument(path: string, content: string): ExplorerFileDocument {
+  return {
+    path,
+    content,
+    lastModified: Date.now()
   };
 }
 
@@ -79,6 +90,29 @@ describe('buildCreateFilePath', () => {
 
   it('uses filename directly for workspace root', () => {
     expect(buildCreateFilePath('new.http')).toBe('new.http');
+  });
+});
+
+describe('toCreateDirectory', () => {
+  it('returns undefined for empty directory input', () => {
+    expect(toCreateDirectory('')).toEqual({
+      ok: true,
+      directory: undefined
+    });
+  });
+
+  it('normalizes path separators and trims slashes', () => {
+    expect(toCreateDirectory('/requests\\users/')).toEqual({
+      ok: true,
+      directory: 'requests/users'
+    });
+  });
+
+  it('rejects directory traversal segments', () => {
+    expect(toCreateDirectory('requests/../secret')).toEqual({
+      ok: false,
+      error: 'Directory cannot include "..".'
+    });
   });
 });
 
@@ -185,6 +219,157 @@ describe('runDeleteFileMutation', () => {
 
     expect(calls).toEqual(['delete']);
     expect(selectedPath).toBe('a.http');
+  });
+});
+
+describe('runSaveFileContentMutation', () => {
+  it('saves content, updates selected file, and refetches workspace files', async () => {
+    const calls: string[] = [];
+    let selectedFile: ExplorerFileDocument | undefined;
+
+    await runSaveFileContentMutation('a.http', 'GET https://api.example.com', {
+      saveFile: async (path, content) => {
+        calls.push(`save:${path}:${content}`);
+        return fileDocument(path, content);
+      },
+      setSelectedFile: (file) => {
+        selectedFile = file;
+      },
+      refetchWorkspaceFiles: async () => {
+        calls.push('refetch');
+      }
+    });
+
+    expect(calls).toEqual(['save:a.http:GET https://api.example.com', 'refetch']);
+    expect(selectedFile).toEqual(expect.objectContaining({ path: 'a.http' }));
+  });
+
+  it('bubbles save failures and does not refetch', async () => {
+    const calls: string[] = [];
+
+    await expect(
+      runSaveFileContentMutation('a.http', 'body', {
+        saveFile: async () => {
+          calls.push('save');
+          throw new Error('save failed');
+        },
+        setSelectedFile: () => {
+          calls.push('setSelectedFile');
+        },
+        refetchWorkspaceFiles: async () => {
+          calls.push('refetch');
+        }
+      })
+    ).rejects.toThrow('save failed');
+
+    expect(calls).toEqual(['save']);
+  });
+});
+
+describe('runRenameFileMutation', () => {
+  it('renames the selected file and refetches workspace files', async () => {
+    const calls: string[] = [];
+    let selectedPath: string | undefined = 'requests/a.http';
+
+    await runRenameFileMutation('requests/a.http', 'requests/b.http', {
+      readFile: async (path) => {
+        calls.push(`read:${path}`);
+        return fileDocument(path, 'GET https://api.example.com');
+      },
+      createFile: async (path, content) => {
+        calls.push(`create:${path}:${content}`);
+      },
+      deleteFile: async (path) => {
+        calls.push(`delete:${path}`);
+      },
+      selectedPath: () => selectedPath,
+      setSelectedPath: (path) => {
+        selectedPath = path;
+      },
+      refetchWorkspaceFiles: async () => {
+        calls.push('refetch');
+      }
+    });
+
+    expect(calls).toEqual([
+      'read:requests/a.http',
+      'create:requests/b.http:GET https://api.example.com',
+      'delete:requests/a.http',
+      'refetch'
+    ]);
+    expect(selectedPath).toBe('requests/b.http');
+  });
+
+  it('does not update selection when another file is selected', async () => {
+    let selectedPath: string | undefined = 'requests/z.http';
+
+    await runRenameFileMutation('requests/a.http', 'requests/b.http', {
+      readFile: async (path) => fileDocument(path, ''),
+      createFile: async () => {},
+      deleteFile: async () => {},
+      selectedPath: () => selectedPath,
+      setSelectedPath: (path) => {
+        selectedPath = path;
+      },
+      refetchWorkspaceFiles: async () => {}
+    });
+
+    expect(selectedPath).toBe('requests/z.http');
+  });
+
+  it('is a no-op when source and destination are the same', async () => {
+    const calls: string[] = [];
+
+    await runRenameFileMutation('requests/a.http', 'requests/a.http', {
+      readFile: async () => {
+        calls.push('read');
+        return fileDocument('requests/a.http', '');
+      },
+      createFile: async () => {
+        calls.push('create');
+      },
+      deleteFile: async () => {
+        calls.push('delete');
+      },
+      selectedPath: () => 'requests/a.http',
+      setSelectedPath: () => {
+        calls.push('setSelectedPath');
+      },
+      refetchWorkspaceFiles: async () => {
+        calls.push('refetch');
+      }
+    });
+
+    expect(calls).toEqual([]);
+  });
+
+  it('bubbles rename failures and does not refetch when create fails', async () => {
+    const calls: string[] = [];
+
+    await expect(
+      runRenameFileMutation('requests/a.http', 'requests/b.http', {
+        readFile: async (path) => {
+          calls.push(`read:${path}`);
+          return fileDocument(path, 'content');
+        },
+        createFile: async () => {
+          calls.push('create');
+          throw new Error('create failed');
+        },
+        deleteFile: async () => {
+          calls.push('delete');
+        },
+        selectedPath: () => 'requests/a.http',
+        setSelectedPath: () => {
+          calls.push('setSelectedPath');
+        },
+        refetchWorkspaceFiles: async () => {
+          calls.push('refetch');
+        }
+      })
+    ).rejects.toThrow('create failed');
+
+    expect(calls).toEqual(['read:requests/a.http', 'create']);
   });
 });
 

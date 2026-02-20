@@ -1,6 +1,11 @@
 import { createMemo, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import { buildCreateFilePath, runConfirmedDelete, toCreateHttpPath } from '../mutations';
+import {
+  buildCreateFilePath,
+  runConfirmedDelete,
+  toCreateDirectory,
+  toCreateHttpPath
+} from '../mutations';
 import { useExplorerStore } from '../use-explorer-store';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
@@ -13,11 +18,25 @@ function parentDirectory(path: string): string {
   return path.slice(0, slashIndex);
 }
 
+function pathFilename(path: string): string {
+  return path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+}
+
+function trimHttpExtension(filename: string): string {
+  return filename.toLowerCase().endsWith('.http') ? filename.slice(0, -5) : filename;
+}
+
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
   const [createForm, setCreateForm] = createStore({
     name: '',
     targetDir: undefined as string | undefined,
+    error: undefined as string | undefined,
+    isOpen: false
+  });
+  const [renameForm, setRenameForm] = createStore({
+    name: '',
+    directory: '',
     error: undefined as string | undefined,
     isOpen: false
   });
@@ -39,6 +58,21 @@ export default function ExplorerScreen() {
     return item?.node.requestCount ?? 0;
   });
   const mutationError = explorer.mutationError;
+  const selectedFileContent = explorer.selectedFileContent;
+  const fileDraftContent = explorer.fileDraftContent;
+  const isFileLoading = explorer.isFileLoading;
+  const fileLoadError = explorer.fileLoadError;
+  const isSavingFile = explorer.isSavingFile;
+  const fileSaveError = explorer.fileSaveError;
+  const isBusy = createMemo(() => explorer.isMutating() || isSavingFile());
+  const hasUnsavedFileChanges = createMemo(() => {
+    const original = selectedFileContent();
+    const draft = fileDraftContent();
+    if (original === undefined || draft === undefined) {
+      return false;
+    }
+    return draft !== original;
+  });
 
   const openCreateForm = () => {
     let targetDir = createForm.targetDir;
@@ -66,6 +100,28 @@ export default function ExplorerScreen() {
     });
   };
 
+  const openRenameForm = () => {
+    const path = selectedPath();
+    if (!path || selectedIsDirectory()) {
+      return;
+    }
+
+    const currentFilename = pathFilename(path);
+    setRenameForm({
+      name: trimHttpExtension(currentFilename),
+      directory: parentDirectory(path),
+      error: undefined,
+      isOpen: true
+    });
+  };
+
+  const closeRenameForm = () => {
+    setRenameForm({
+      error: undefined,
+      isOpen: false
+    });
+  };
+
   const submitCreateForm = async (event: Event) => {
     event.preventDefault();
     setCreateForm('error', undefined);
@@ -84,9 +140,44 @@ export default function ExplorerScreen() {
     }
   };
 
+  const submitRenameForm = async (event: Event) => {
+    event.preventDefault();
+    const fromPath = selectedPath();
+    if (!fromPath) {
+      return;
+    }
+
+    setRenameForm('error', undefined);
+
+    const parsedName = toCreateHttpPath(renameForm.name);
+    if (!parsedName.ok) {
+      setRenameForm('error', parsedName.error);
+      return;
+    }
+
+    const parsedDirectory = toCreateDirectory(renameForm.directory);
+    if (!parsedDirectory.ok) {
+      setRenameForm('error', parsedDirectory.error);
+      return;
+    }
+
+    const toPath = buildCreateFilePath(parsedName.path, parsedDirectory.directory);
+    if (toPath === fromPath) {
+      setRenameForm('error', 'Destination is unchanged.');
+      return;
+    }
+
+    try {
+      await explorer.renameFile(fromPath, toPath);
+      closeRenameForm();
+    } catch {
+      // Store mutation error is displayed in the explorer panel.
+    }
+  };
+
   const deleteSelectedFile = async () => {
     const path = selectedPath();
-    if (!path || explorer.isMutating()) {
+    if (!path || isBusy()) {
       return;
     }
 
@@ -99,6 +190,18 @@ export default function ExplorerScreen() {
       );
     } catch {
       // Store mutation error is displayed in the explorer panel.
+    }
+  };
+
+  const saveSelectedFile = async () => {
+    if (isBusy()) {
+      return;
+    }
+
+    try {
+      await explorer.saveSelectedFile();
+    } catch {
+      // Save errors are surfaced from store state.
     }
   };
 
@@ -122,7 +225,7 @@ export default function ExplorerScreen() {
           onCreate={openCreateForm}
           onRefresh={() => void explorer.refresh()}
           isRefreshing={explorer.isLoading()}
-          isMutating={explorer.isMutating()}
+          isMutating={isBusy()}
           workspaceRoot={explorer.workspaceRoot()}
         />
 
@@ -137,7 +240,7 @@ export default function ExplorerScreen() {
                 onInput={(event) => setCreateForm('name', event.currentTarget.value)}
                 placeholder="new-request"
                 aria-label="New request file name"
-                disabled={explorer.isMutating()}
+                disabled={isBusy()}
               />
             </label>
             <span class="explorer-create-target">Create in: {createTargetLabel()}</span>
@@ -146,11 +249,11 @@ export default function ExplorerScreen() {
                 type="button"
                 class="explorer-create-cancel"
                 onClick={closeCreateForm}
-                disabled={explorer.isMutating()}
+                disabled={isBusy()}
               >
                 Cancel
               </button>
-              <button type="submit" class="explorer-create-submit" disabled={explorer.isMutating()}>
+              <button type="submit" class="explorer-create-submit" disabled={isBusy()}>
                 Create
               </button>
             </div>
@@ -234,13 +337,95 @@ export default function ExplorerScreen() {
                     type="button"
                     class="explorer-delete"
                     onClick={() => void deleteSelectedFile()}
-                    disabled={explorer.isMutating()}
+                    disabled={isBusy() || isFileLoading()}
                   >
                     Delete file
                   </button>
+                  <button
+                    type="button"
+                    class="explorer-rename"
+                    onClick={openRenameForm}
+                    disabled={isBusy() || isFileLoading()}
+                  >
+                    Rename/Move
+                  </button>
+                  <button
+                    type="button"
+                    class="explorer-save"
+                    onClick={() => void saveSelectedFile()}
+                    disabled={!hasUnsavedFileChanges() || isBusy() || isFileLoading()}
+                  >
+                    {isSavingFile() ? 'Saving…' : 'Save'}
+                  </button>
                 </div>
+                <Show when={renameForm.isOpen}>
+                  <form
+                    class="explorer-rename-form"
+                    onSubmit={(event) => void submitRenameForm(event)}
+                  >
+                    <label class="explorer-create-field">
+                      <span class="explorer-create-label">Filename</span>
+                      <input
+                        type="text"
+                        class="explorer-create-input"
+                        value={renameForm.name}
+                        onInput={(event) => setRenameForm('name', event.currentTarget.value)}
+                        placeholder="renamed-request"
+                        disabled={isBusy()}
+                      />
+                    </label>
+                    <label class="explorer-create-field">
+                      <span class="explorer-create-label">Directory (optional)</span>
+                      <input
+                        type="text"
+                        class="explorer-create-input"
+                        value={renameForm.directory}
+                        onInput={(event) => setRenameForm('directory', event.currentTarget.value)}
+                        placeholder="folder/subfolder"
+                        disabled={isBusy()}
+                      />
+                    </label>
+                    <div class="explorer-create-actions">
+                      <button
+                        type="button"
+                        class="explorer-create-cancel"
+                        onClick={closeRenameForm}
+                        disabled={isBusy()}
+                      >
+                        Cancel
+                      </button>
+                      <button type="submit" class="explorer-create-submit" disabled={isBusy()}>
+                        Rename
+                      </button>
+                    </div>
+                    <Show when={renameForm.error}>
+                      {(message) => <div class="explorer-create-error">{message()}</div>}
+                    </Show>
+                  </form>
+                </Show>
+                <Show when={isFileLoading()}>
+                  <div class="explorer-details-loading">Loading file content…</div>
+                </Show>
+                <Show when={fileLoadError()}>
+                  {(message) => <div class="explorer-create-error">{message()}</div>}
+                </Show>
+                <Show when={fileSaveError()}>
+                  {(message) => <div class="explorer-create-error">{message()}</div>}
+                </Show>
+                <Show when={!isFileLoading() && !fileLoadError()}>
+                  <label class="explorer-editor">
+                    <span class="explorer-details-label">Content</span>
+                    <textarea
+                      class="explorer-editor-input"
+                      value={fileDraftContent() ?? ''}
+                      onInput={(event) => explorer.setFileDraftContent(event.currentTarget.value)}
+                      disabled={isBusy()}
+                      aria-label="Selected request file content"
+                    />
+                  </label>
+                </Show>
                 <p class="explorer-details-note">
-                  Request editing and execution surfaces plug into this pane.
+                  Edit and save the selected `.http` file from this pane.
                 </p>
               </div>
             )}

@@ -318,7 +318,9 @@ body {
 
 .explorer-create-cancel,
 .explorer-create-submit,
-.explorer-delete {
+.explorer-delete,
+.explorer-rename,
+.explorer-save {
   height: 28px;
   border-radius: 6px;
   border: 1px solid #3b4558;
@@ -336,7 +338,8 @@ body {
 }
 
 .explorer-create-cancel:hover,
-.explorer-delete:hover {
+.explorer-delete:hover,
+.explorer-rename:hover {
   background: #333d4c;
   border-color: #4c5870;
 }
@@ -346,9 +349,21 @@ body {
   border-color: #5e81b4;
 }
 
+.explorer-save {
+  border-color: #44618c;
+  background: #2a4b74;
+}
+
+.explorer-save:hover {
+  background: #346096;
+  border-color: #5e81b4;
+}
+
 .explorer-create-cancel:disabled,
 .explorer-create-submit:disabled,
-.explorer-delete:disabled {
+.explorer-delete:disabled,
+.explorer-rename:disabled,
+.explorer-save:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -572,6 +587,55 @@ body {
 
 .explorer-details-actions {
   margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.explorer-details-loading {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #9aa7be;
+}
+
+.explorer-rename-form {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #333c4b;
+  border-radius: 8px;
+  background: #171d27;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.explorer-editor {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.explorer-editor-input {
+  min-height: 220px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #364050;
+  border-radius: 8px;
+  background: #141a24;
+  color: #e8eef9;
+  padding: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.explorer-editor-input:focus-visible {
+  outline: 2px solid var(--desktop-focus, #6aa9ff);
+  outline-offset: 1px;
+}
+
+.explorer-editor-input:disabled {
+  opacity: 0.6;
 }
 
 .explorer-details-note {
