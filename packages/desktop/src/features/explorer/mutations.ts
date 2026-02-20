@@ -34,6 +34,23 @@ type RenameFileDeps = {
   refetchWorkspaceFiles: () => Promise<void>;
 };
 
+function toErrorText(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function isDestinationConflict(error: unknown): boolean {
+  const text = toErrorText(error).toLowerCase();
+  return (
+    text.includes('already exists') ||
+    text.includes('file exists') ||
+    text.includes('eexist') ||
+    text.includes('conflict')
+  );
+}
+
 export function toCreateHttpPath(rawInput: string): CreateHttpPathResult {
   const trimmed = rawInput.trim();
   if (!trimmed) {
@@ -160,8 +177,32 @@ export async function runRenameFileMutation(
   }
 
   const sourceFile = await deps.readFile(fromPath);
-  await deps.createFile(toPath, sourceFile.content);
-  await deps.deleteFile(fromPath);
+  try {
+    await deps.createFile(toPath, sourceFile.content);
+  } catch (error) {
+    if (isDestinationConflict(error)) {
+      throw new Error(`Destination already exists: "${toPath}".`);
+    }
+    throw error;
+  }
+
+  try {
+    await deps.deleteFile(fromPath);
+  } catch {
+    try {
+      // Best-effort rollback to avoid ending up with both old and new files after partial failure.
+      await deps.deleteFile(toPath);
+    } catch {
+      throw new Error(
+        `Rename partially applied. Created "${toPath}" but failed deleting "${fromPath}", and rollback failed.`
+      );
+    }
+
+    throw new Error(
+      `Rename failed while deleting "${fromPath}". The created file at "${toPath}" was rolled back.`
+    );
+  }
+
   if (deps.selectedPath() === fromPath) {
     deps.setSelectedPath(toPath);
   }

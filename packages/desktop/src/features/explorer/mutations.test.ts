@@ -371,6 +371,76 @@ describe('runRenameFileMutation', () => {
 
     expect(calls).toEqual(['read:requests/a.http', 'create']);
   });
+
+  it('returns explicit destination conflict error when target already exists', async () => {
+    await expect(
+      runRenameFileMutation('requests/a.http', 'requests/b.http', {
+        readFile: async (path) => fileDocument(path, 'content'),
+        createFile: async () => {
+          throw new Error('file already exists');
+        },
+        deleteFile: async () => {},
+        selectedPath: () => 'requests/a.http',
+        setSelectedPath: () => {},
+        refetchWorkspaceFiles: async () => {}
+      })
+    ).rejects.toThrow('Destination already exists: "requests/b.http".');
+  });
+
+  it('rolls back created destination when deleting source fails', async () => {
+    const calls: string[] = [];
+
+    await expect(
+      runRenameFileMutation('requests/a.http', 'requests/b.http', {
+        readFile: async (path) => {
+          calls.push(`read:${path}`);
+          return fileDocument(path, 'content');
+        },
+        createFile: async (path) => {
+          calls.push(`create:${path}`);
+        },
+        deleteFile: async (path) => {
+          calls.push(`delete:${path}`);
+          if (path === 'requests/a.http') {
+            throw new Error('delete source failed');
+          }
+        },
+        selectedPath: () => 'requests/a.http',
+        setSelectedPath: () => {
+          calls.push('setSelectedPath');
+        },
+        refetchWorkspaceFiles: async () => {
+          calls.push('refetch');
+        }
+      })
+    ).rejects.toThrow(
+      'Rename failed while deleting "requests/a.http". The created file at "requests/b.http" was rolled back.'
+    );
+
+    expect(calls).toEqual([
+      'read:requests/a.http',
+      'create:requests/b.http',
+      'delete:requests/a.http',
+      'delete:requests/b.http'
+    ]);
+  });
+
+  it('surfaces partial-apply error when source delete and rollback both fail', async () => {
+    await expect(
+      runRenameFileMutation('requests/a.http', 'requests/b.http', {
+        readFile: async (path) => fileDocument(path, 'content'),
+        createFile: async () => {},
+        deleteFile: async () => {
+          throw new Error('delete failed');
+        },
+        selectedPath: () => 'requests/a.http',
+        setSelectedPath: () => {},
+        refetchWorkspaceFiles: async () => {}
+      })
+    ).rejects.toThrow(
+      'Rename partially applied. Created "requests/b.http" but failed deleting "requests/a.http", and rollback failed.'
+    );
+  });
 });
 
 describe('runConfirmedDelete', () => {
