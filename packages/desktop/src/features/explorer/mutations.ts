@@ -2,10 +2,6 @@ import type { ExplorerFlatNode } from './types';
 
 export type CreateHttpPathResult = { ok: true; path: string } | { ok: false; error: string };
 
-export type CreateDirectoryResult =
-  | { ok: true; directory: string | undefined }
-  | { ok: false; error: string };
-
 type CreateFileDeps = {
   createFile: (path: string) => Promise<void>;
   refetch: () => Promise<void>;
@@ -54,37 +50,6 @@ export function toCreateHttpPath(rawInput: string): CreateHttpPathResult {
   return {
     ok: true,
     path
-  };
-}
-
-export function toCreateDirectory(rawInput: string): CreateDirectoryResult {
-  const trimmed = rawInput.trim();
-  if (!trimmed) {
-    return {
-      ok: true,
-      directory: undefined
-    };
-  }
-
-  const normalized = trimmed.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '');
-  if (!normalized) {
-    return {
-      ok: true,
-      directory: undefined
-    };
-  }
-
-  const parts = normalized.split('/').filter(Boolean);
-  if (parts.some((part) => part === '..')) {
-    return {
-      ok: false,
-      error: 'Directory cannot include "..".'
-    };
-  }
-
-  return {
-    ok: true,
-    directory: parts.join('/')
   };
 }
 

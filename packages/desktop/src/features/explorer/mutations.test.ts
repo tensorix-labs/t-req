@@ -5,7 +5,6 @@ import {
   runConfirmedDelete,
   runCreateFileMutation,
   runDeleteFileMutation,
-  toCreateDirectory,
   toCreateHttpPath
 } from './mutations';
 import type { ExplorerFlatNode } from './types';
@@ -69,29 +68,6 @@ describe('toCreateHttpPath', () => {
     expect(toCreateHttpPath('.http')).toEqual({
       ok: false,
       error: 'Filename cannot be only an extension.'
-    });
-  });
-});
-
-describe('toCreateDirectory', () => {
-  it('returns undefined for empty directory input', () => {
-    expect(toCreateDirectory('')).toEqual({
-      ok: true,
-      directory: undefined
-    });
-  });
-
-  it('normalizes path separators and trims slashes', () => {
-    expect(toCreateDirectory('/requests\\users/')).toEqual({
-      ok: true,
-      directory: 'requests/users'
-    });
-  });
-
-  it('rejects directory traversal segments', () => {
-    expect(toCreateDirectory('requests/../secret')).toEqual({
-      ok: false,
-      error: 'Directory cannot include "..".'
     });
   });
 });
