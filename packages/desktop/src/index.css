@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@t-req/ui/styles';
+@source '../../ui/src/**/*.{ts,tsx,js,jsx}';
 
 html,
 body,

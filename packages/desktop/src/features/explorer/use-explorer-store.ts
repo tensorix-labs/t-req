@@ -2,6 +2,7 @@ import { unwrap } from '@t-req/sdk/client';
 import { createEffect, createMemo, createResource, createSignal, untrack } from 'solid-js';
 import { useServer } from '../../context/server-context';
 import { toErrorMessage } from '../../lib/errors';
+import { runCreateFileMutation, runDeleteFileMutation } from './mutations';
 import {
   buildExplorerTree,
   createInitialExpandedDirs,
@@ -25,7 +26,11 @@ export interface ExplorerStore {
   flattenedVisible: () => ExplorerFlatNode[];
   expandedDirs: () => ExplorerExpandedState;
   selectedPath: () => string | undefined;
+  isMutating: () => boolean;
+  mutationError: () => string | undefined;
   refresh: () => Promise<void>;
+  createFile: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
   toggleDir: (path: string) => void;
   selectPath: (path: string) => void;
 }
@@ -35,6 +40,8 @@ export function useExplorerStore(): ExplorerStore {
   const [activeWorkspaceRoot, setActiveWorkspaceRoot] = createSignal<string | undefined>();
   const [expandedDirs, setExpandedDirs] = createSignal<ExplorerExpandedState>({});
   const [selectedPath, setSelectedPath] = createSignal<string | undefined>();
+  const [isMutating, setIsMutating] = createSignal(false);
+  const [mutationError, setMutationError] = createSignal<string | undefined>();
 
   const source = createMemo(() => {
     const client = server.client();
@@ -127,6 +134,62 @@ export function useExplorerStore(): ExplorerStore {
     await refetch();
   };
 
+  const createFile = async (path: string) => {
+    const currentSource = source();
+    if (!currentSource) {
+      return;
+    }
+
+    setIsMutating(true);
+    setMutationError(undefined);
+    try {
+      await runCreateFileMutation(path, {
+        createFile: async (nextPath) => {
+          await unwrap(currentSource.client.postWorkspaceFile({ body: { path: nextPath } }));
+        },
+        refetch: async () => {
+          await refetch();
+        },
+        setSelectedPath
+      });
+    } catch (error) {
+      const message = `Failed to create file: ${toErrorMessage(error)}`;
+      setMutationError(message);
+      throw new Error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const deleteFile = async (path: string) => {
+    const currentSource = source();
+    if (!currentSource) {
+      return;
+    }
+
+    setIsMutating(true);
+    setMutationError(undefined);
+    try {
+      await runDeleteFileMutation(path, {
+        deleteFile: async (nextPath) => {
+          await unwrap(currentSource.client.deleteWorkspaceFile({ query: { path: nextPath } }));
+        },
+        refetch: async () => {
+          await refetch();
+        },
+        selectedPath,
+        setSelectedPath,
+        flattenedVisible
+      });
+    } catch (error) {
+      const message = `Failed to delete file: ${toErrorMessage(error)}`;
+      setMutationError(message);
+      throw new Error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
   const toggleDir = (path: string) => {
     setExpandedDirs((prev) => ({
       ...prev,
@@ -143,6 +206,8 @@ export function useExplorerStore(): ExplorerStore {
       setActiveWorkspaceRoot(undefined);
       setExpandedDirs({});
       setSelectedPath(undefined);
+      setIsMutating(false);
+      setMutationError(undefined);
       return;
     }
   });
@@ -180,7 +245,11 @@ export function useExplorerStore(): ExplorerStore {
     flattenedVisible,
     expandedDirs,
     selectedPath,
+    isMutating,
+    mutationError,
     refresh,
+    createFile,
+    deleteFile,
     toggleDir,
     selectPath
   };
