@@ -18,3 +18,9 @@ export interface ExplorerFlatNode {
   node: ExplorerNode;
   isExpanded: boolean;
 }
+
+export interface ExplorerFileDocument {
+  path: string;
+  content: string;
+  lastModified: number;
+}

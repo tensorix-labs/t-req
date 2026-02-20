@@ -1,6 +1,9 @@
-import type { ExplorerFlatNode } from './types';
+import type { ExplorerFileDocument, ExplorerFlatNode } from './types';
 
 export type CreateHttpPathResult = { ok: true; path: string } | { ok: false; error: string };
+export type CreateDirectoryResult =
+  | { ok: true; directory: string | undefined }
+  | { ok: false; error: string };
 
 type CreateFileDeps = {
   createFile: (path: string) => Promise<void>;
@@ -15,6 +18,38 @@ type DeleteFileDeps = {
   setSelectedPath: (path: string | undefined) => void;
   flattenedVisible: () => ExplorerFlatNode[];
 };
+
+type SaveFileContentDeps = {
+  saveFile: (path: string, content: string) => Promise<ExplorerFileDocument>;
+  setSelectedFile: (file: ExplorerFileDocument) => void;
+  refetchWorkspaceFiles: () => Promise<void>;
+};
+
+type RenameFileDeps = {
+  readFile: (path: string) => Promise<ExplorerFileDocument>;
+  createFile: (path: string, content: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+  selectedPath: () => string | undefined;
+  setSelectedPath: (path: string | undefined) => void;
+  refetchWorkspaceFiles: () => Promise<void>;
+};
+
+function toErrorText(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function isDestinationConflict(error: unknown): boolean {
+  const text = toErrorText(error).toLowerCase();
+  return (
+    text.includes('already exists') ||
+    text.includes('file exists') ||
+    text.includes('eexist') ||
+    text.includes('conflict')
+  );
+}
 
 export function toCreateHttpPath(rawInput: string): CreateHttpPathResult {
   const trimmed = rawInput.trim();
@@ -61,6 +96,37 @@ export function buildCreateFilePath(filename: string, directory?: string): strin
   return `${directory}/${filename}`;
 }
 
+export function toCreateDirectory(rawInput: string): CreateDirectoryResult {
+  const trimmed = rawInput.trim();
+  if (!trimmed) {
+    return {
+      ok: true,
+      directory: undefined
+    };
+  }
+
+  const normalized = trimmed.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '');
+  if (!normalized) {
+    return {
+      ok: true,
+      directory: undefined
+    };
+  }
+
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.some((part) => part === '..')) {
+    return {
+      ok: false,
+      error: 'Directory cannot include "..".'
+    };
+  }
+
+  return {
+    ok: true,
+    directory: parts.join('/')
+  };
+}
+
 export function resolveSelectionAfterDeletedPath(
   visibleItems: ExplorerFlatNode[],
   deletedPath: string
@@ -89,6 +155,58 @@ export async function runDeleteFileMutation(path: string, deps: DeleteFileDeps):
     deps.setSelectedPath(nextSelectedPath);
   }
   await deps.refetch();
+}
+
+export async function runSaveFileContentMutation(
+  path: string,
+  content: string,
+  deps: SaveFileContentDeps
+): Promise<void> {
+  const savedFile = await deps.saveFile(path, content);
+  deps.setSelectedFile(savedFile);
+  await deps.refetchWorkspaceFiles();
+}
+
+export async function runRenameFileMutation(
+  fromPath: string,
+  toPath: string,
+  deps: RenameFileDeps
+): Promise<void> {
+  if (fromPath === toPath) {
+    return;
+  }
+
+  const sourceFile = await deps.readFile(fromPath);
+  try {
+    await deps.createFile(toPath, sourceFile.content);
+  } catch (error) {
+    if (isDestinationConflict(error)) {
+      throw new Error(`Destination already exists: "${toPath}".`);
+    }
+    throw error;
+  }
+
+  try {
+    await deps.deleteFile(fromPath);
+  } catch {
+    try {
+      // Best-effort rollback to avoid ending up with both old and new files after partial failure.
+      await deps.deleteFile(toPath);
+    } catch {
+      throw new Error(
+        `Rename partially applied. Created "${toPath}" but failed deleting "${fromPath}", and rollback failed.`
+      );
+    }
+
+    throw new Error(
+      `Rename failed while deleting "${fromPath}". The created file at "${toPath}" was rolled back.`
+    );
+  }
+
+  if (deps.selectedPath() === fromPath) {
+    deps.setSelectedPath(toPath);
+  }
+  await deps.refetchWorkspaceFiles();
 }
 
 export async function runConfirmedDelete(
