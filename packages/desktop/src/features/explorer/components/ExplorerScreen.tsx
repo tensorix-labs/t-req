@@ -1,4 +1,5 @@
-import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
+import { createMemo, Match, Show, Switch } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import { buildCreateFilePath, runConfirmedDelete, toCreateHttpPath } from '../mutations';
 import { useExplorerStore } from '../use-explorer-store';
 import { ExplorerToolbar } from './ExplorerToolbar';
@@ -14,62 +15,69 @@ function parentDirectory(path: string): string {
 
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
-  const [createName, setCreateName] = createSignal('');
-  const [createTargetDir, setCreateTargetDir] = createSignal<string | undefined>();
-  const [createError, setCreateError] = createSignal<string | undefined>();
-  const [showCreateForm, setShowCreateForm] = createSignal(false);
-  const selectedPath = createMemo(() => explorer.selectedPath());
-  const selectedIsDirectory = createMemo(() => {
-    const path = selectedPath();
-    if (!path) {
-      return false;
-    }
-
-    const item = explorer.flattenedVisible().find((entry) => entry.node.path === path);
-    return Boolean(item?.node.isDir);
+  const [createForm, setCreateForm] = createStore({
+    name: '',
+    targetDir: undefined as string | undefined,
+    error: undefined as string | undefined,
+    isOpen: false
   });
-  const selectedRequestCount = createMemo(() => {
+  const selectedPath = explorer.selectedPath;
+  const visibleItems = explorer.flattenedVisible;
+  const selectedItem = createMemo(() => {
     const path = selectedPath();
     if (!path) {
+      return undefined;
+    }
+    return visibleItems().find((entry) => entry.node.path === path);
+  });
+  const selectedIsDirectory = createMemo(() => Boolean(selectedItem()?.node.isDir));
+  const selectedRequestCount = createMemo(() => {
+    const item = selectedItem();
+    if (!item || item.node.isDir) {
       return 0;
     }
-
-    const item = explorer
-      .flattenedVisible()
-      .find((entry) => !entry.node.isDir && entry.node.path === path);
     return item?.node.requestCount ?? 0;
   });
-  const hasMutationError = createMemo(() => explorer.mutationError());
+  const mutationError = explorer.mutationError;
 
   const openCreateForm = () => {
-    setCreateName('');
+    let targetDir = createForm.targetDir;
     const path = selectedPath();
-    if (path && !selectedIsDirectory()) {
+    if (path && selectedIsDirectory()) {
+      targetDir = path;
+    } else if (path) {
       const nextTarget = parentDirectory(path);
-      setCreateTargetDir(nextTarget ? nextTarget : undefined);
+      targetDir = nextTarget || undefined;
     }
-    setCreateError(undefined);
-    setShowCreateForm(true);
+
+    setCreateForm({
+      name: '',
+      targetDir,
+      error: undefined,
+      isOpen: true
+    });
   };
 
   const closeCreateForm = () => {
-    setCreateName('');
-    setCreateError(undefined);
-    setShowCreateForm(false);
+    setCreateForm({
+      name: '',
+      error: undefined,
+      isOpen: false
+    });
   };
 
   const submitCreateForm = async (event: Event) => {
     event.preventDefault();
-    setCreateError(undefined);
+    setCreateForm('error', undefined);
 
-    const parsedPath = toCreateHttpPath(createName());
+    const parsedPath = toCreateHttpPath(createForm.name);
     if (!parsedPath.ok) {
-      setCreateError(parsedPath.error);
+      setCreateForm('error', parsedPath.error);
       return;
     }
 
     try {
-      await explorer.createFile(buildCreateFilePath(parsedPath.path, createTargetDir()));
+      await explorer.createFile(buildCreateFilePath(parsedPath.path, createForm.targetDir));
       closeCreateForm();
     } catch {
       // Store mutation error is displayed in the explorer panel.
@@ -95,17 +103,17 @@ export default function ExplorerScreen() {
   };
 
   const handleToggleDirectory = (path: string) => {
-    setCreateTargetDir(path);
+    setCreateForm('targetDir', path);
     explorer.toggleDir(path);
   };
 
   const handleSelectFile = (path: string) => {
     const nextTarget = parentDirectory(path);
-    setCreateTargetDir(nextTarget ? nextTarget : undefined);
+    setCreateForm('targetDir', nextTarget || undefined);
     explorer.selectPath(path);
   };
 
-  const createTargetLabel = createMemo(() => createTargetDir() ?? 'workspace root');
+  const createTargetLabel = createMemo(() => createForm.targetDir ?? 'workspace root');
 
   return (
     <main class="explorer-screen">
@@ -118,15 +126,15 @@ export default function ExplorerScreen() {
           workspaceRoot={explorer.workspaceRoot()}
         />
 
-        <Show when={showCreateForm()}>
+        <Show when={createForm.isOpen}>
           <form class="explorer-create-form" onSubmit={(event) => void submitCreateForm(event)}>
             <label class="explorer-create-field">
               <span class="explorer-create-label">Filename</span>
               <input
                 type="text"
                 class="explorer-create-input"
-                value={createName()}
-                onInput={(event) => setCreateName(event.currentTarget.value)}
+                value={createForm.name}
+                onInput={(event) => setCreateForm('name', event.currentTarget.value)}
                 placeholder="new-request"
                 aria-label="New request file name"
                 disabled={explorer.isMutating()}
@@ -146,7 +154,7 @@ export default function ExplorerScreen() {
                 Create
               </button>
             </div>
-            <Show when={createError()}>
+            <Show when={createForm.error}>
               {(message) => <span class="explorer-create-error">{message()}</span>}
             </Show>
           </form>
@@ -162,7 +170,7 @@ export default function ExplorerScreen() {
             )}
           </Show>
 
-          <Show when={hasMutationError()}>
+          <Show when={mutationError()}>
             {(message) => (
               <div class="explorer-state explorer-error" role="alert">
                 <strong>Workspace update failed.</strong>
@@ -188,7 +196,7 @@ export default function ExplorerScreen() {
 
             <Match when={explorer.flattenedVisible().length > 0}>
               <ExplorerTree
-                items={explorer.flattenedVisible()}
+                items={visibleItems()}
                 selectedPath={selectedPath()}
                 onToggleDir={handleToggleDirectory}
                 onSelectFile={handleSelectFile}

@@ -1,5 +1,6 @@
 import { unwrap } from '@t-req/sdk/client';
-import { createEffect, createMemo, createResource, createSignal, untrack } from 'solid-js';
+import { createEffect, createMemo, createResource, on, untrack } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import { useServer } from '../../context/server-context';
 import { toErrorMessage } from '../../lib/errors';
 import { runCreateFileMutation, runDeleteFileMutation } from './mutations';
@@ -35,13 +36,34 @@ export interface ExplorerStore {
   selectPath: (path: string) => void;
 }
 
+type ExplorerUiState = {
+  activeWorkspaceRoot: string | undefined;
+  expandedDirs: ExplorerExpandedState;
+  selectedPath: string | undefined;
+  mutation: {
+    isPending: boolean;
+    error: string | undefined;
+  };
+};
+
 export function useExplorerStore(): ExplorerStore {
   const server = useServer();
-  const [activeWorkspaceRoot, setActiveWorkspaceRoot] = createSignal<string | undefined>();
-  const [expandedDirs, setExpandedDirs] = createSignal<ExplorerExpandedState>({});
-  const [selectedPath, setSelectedPath] = createSignal<string | undefined>();
-  const [isMutating, setIsMutating] = createSignal(false);
-  const [mutationError, setMutationError] = createSignal<string | undefined>();
+  const [state, setState] = createStore<ExplorerUiState>({
+    activeWorkspaceRoot: undefined,
+    expandedDirs: {},
+    selectedPath: undefined,
+    mutation: {
+      isPending: false,
+      error: undefined
+    }
+  });
+  const expandedDirs = () => state.expandedDirs;
+  const selectedPath = () => state.selectedPath;
+  const setSelectedPath = (path: string | undefined) => {
+    setState('selectedPath', path);
+  };
+  const isMutating = () => state.mutation.isPending;
+  const mutationError = () => state.mutation.error;
 
   const source = createMemo(() => {
     const client = server.client();
@@ -140,8 +162,10 @@ export function useExplorerStore(): ExplorerStore {
       return;
     }
 
-    setIsMutating(true);
-    setMutationError(undefined);
+    setState('mutation', {
+      isPending: true,
+      error: undefined
+    });
     try {
       await runCreateFileMutation(path, {
         createFile: async (nextPath) => {
@@ -154,10 +178,10 @@ export function useExplorerStore(): ExplorerStore {
       });
     } catch (error) {
       const message = `Failed to create file: ${toErrorMessage(error)}`;
-      setMutationError(message);
+      setState('mutation', 'error', message);
       throw new Error(message);
     } finally {
-      setIsMutating(false);
+      setState('mutation', 'isPending', false);
     }
   };
 
@@ -167,8 +191,10 @@ export function useExplorerStore(): ExplorerStore {
       return;
     }
 
-    setIsMutating(true);
-    setMutationError(undefined);
+    setState('mutation', {
+      isPending: true,
+      error: undefined
+    });
     try {
       await runDeleteFileMutation(path, {
         deleteFile: async (nextPath) => {
@@ -183,59 +209,64 @@ export function useExplorerStore(): ExplorerStore {
       });
     } catch (error) {
       const message = `Failed to delete file: ${toErrorMessage(error)}`;
-      setMutationError(message);
+      setState('mutation', 'error', message);
       throw new Error(message);
     } finally {
-      setIsMutating(false);
+      setState('mutation', 'isPending', false);
     }
   };
 
   const toggleDir = (path: string) => {
-    setExpandedDirs((prev) => ({
-      ...prev,
-      [path]: !prev[path]
-    }));
+    setState('expandedDirs', path, (isExpanded) => !isExpanded);
   };
 
   const selectPath = (path: string) => {
-    setSelectedPath(path);
+    setState('selectedPath', path);
   };
 
-  createEffect(() => {
-    if (!source()) {
-      setActiveWorkspaceRoot(undefined);
-      setExpandedDirs({});
-      setSelectedPath(undefined);
-      setIsMutating(false);
-      setMutationError(undefined);
-      return;
-    }
-  });
-
-  createEffect(() => {
-    const data = workspaceFiles();
-    if (!data) {
-      return;
-    }
-
-    const nextTree = tree();
-    const previousWorkspaceRoot = untrack(activeWorkspaceRoot);
-    const hasWorkspaceChanged = previousWorkspaceRoot !== data.workspaceRoot;
-
-    setActiveWorkspaceRoot(data.workspaceRoot);
-    setExpandedDirs((prev) => {
-      if (hasWorkspaceChanged || Object.keys(prev).length === 0) {
-        return createInitialExpandedDirs(nextTree);
+  createEffect(
+    on(source, (currentSource) => {
+      if (currentSource) {
+        return;
       }
-      return pruneExpandedDirs(prev, nextTree);
-    });
-    setSelectedPath((prev) => {
-      if (!prev) {
-        return undefined;
+
+      setState({
+        activeWorkspaceRoot: undefined,
+        expandedDirs: {},
+        selectedPath: undefined,
+        mutation: {
+          isPending: false,
+          error: undefined
+        }
+      });
+    })
+  );
+
+  createEffect(
+    on(workspaceFiles, (data) => {
+      if (!data) {
+        return;
       }
-      return hasExplorerPath(nextTree, prev) ? prev : undefined;
-    });
-  });
+
+      const nextTree = buildExplorerTree(data.files);
+      const previousWorkspaceRoot = untrack(() => state.activeWorkspaceRoot);
+      const hasWorkspaceChanged = previousWorkspaceRoot !== data.workspaceRoot;
+
+      setState('activeWorkspaceRoot', data.workspaceRoot);
+      setState('expandedDirs', (prev) => {
+        if (hasWorkspaceChanged || Object.keys(prev).length === 0) {
+          return createInitialExpandedDirs(nextTree);
+        }
+        return pruneExpandedDirs(prev, nextTree);
+      });
+      setState('selectedPath', (prev) => {
+        if (!prev) {
+          return undefined;
+        }
+        return hasExplorerPath(nextTree, prev) ? prev : undefined;
+      });
+    })
+  );
 
   return {
     workspaceRoot,
