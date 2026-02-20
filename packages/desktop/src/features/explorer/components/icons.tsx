@@ -61,3 +61,12 @@ export function RefreshIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Svg class={props.class}>
+      <path d="M8 3v10" />
+      <path d="M3 8h10" />
+    </Svg>
+  );
+}

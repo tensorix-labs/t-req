@@ -1,37 +1,179 @@
 import { createMemo, Match, Show, Switch } from 'solid-js';
+import { createStore } from 'solid-js/store';
+import { buildCreateFilePath, runConfirmedDelete, toCreateHttpPath } from '../mutations';
 import { useExplorerStore } from '../use-explorer-store';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
 
+function parentDirectory(path: string): string {
+  const slashIndex = path.lastIndexOf('/');
+  if (slashIndex <= 0) {
+    return '';
+  }
+  return path.slice(0, slashIndex);
+}
+
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
-  const selectedPath = createMemo(() => explorer.selectedPath());
-  const selectedRequestCount = createMemo(() => {
+  const [createForm, setCreateForm] = createStore({
+    name: '',
+    targetDir: undefined as string | undefined,
+    error: undefined as string | undefined,
+    isOpen: false
+  });
+  const selectedPath = explorer.selectedPath;
+  const visibleItems = explorer.flattenedVisible;
+  const selectedItem = createMemo(() => {
     const path = selectedPath();
     if (!path) {
+      return undefined;
+    }
+    return visibleItems().find((entry) => entry.node.path === path);
+  });
+  const selectedIsDirectory = createMemo(() => Boolean(selectedItem()?.node.isDir));
+  const selectedRequestCount = createMemo(() => {
+    const item = selectedItem();
+    if (!item || item.node.isDir) {
       return 0;
     }
-
-    const item = explorer
-      .flattenedVisible()
-      .find((entry) => !entry.node.isDir && entry.node.path === path);
     return item?.node.requestCount ?? 0;
   });
+  const mutationError = explorer.mutationError;
+
+  const openCreateForm = () => {
+    let targetDir = createForm.targetDir;
+    const path = selectedPath();
+    if (path && selectedIsDirectory()) {
+      targetDir = path;
+    } else if (path) {
+      const nextTarget = parentDirectory(path);
+      targetDir = nextTarget || undefined;
+    }
+
+    setCreateForm({
+      name: '',
+      targetDir,
+      error: undefined,
+      isOpen: true
+    });
+  };
+
+  const closeCreateForm = () => {
+    setCreateForm({
+      name: '',
+      error: undefined,
+      isOpen: false
+    });
+  };
+
+  const submitCreateForm = async (event: Event) => {
+    event.preventDefault();
+    setCreateForm('error', undefined);
+
+    const parsedPath = toCreateHttpPath(createForm.name);
+    if (!parsedPath.ok) {
+      setCreateForm('error', parsedPath.error);
+      return;
+    }
+
+    try {
+      await explorer.createFile(buildCreateFilePath(parsedPath.path, createForm.targetDir));
+      closeCreateForm();
+    } catch {
+      // Store mutation error is displayed in the explorer panel.
+    }
+  };
+
+  const deleteSelectedFile = async () => {
+    const path = selectedPath();
+    if (!path || explorer.isMutating()) {
+      return;
+    }
+
+    const filename = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+    try {
+      await runConfirmedDelete(
+        path,
+        () => window.confirm(`Delete "${filename}" from this workspace?`),
+        explorer.deleteFile
+      );
+    } catch {
+      // Store mutation error is displayed in the explorer panel.
+    }
+  };
+
+  const handleToggleDirectory = (path: string) => {
+    setCreateForm('targetDir', path);
+    explorer.toggleDir(path);
+  };
+
+  const handleSelectFile = (path: string) => {
+    const nextTarget = parentDirectory(path);
+    setCreateForm('targetDir', nextTarget || undefined);
+    explorer.selectPath(path);
+  };
+
+  const createTargetLabel = createMemo(() => createForm.targetDir ?? 'workspace root');
 
   return (
     <main class="explorer-screen">
       <section class="explorer-pane explorer-tree-panel" aria-label="Workspace files">
         <ExplorerToolbar
+          onCreate={openCreateForm}
           onRefresh={() => void explorer.refresh()}
           isRefreshing={explorer.isLoading()}
+          isMutating={explorer.isMutating()}
           workspaceRoot={explorer.workspaceRoot()}
         />
+
+        <Show when={createForm.isOpen}>
+          <form class="explorer-create-form" onSubmit={(event) => void submitCreateForm(event)}>
+            <label class="explorer-create-field">
+              <span class="explorer-create-label">Filename</span>
+              <input
+                type="text"
+                class="explorer-create-input"
+                value={createForm.name}
+                onInput={(event) => setCreateForm('name', event.currentTarget.value)}
+                placeholder="new-request"
+                aria-label="New request file name"
+                disabled={explorer.isMutating()}
+              />
+            </label>
+            <span class="explorer-create-target">Create in: {createTargetLabel()}</span>
+            <div class="explorer-create-actions">
+              <button
+                type="button"
+                class="explorer-create-cancel"
+                onClick={closeCreateForm}
+                disabled={explorer.isMutating()}
+              >
+                Cancel
+              </button>
+              <button type="submit" class="explorer-create-submit" disabled={explorer.isMutating()}>
+                Create
+              </button>
+            </div>
+            <Show when={createForm.error}>
+              {(message) => <span class="explorer-create-error">{message()}</span>}
+            </Show>
+          </form>
+        </Show>
 
         <div class="explorer-tree-wrap">
           <Show when={explorer.error()}>
             {(message) => (
               <div class="explorer-state explorer-error" role="alert">
                 <strong>Unable to load workspace request files.</strong>
+                <span>{message()}</span>
+              </div>
+            )}
+          </Show>
+
+          <Show when={mutationError()}>
+            {(message) => (
+              <div class="explorer-state explorer-error" role="alert">
+                <strong>Workspace update failed.</strong>
                 <span>{message()}</span>
               </div>
             )}
@@ -54,10 +196,10 @@ export default function ExplorerScreen() {
 
             <Match when={explorer.flattenedVisible().length > 0}>
               <ExplorerTree
-                items={explorer.flattenedVisible()}
+                items={visibleItems()}
                 selectedPath={selectedPath()}
-                onToggleDir={explorer.toggleDir}
-                onSelectFile={explorer.selectPath}
+                onToggleDir={handleToggleDirectory}
+                onSelectFile={handleSelectFile}
               />
             </Match>
           </Switch>
@@ -86,6 +228,16 @@ export default function ExplorerScreen() {
                 <div class="explorer-details-label">Selected file</div>
                 <div class="explorer-details-path" title={path()}>
                   {path()}
+                </div>
+                <div class="explorer-details-actions">
+                  <button
+                    type="button"
+                    class="explorer-delete"
+                    onClick={() => void deleteSelectedFile()}
+                    disabled={explorer.isMutating()}
+                  >
+                    Delete file
+                  </button>
                 </div>
                 <p class="explorer-details-note">
                   Request editing and execution surfaces plug into this pane.
