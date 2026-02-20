@@ -96,6 +96,18 @@ export function buildCreateFilePath(filename: string, directory?: string): strin
   return `${directory}/${filename}`;
 }
 
+function parentDirectory(path: string): string {
+  const index = path.lastIndexOf('/');
+  if (index <= 0) {
+    return '';
+  }
+  return path.slice(0, index);
+}
+
+export function isCrossDirectoryMove(fromPath: string, toPath: string): boolean {
+  return parentDirectory(fromPath) !== parentDirectory(toPath);
+}
+
 export function toCreateDirectory(rawInput: string): CreateDirectoryResult {
   const trimmed = rawInput.trim();
   if (!trimmed) {

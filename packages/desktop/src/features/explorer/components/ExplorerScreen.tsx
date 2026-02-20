@@ -2,6 +2,7 @@ import { createMemo, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   buildCreateFilePath,
+  isCrossDirectoryMove,
   runConfirmedDelete,
   toCreateDirectory,
   toCreateHttpPath
@@ -164,6 +165,13 @@ export default function ExplorerScreen() {
     const toPath = buildCreateFilePath(parsedName.path, parsedDirectory.directory);
     if (toPath === fromPath) {
       setRenameForm('error', 'Destination is unchanged.');
+      return;
+    }
+
+    if (
+      isCrossDirectoryMove(fromPath, toPath) &&
+      !window.confirm(`Move "${pathFilename(fromPath)}" to "${toPath}"?`)
+    ) {
       return;
     }
 
