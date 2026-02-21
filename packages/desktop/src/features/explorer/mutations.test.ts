@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  buildCreateFilePath,
-  isCrossDirectoryMove,
   resolveSelectionAfterDeletedPath,
   runConfirmedDelete,
   runCreateFileMutation,
   runDeleteFileMutation,
   runRenameFileMutation,
-  runSaveFileContentMutation,
-  toCreateDirectory,
-  toCreateHttpPath
+  runSaveFileContentMutation
 } from './mutations';
 import type { ExplorerFileDocument, ExplorerFlatNode } from './types';
+import {
+  buildCreateFilePath,
+  isCrossDirectoryMove,
+  toCreateDirectory,
+  toCreateHttpPath
+} from './utils/mutations';
 
 function file(path: string): ExplorerFlatNode {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
