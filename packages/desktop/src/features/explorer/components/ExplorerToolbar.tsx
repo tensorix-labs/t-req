@@ -15,24 +15,23 @@ export function ExplorerToolbar(props: ExplorerToolbarProps) {
       <div class="explorer-toolbar-actions">
         <button
           type="button"
-          class="explorer-create"
+          class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
           onClick={props.onCreate}
           disabled={props.isMutating}
           aria-label="Create new request file"
         >
-          <PlusIcon />
+          <PlusIcon class="size-3" />
           <span>New</span>
         </button>
         <button
           type="button"
-          class="explorer-refresh"
-          classList={{ 'is-loading': props.isRefreshing }}
+          class="btn btn-ghost btn-xs btn-square h-7 min-h-7 text-base-content/70 hover:text-base-content"
           onClick={props.onRefresh}
           disabled={props.isMutating}
           aria-label="Refresh workspace files"
           title={`Refresh files in ${props.workspaceRoot || 'workspace'}`}
         >
-          <RefreshIcon />
+          <RefreshIcon class={props.isRefreshing ? 'size-3 animate-spin' : 'size-3'} />
         </button>
       </div>
     </header>
