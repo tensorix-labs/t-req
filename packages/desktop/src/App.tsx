@@ -4,7 +4,6 @@ import ServerGate from './components/ServerGate';
 import SettingsModal from './components/SettingsModal';
 import { ServerProvider, useServer } from './context/server-context';
 import { ExplorerScreen } from './features/explorer';
-import './App.css';
 
 function AppLayout() {
   const { client, status, workspacePath } = useServer();
@@ -20,7 +19,7 @@ function AppLayout() {
   }
 
   return (
-    <div class="app-shell" data-theme="treq-desktop">
+    <div class="app-shell" data-theme="treq-app">
       <div class="app-main">
         <ServerGate>
           <ExplorerScreen />

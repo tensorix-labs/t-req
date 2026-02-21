@@ -10,9 +10,11 @@ type ExplorerToolbarProps = {
 
 export function ExplorerToolbar(props: ExplorerToolbarProps) {
   return (
-    <header class="explorer-toolbar">
-      <h1 class="explorer-toolbar-title">Workspace</h1>
-      <div class="explorer-toolbar-actions">
+    <header class="flex items-center justify-between gap-3 border-b border-base-300 bg-base-200 px-3.5 py-2.5">
+      <h1 class="m-0 font-mono text-[0.88rem] leading-[1.1] font-semibold tracking-[0.02em] text-base-content">
+        Workspace
+      </h1>
+      <div class="inline-flex items-center gap-2">
         <button
           type="button"
           class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"

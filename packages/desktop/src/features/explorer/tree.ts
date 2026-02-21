@@ -162,10 +162,9 @@ export function pruneExpandedDirs(
   const pruned: ExplorerExpandedState = {};
 
   for (const [path, isExpanded] of Object.entries(expandedDirs)) {
-    if (!isExpanded) continue;
     const node = findExplorerNode(nodes, path);
     if (node?.isDir) {
-      pruned[path] = true;
+      pruned[path] = Boolean(isExpanded);
     }
   }
 

@@ -11,7 +11,7 @@ type ExplorerTreeProps = {
 
 export function ExplorerTree(props: ExplorerTreeProps) {
   return (
-    <div class="explorer-tree" role="tree" aria-label="Workspace files">
+    <div class="min-h-0" role="tree" aria-label="Workspace files">
       <For each={props.items}>
         {(item) => (
           <ExplorerTreeItem

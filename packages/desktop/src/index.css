@@ -1,13 +1,4 @@
 @import 'tailwindcss';
 @import '@t-req/ui/styles';
+@import './styles/foundation.css';
 @source '../../ui/src/**/*.{ts,tsx,js,jsx}';
-
-html,
-body,
-#root {
-  min-height: 100%;
-}
-
-body {
-  margin: 0;
-}

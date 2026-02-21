@@ -35,41 +35,51 @@ export function ExplorerTreeItem(props: ExplorerTreeItemProps) {
       tabIndex={0}
       aria-selected={props.isSelected}
       aria-expanded={isDir() ? isExpanded() : undefined}
-      class="explorer-row"
+      class="group flex min-h-[26px] cursor-pointer select-none items-center gap-1.5 pr-3.5 pl-[calc(10px+(var(--depth)*16px))] font-mono text-xs leading-none text-[var(--app-tree-text)] hover:bg-[var(--app-row-hover)] focus-visible:outline-2 focus-visible:outline-[var(--app-focus)] focus-visible:outline-offset-[-2px]"
       classList={{
-        'is-selected': props.isSelected,
-        'is-dir': isDir(),
-        'is-file': !isDir()
+        'bg-[var(--app-row-selected)] text-[var(--app-row-selected-text)]': props.isSelected
       }}
       style={{ '--depth': String(node().depth) }}
       onClick={activate}
       onKeyDown={onKeyDown}
     >
-      <Show
-        when={isDir()}
-        fallback={<span class="explorer-chevron-placeholder" aria-hidden="true" />}
-      >
+      <Show when={isDir()} fallback={<span class="h-3 w-3" aria-hidden="true" />}>
         <span
-          class="explorer-chevron"
-          classList={{ 'is-expanded': isExpanded() }}
+          class="inline-flex h-3 w-3 items-center justify-center text-[var(--app-chevron)] transition-transform duration-150"
+          classList={{ 'rotate-90': isExpanded() }}
           aria-hidden="true"
         >
           <ChevronRightIcon />
         </span>
       </Show>
 
-      <span class="explorer-icon" aria-hidden="true">
-        <Show when={isDir()} fallback={<FileIcon class="explorer-icon-file" />}>
-          <Show when={isExpanded()} fallback={<FolderClosedIcon class="explorer-icon-folder" />}>
-            <FolderOpenIcon class="explorer-icon-folder" />
+      <span class="inline-flex h-3.5 w-3.5 items-center justify-center" aria-hidden="true">
+        <Show when={isDir()} fallback={<FileIcon class="h-3.5 w-3.5 text-[var(--app-file)]" />}>
+          <Show
+            when={isExpanded()}
+            fallback={<FolderClosedIcon class="h-3.5 w-3.5 text-[var(--app-folder)]" />}
+          >
+            <FolderOpenIcon class="h-3.5 w-3.5 text-[var(--app-folder)]" />
           </Show>
         </Show>
       </span>
 
-      <span class="explorer-name">{node().name}</span>
+      <span
+        class="min-w-0 flex-1 truncate"
+        classList={{
+          'text-[var(--app-tree-dir)] font-[540]': isDir() && !props.isSelected,
+          'text-[var(--app-tree-file)] font-[460] group-hover:text-[var(--app-tree-file-hover)]':
+            !isDir() && !props.isSelected,
+          'text-[var(--app-tree-selected-text)]': props.isSelected
+        }}
+      >
+        {node().name}
+      </span>
 
       <Show when={!isDir() && (node().requestCount ?? 0) > 0}>
-        <span class="explorer-count">{node().requestCount}</span>
+        <span class="rounded-full border border-[var(--app-count-border)] bg-[var(--app-count-bg)] px-1.5 py-px text-[10px] leading-[1.2] text-[var(--app-count-text)]">
+          {node().requestCount}
+        </span>
       </Show>
     </div>
   );

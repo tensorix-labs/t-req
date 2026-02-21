@@ -91,7 +91,7 @@ export default function SettingsModal(props: SettingsModalProps) {
     <Show when={props.open}>
       <Portal>
         <div class={classes.overlay} onClick={props.onClose} aria-hidden="true" />
-        <div class={classes.container} data-theme="treq-desktop">
+        <div class={classes.container} data-theme="treq-app">
           <div
             ref={dialogRef}
             role="dialog"

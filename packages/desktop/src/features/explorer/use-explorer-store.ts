@@ -456,7 +456,7 @@ export function useExplorerStore(): ExplorerStore {
 
       setState('activeWorkspaceRoot', data.workspaceRoot);
       setState('expandedDirs', (prev) => {
-        if (hasWorkspaceChanged || Object.keys(prev).length === 0) {
+        if (hasWorkspaceChanged) {
           return createInitialExpandedDirs(nextTree);
         }
         return pruneExpandedDirs(prev, nextTree);

@@ -86,6 +86,21 @@ describe('directory expansion helpers', () => {
     });
   });
 
+  it('preserves collapsed directory state for existing directories', () => {
+    const tree = buildExplorerTree([{ path: 'src/index.http' }]);
+
+    const pruned = pruneExpandedDirs(
+      {
+        src: false
+      },
+      tree
+    );
+
+    expect(pruned).toEqual({
+      src: false
+    });
+  });
+
   it('checks if a path exists in the tree', () => {
     const tree = buildExplorerTree([{ path: 'src/index.http' }]);
 

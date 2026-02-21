@@ -212,8 +212,11 @@ export default function ExplorerScreen() {
   const createTargetLabel = createMemo(() => createForm.targetDir ?? 'workspace root');
 
   return (
-    <main class="explorer-screen">
-      <section class="explorer-pane explorer-tree-panel" aria-label="Workspace files">
+    <main class="flex-1 min-h-0 grid grid-cols-[minmax(320px,_34%)_minmax(0,_1fr)] gap-0 px-2 pt-2 max-[860px]:grid-cols-1 max-[860px]:grid-rows-[minmax(220px,_42%)_minmax(0,_1fr)]">
+      <section
+        class="min-h-0 flex flex-col overflow-hidden border border-base-300 border-r-0 rounded-tl-[14px] bg-[linear-gradient(180deg,_var(--app-pane-gradient-start)_0%,_var(--app-bg)_100%)] max-[860px]:border-r max-[860px]:rounded-tr-[14px]"
+        aria-label="Workspace files"
+      >
         <ExplorerToolbar
           onCreate={openCreateForm}
           onRefresh={() => void explorer.refresh()}
@@ -223,12 +226,15 @@ export default function ExplorerScreen() {
         />
 
         <Show when={createForm.isOpen}>
-          <form class="explorer-create-form" onSubmit={(event) => void submitCreateForm(event)}>
-            <label class="explorer-create-field">
-              <span class="explorer-create-label">Filename</span>
+          <form
+            class="space-y-2 border-b border-base-300 bg-base-200/70 px-3.5 py-2.5"
+            onSubmit={(event) => void submitCreateForm(event)}
+          >
+            <label class="flex flex-col gap-1">
+              <span class="font-mono text-[11px] text-base-content/65">Filename</span>
               <input
                 type="text"
-                class="explorer-create-input"
+                class="input input-sm w-full rounded-md border-base-300 bg-base-100/70 font-mono text-xs"
                 value={createForm.name}
                 onInput={(event) => setCreateForm('name', event.currentTarget.value)}
                 placeholder="new-request"
@@ -236,57 +242,75 @@ export default function ExplorerScreen() {
                 disabled={isBusy()}
               />
             </label>
-            <span class="explorer-create-target">Create in: {createTargetLabel()}</span>
-            <div class="explorer-create-actions">
+            <span class="block font-mono text-[11px] text-base-content/70">
+              Create in: {createTargetLabel()}
+            </span>
+            <div class="flex items-center justify-end gap-2">
               <button
                 type="button"
-                class="explorer-create-cancel"
+                class="btn btn-ghost btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
                 onClick={closeCreateForm}
                 disabled={isBusy()}
               >
                 Cancel
               </button>
-              <button type="submit" class="explorer-create-submit" disabled={isBusy()}>
+              <button
+                type="submit"
+                class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
+                disabled={isBusy()}
+              >
                 Create
               </button>
             </div>
             <Show when={createForm.error}>
-              {(message) => <span class="explorer-create-error">{message()}</span>}
+              {(message) => <span class="text-xs text-error">{message()}</span>}
             </Show>
           </form>
         </Show>
 
-        <div class="explorer-tree-wrap">
+        <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent py-2">
           <Show when={explorer.error()}>
             {(message) => (
-              <div class="explorer-state explorer-error" role="alert">
-                <strong>Unable to load workspace request files.</strong>
-                <span>{message()}</span>
+              <div
+                class="mx-3 mt-3 rounded-box border border-error/40 bg-error/15 px-4 py-3 text-sm text-base-content"
+                role="alert"
+              >
+                <strong class="block font-semibold">Unable to load workspace request files.</strong>
+                <span class="mt-1 block text-xs">{message()}</span>
               </div>
             )}
           </Show>
 
           <Show when={mutationError()}>
             {(message) => (
-              <div class="explorer-state explorer-error" role="alert">
-                <strong>Workspace update failed.</strong>
-                <span>{message()}</span>
+              <div
+                class="mx-3 mt-3 rounded-box border border-error/40 bg-error/15 px-4 py-3 text-sm text-base-content"
+                role="alert"
+              >
+                <strong class="block font-semibold">Workspace update failed.</strong>
+                <span class="mt-1 block text-xs">{message()}</span>
               </div>
             )}
           </Show>
 
           <Switch>
             <Match when={explorer.isLoading() && explorer.flattenedVisible().length === 0}>
-              <div class="explorer-state">
-                <strong>Loading workspace…</strong>
-                <span>Fetching files from the local sidecar server.</span>
+              <div class="mx-3 mt-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-sm text-base-content/80">
+                <strong class="block font-semibold text-base-content">Loading workspace…</strong>
+                <span class="mt-1 block text-xs">
+                  Fetching files from the local sidecar server.
+                </span>
               </div>
             </Match>
 
             <Match when={!explorer.isLoading() && explorer.flattenedVisible().length === 0}>
-              <div class="explorer-state">
-                <strong>No HTTP request files discovered.</strong>
-                <span>Try refreshing after adding `.http` files to this workspace.</span>
+              <div class="mx-3 mt-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-sm text-base-content/80">
+                <strong class="block font-semibold text-base-content">
+                  No HTTP request files discovered.
+                </strong>
+                <span class="mt-1 block text-xs">
+                  Try refreshing after adding `.http` files to this workspace.
+                </span>
               </div>
             </Match>
 
@@ -302,33 +326,46 @@ export default function ExplorerScreen() {
         </div>
       </section>
 
-      <section class="explorer-pane explorer-details" aria-label="Workspace detail">
-        <header class="explorer-details-header">
-          <h2 class="explorer-details-title">Request Workspace</h2>
+      <section
+        class="min-w-0 min-h-0 flex flex-col overflow-hidden border border-base-300 rounded-tr-[14px] bg-[linear-gradient(180deg,_var(--app-pane-gradient-start)_0%,_var(--app-pane-gradient-end)_100%)] [box-shadow:var(--app-pane-shadow-top),_var(--app-pane-shadow-drop)] max-[860px]:rounded-tr-none"
+        aria-label="Workspace detail"
+      >
+        <header class="flex min-h-[42px] items-center justify-between gap-2 border-b border-base-300 px-3.5">
+          <h2 class="m-0 font-mono text-[0.8rem] font-semibold tracking-[0.015em] text-base-content">
+            Request Workspace
+          </h2>
           <Show when={selectedPath()}>
-            <span class="explorer-details-count">{selectedRequestCount()} req</span>
+            <span class="badge badge-sm border-base-300 bg-base-300/60 px-2 font-mono text-[10px] text-base-content/80">
+              {selectedRequestCount()} req
+            </span>
           </Show>
         </header>
-        <div class="explorer-details-body">
+        <div class="flex-1 overflow-auto p-3.5">
           <Show
             when={selectedPath()}
             fallback={
-              <div class="explorer-state">
-                <strong>Select a request file from the tree.</strong>
-                <span>The details pane is ready for request and response tooling.</span>
+              <div class="mx-auto max-w-xl rounded-box border border-base-300 bg-base-200/60 px-6 py-8 text-center text-base-content/80">
+                <strong class="block text-[clamp(1.55rem,2vw,2rem)] leading-[1.2] tracking-[-0.012em] text-base-content">
+                  Select a request file from the tree.
+                </strong>
+                <span class="mt-2 block text-base">
+                  The details pane is ready for request and response tooling.
+                </span>
               </div>
             }
           >
             {(path) => (
-              <div class="explorer-details-card">
-                <div class="explorer-details-label">Selected file</div>
-                <div class="explorer-details-path" title={path()}>
+              <div class="rounded-box border border-base-300 bg-base-200/70 p-3">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.05em] text-base-content/60">
+                  Selected file
+                </div>
+                <div class="mt-2 truncate font-mono text-xs text-base-content" title={path()}>
                   {path()}
                 </div>
-                <div class="explorer-details-actions">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    class="explorer-delete"
+                    class="btn btn-outline btn-error btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
                     onClick={() => void deleteSelectedFile()}
                     disabled={isBusy() || isFileLoading()}
                   >
@@ -336,7 +373,7 @@ export default function ExplorerScreen() {
                   </button>
                   <button
                     type="button"
-                    class="explorer-rename"
+                    class="btn btn-ghost btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
                     onClick={openRenameForm}
                     disabled={isBusy() || isFileLoading()}
                   >
@@ -344,7 +381,7 @@ export default function ExplorerScreen() {
                   </button>
                   <button
                     type="button"
-                    class="explorer-save"
+                    class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
                     onClick={() => void saveSelectedFile()}
                     disabled={!hasUnsavedFileChanges() || isBusy() || isFileLoading()}
                   >
@@ -353,63 +390,71 @@ export default function ExplorerScreen() {
                 </div>
                 <Show when={renameForm.isOpen}>
                   <form
-                    class="explorer-rename-form"
+                    class="mt-3 space-y-2 rounded-box border border-base-300 bg-base-100/70 p-2.5"
                     onSubmit={(event) => void submitRenameForm(event)}
                   >
-                    <label class="explorer-create-field">
-                      <span class="explorer-create-label">Filename</span>
+                    <label class="flex flex-col gap-1">
+                      <span class="font-mono text-[11px] text-base-content/65">Filename</span>
                       <input
                         type="text"
-                        class="explorer-create-input"
+                        class="input input-sm w-full rounded-md border-base-300 bg-base-100/70 font-mono text-xs"
                         value={renameForm.name}
                         onInput={(event) => setRenameForm('name', event.currentTarget.value)}
                         placeholder="renamed-request"
                         disabled={isBusy()}
                       />
                     </label>
-                    <label class="explorer-create-field">
-                      <span class="explorer-create-label">Directory (optional)</span>
+                    <label class="flex flex-col gap-1">
+                      <span class="font-mono text-[11px] text-base-content/65">
+                        Directory (optional)
+                      </span>
                       <input
                         type="text"
-                        class="explorer-create-input"
+                        class="input input-sm w-full rounded-md border-base-300 bg-base-100/70 font-mono text-xs"
                         value={renameForm.directory}
                         onInput={(event) => setRenameForm('directory', event.currentTarget.value)}
                         placeholder="folder/subfolder"
                         disabled={isBusy()}
                       />
                     </label>
-                    <div class="explorer-create-actions">
+                    <div class="flex items-center justify-end gap-2">
                       <button
                         type="button"
-                        class="explorer-create-cancel"
+                        class="btn btn-ghost btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
                         onClick={closeRenameForm}
                         disabled={isBusy()}
                       >
                         Cancel
                       </button>
-                      <button type="submit" class="explorer-create-submit" disabled={isBusy()}>
+                      <button
+                        type="submit"
+                        class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
+                        disabled={isBusy()}
+                      >
                         Rename
                       </button>
                     </div>
                     <Show when={renameForm.error}>
-                      {(message) => <div class="explorer-create-error">{message()}</div>}
+                      {(message) => <div class="text-xs text-error">{message()}</div>}
                     </Show>
                   </form>
                 </Show>
                 <Show when={isFileLoading()}>
-                  <div class="explorer-details-loading">Loading file content…</div>
+                  <div class="mt-3 text-xs text-base-content/70">Loading file content…</div>
                 </Show>
                 <Show when={fileLoadError()}>
-                  {(message) => <div class="explorer-create-error">{message()}</div>}
+                  {(message) => <div class="mt-2 text-xs text-error">{message()}</div>}
                 </Show>
                 <Show when={fileSaveError()}>
-                  {(message) => <div class="explorer-create-error">{message()}</div>}
+                  {(message) => <div class="mt-2 text-xs text-error">{message()}</div>}
                 </Show>
                 <Show when={!isFileLoading() && !fileLoadError()}>
-                  <label class="explorer-editor">
-                    <span class="explorer-details-label">Content</span>
+                  <label class="mt-3 flex flex-col gap-1.5">
+                    <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-base-content/60">
+                      Content
+                    </span>
                     <textarea
-                      class="explorer-editor-input"
+                      class="textarea textarea-sm min-h-[220px] w-full resize-y rounded-md border-base-300 bg-base-100/70 font-mono text-xs leading-[1.45]"
                       value={fileDraftContent() ?? ''}
                       onInput={(event) => explorer.setFileDraftContent(event.currentTarget.value)}
                       disabled={isBusy()}
@@ -417,7 +462,7 @@ export default function ExplorerScreen() {
                     />
                   </label>
                 </Show>
-                <p class="explorer-details-note">
+                <p class="mt-2 text-xs text-base-content/65">
                   Edit and save the selected `.http` file from this pane.
                 </p>
               </div>
