@@ -4,14 +4,11 @@ import type {
   ExplorerFlatNode,
   ExplorerNode
 } from './types';
+import { normalizeRelativePath } from './utils/path';
 
 type MutableNode = ExplorerNode & {
   childMap?: Map<string, MutableNode>;
 };
-
-function normalizePath(path: string): string {
-  return path.replaceAll('\\', '/').split('/').filter(Boolean).join('/');
-}
 
 function compareNodes(a: ExplorerNode, b: ExplorerNode): number {
   if (a.isDir && !b.isDir) return -1;
@@ -42,7 +39,7 @@ export function buildExplorerTree(files: ExplorerFileEntry[]): ExplorerNode[] {
   const rootMap = new Map<string, MutableNode>();
 
   for (const file of files) {
-    const normalizedPath = normalizePath(file.path);
+    const normalizedPath = normalizeRelativePath(file.path);
     if (!normalizedPath) continue;
 
     const parts = normalizedPath.split('/');

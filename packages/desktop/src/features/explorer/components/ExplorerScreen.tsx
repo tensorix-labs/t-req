@@ -1,30 +1,16 @@
 import { createMemo, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import { runConfirmedDelete } from '../mutations';
+import { useExplorerStore } from '../use-explorer-store';
 import {
   buildCreateFilePath,
-  runConfirmedDelete,
+  isCrossDirectoryMove,
   toCreateDirectory,
   toCreateHttpPath
-} from '../mutations';
-import { useExplorerStore } from '../use-explorer-store';
+} from '../utils/mutations';
+import { parentDirectory, pathFilename, trimHttpExtension } from '../utils/path';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
-
-function parentDirectory(path: string): string {
-  const slashIndex = path.lastIndexOf('/');
-  if (slashIndex <= 0) {
-    return '';
-  }
-  return path.slice(0, slashIndex);
-}
-
-function pathFilename(path: string): string {
-  return path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
-}
-
-function trimHttpExtension(filename: string): string {
-  return filename.toLowerCase().endsWith('.http') ? filename.slice(0, -5) : filename;
-}
 
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
@@ -164,6 +150,13 @@ export default function ExplorerScreen() {
     const toPath = buildCreateFilePath(parsedName.path, parsedDirectory.directory);
     if (toPath === fromPath) {
       setRenameForm('error', 'Destination is unchanged.');
+      return;
+    }
+
+    if (
+      isCrossDirectoryMove(fromPath, toPath) &&
+      !window.confirm(`Move "${pathFilename(fromPath)}" to "${toPath}"?`)
+    ) {
       return;
     }
 

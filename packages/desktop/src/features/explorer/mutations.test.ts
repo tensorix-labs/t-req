@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  buildCreateFilePath,
   resolveSelectionAfterDeletedPath,
   runConfirmedDelete,
   runCreateFileMutation,
   runDeleteFileMutation,
   runRenameFileMutation,
-  runSaveFileContentMutation,
-  toCreateDirectory,
-  toCreateHttpPath
+  runSaveFileContentMutation
 } from './mutations';
 import type { ExplorerFileDocument, ExplorerFlatNode } from './types';
+import {
+  buildCreateFilePath,
+  isCrossDirectoryMove,
+  toCreateDirectory,
+  toCreateHttpPath
+} from './utils/mutations';
 
 function file(path: string): ExplorerFlatNode {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
@@ -90,6 +93,18 @@ describe('buildCreateFilePath', () => {
 
   it('uses filename directly for workspace root', () => {
     expect(buildCreateFilePath('new.http')).toBe('new.http');
+  });
+});
+
+describe('isCrossDirectoryMove', () => {
+  it('returns false when staying in the same directory', () => {
+    expect(isCrossDirectoryMove('requests/a.http', 'requests/b.http')).toBe(false);
+    expect(isCrossDirectoryMove('a.http', 'b.http')).toBe(false);
+  });
+
+  it('returns true when directory changes', () => {
+    expect(isCrossDirectoryMove('requests/a.http', 'other/b.http')).toBe(true);
+    expect(isCrossDirectoryMove('a.http', 'requests/b.http')).toBe(true);
   });
 });
 
