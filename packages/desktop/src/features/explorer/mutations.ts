@@ -1,7 +1,12 @@
 import type { ExplorerFileDocument, ExplorerFlatNode } from './types';
 
+export type CreateFileInput = {
+  path: string;
+  content?: string;
+};
+
 type CreateFileDeps = {
-  createFile: (path: string) => Promise<void>;
+  createFile: (input: CreateFileInput) => Promise<void>;
   refetch: () => Promise<void>;
   setSelectedPath: (path: string | undefined) => void;
 };
@@ -61,10 +66,13 @@ export function resolveSelectionAfterDeletedPath(
   return visibleFilePaths[deletedIndex + 1] ?? visibleFilePaths[deletedIndex - 1];
 }
 
-export async function runCreateFileMutation(path: string, deps: CreateFileDeps): Promise<void> {
-  await deps.createFile(path);
+export async function runCreateFileMutation(
+  input: CreateFileInput,
+  deps: CreateFileDeps
+): Promise<void> {
+  await deps.createFile(input);
   await deps.refetch();
-  deps.setSelectedPath(path);
+  deps.setSelectedPath(input.path);
 }
 
 export async function runDeleteFileMutation(path: string, deps: DeleteFileDeps): Promise<void> {

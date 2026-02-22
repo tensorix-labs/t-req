@@ -47,7 +47,7 @@ export function ExplorerToolbar(props: ExplorerToolbarProps) {
           class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
           onClick={props.onCreate}
           disabled={props.isMutating}
-          aria-label="Create new request file"
+          aria-label="Create new request"
         >
           <PlusIcon class="size-3" />
           <span>New</span>
