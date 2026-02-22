@@ -4,6 +4,7 @@ import { createStore } from 'solid-js/store';
 import { useServer } from '../../context/server-context';
 import { toErrorMessage } from '../../lib/errors';
 import {
+  type CreateFileInput,
   runCreateFileMutation,
   runDeleteFileMutation,
   runRenameFileMutation,
@@ -43,7 +44,7 @@ export interface ExplorerStore {
   fileSaveError: () => string | undefined;
   refresh: () => Promise<void>;
   saveSelectedFile: () => Promise<void>;
-  createFile: (path: string) => Promise<void>;
+  createFile: (input: CreateFileInput) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   renameFile: (fromPath: string, toPath: string) => Promise<void>;
   setFileDraftContent: (content: string) => void;
@@ -275,7 +276,7 @@ export function useExplorerStore(): ExplorerStore {
     }
   };
 
-  const createFile = async (path: string) => {
+  const createFile = async (input: CreateFileInput) => {
     const currentSource = source();
     if (!currentSource) {
       return;
@@ -286,9 +287,16 @@ export function useExplorerStore(): ExplorerStore {
       error: undefined
     });
     try {
-      await runCreateFileMutation(path, {
-        createFile: async (nextPath) => {
-          await unwrap(currentSource.client.postWorkspaceFile({ body: { path: nextPath } }));
+      await runCreateFileMutation(input, {
+        createFile: async (nextInput) => {
+          await unwrap(
+            currentSource.client.postWorkspaceFile({
+              body: {
+                path: nextInput.path,
+                ...(nextInput.content !== undefined ? { content: nextInput.content } : {})
+              }
+            })
+          );
         },
         refetch: async () => {
           await refetch();

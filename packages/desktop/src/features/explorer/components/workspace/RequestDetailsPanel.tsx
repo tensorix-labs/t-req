@@ -11,7 +11,7 @@ export function RequestDetailsPanel() {
         <h3 class="m-0 text-sm font-semibold text-base-content">Request Details</h3>
       </header>
 
-      <div role="tablist" class="tabs tabs-bordered tabs-sm px-3 pt-1">
+      <div role="tablist" class="tabs tabs-bordered tabs-md px-3 pt-1">
         <button
           type="button"
           role="tab"
@@ -45,7 +45,7 @@ export function RequestDetailsPanel() {
         <Switch>
           <Match when={activeTab() === 'params'}>
             <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
-              <table class="table table-xs">
+              <table class="table table-sm">
                 <thead>
                   <tr>
                     <th class="font-mono">Name</th>
@@ -68,11 +68,11 @@ export function RequestDetailsPanel() {
 
           <Match when={activeTab() === 'body'}>
             <label class="flex h-full flex-col gap-2">
-              <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-base-content/60">
+              <span class="text-[12px] font-semibold uppercase tracking-[0.05em] text-base-content/60">
                 JSON Body
               </span>
               <textarea
-                class="textarea textarea-sm h-full min-h-[160px] w-full border-base-300 bg-base-100 font-mono text-xs"
+                class="textarea textarea-sm h-full min-h-[160px] w-full border-base-300 bg-base-100 font-mono text-sm"
                 value={'{\n  "name": "example",\n  "enabled": true\n}'}
                 disabled
                 aria-label="Request body editor"
@@ -82,7 +82,7 @@ export function RequestDetailsPanel() {
 
           <Match when={activeTab() === 'headers'}>
             <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
-              <table class="table table-xs">
+              <table class="table table-sm">
                 <thead>
                   <tr>
                     <th class="font-mono">Header</th>

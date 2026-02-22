@@ -29,7 +29,7 @@ export function ExplorerToolbar(props: ExplorerToolbarProps) {
 
   return (
     <header class="flex items-center justify-between gap-3 border-b border-base-300 bg-base-200 px-3.5 py-2.5">
-      <h1 class="m-0 font-mono text-[0.88rem] leading-[1.1] font-semibold tracking-[0.02em] text-base-content">
+      <h1 class="m-0 font-mono text-[0.96rem] leading-[1.1] font-semibold tracking-[0.02em] text-base-content">
         Workspace
       </h1>
       <div class="inline-flex items-center gap-2">
@@ -44,10 +44,10 @@ export function ExplorerToolbar(props: ExplorerToolbarProps) {
         </button>
         <button
           type="button"
-          class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
+          class="btn btn-primary btn-sm h-8 min-h-8 rounded-full border border-primary/70 px-3.5 font-mono text-[12px] normal-case tracking-[0.01em] shadow-sm hover:brightness-110"
           onClick={props.onCreate}
           disabled={props.isMutating}
-          aria-label="Create new request file"
+          aria-label="Create new request"
         >
           <PlusIcon class="size-3" />
           <span>New</span>

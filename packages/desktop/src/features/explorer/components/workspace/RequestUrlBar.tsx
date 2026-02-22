@@ -17,7 +17,7 @@ export function RequestUrlBar(props: RequestUrlBarProps) {
     <section class="border-b border-base-300 bg-base-200/20 px-3 py-2.5" aria-label="Request URL">
       <div class="flex flex-wrap items-center gap-2">
         <select
-          class="select select-sm w-28 border-base-300 bg-base-100 font-mono"
+          class="select select-sm w-28 border-base-300 bg-base-100 font-mono text-sm"
           value={props.method}
           onInput={(event) => props.onMethodChange(event.currentTarget.value)}
           disabled={props.disabled}
@@ -27,7 +27,7 @@ export function RequestUrlBar(props: RequestUrlBarProps) {
         </select>
         <input
           type="text"
-          class="input input-sm flex-1 border-base-300 bg-base-100 font-mono text-xs"
+          class="input input-sm flex-1 border-base-300 bg-base-100 font-mono text-sm"
           value={props.url}
           onInput={(event) => props.onUrlChange(event.currentTarget.value)}
           placeholder="https://api.example.com"

@@ -152,19 +152,25 @@ describe('runCreateFileMutation', () => {
     const calls: string[] = [];
     let selectedPath: string | undefined;
 
-    await runCreateFileMutation('new.http', {
-      createFile: async (path) => {
-        calls.push(`create:${path}`);
+    await runCreateFileMutation(
+      {
+        path: 'new.http',
+        content: 'GET https://api.example.com\n'
       },
-      refetch: async () => {
-        calls.push('refetch');
-      },
-      setSelectedPath: (path) => {
-        selectedPath = path;
+      {
+        createFile: async ({ path, content }) => {
+          calls.push(`create:${path}:${content ?? ''}`);
+        },
+        refetch: async () => {
+          calls.push('refetch');
+        },
+        setSelectedPath: (path) => {
+          selectedPath = path;
+        }
       }
-    });
+    );
 
-    expect(calls).toEqual(['create:new.http', 'refetch']);
+    expect(calls).toEqual(['create:new.http:GET https://api.example.com\n', 'refetch']);
     expect(selectedPath).toBe('new.http');
   });
 
@@ -172,16 +178,21 @@ describe('runCreateFileMutation', () => {
     const calls: string[] = [];
 
     await expect(
-      runCreateFileMutation('new.http', {
-        createFile: async () => {
-          calls.push('create');
-          throw new Error('boom');
+      runCreateFileMutation(
+        {
+          path: 'new.http'
         },
-        refetch: async () => {
-          calls.push('refetch');
-        },
-        setSelectedPath: () => {}
-      })
+        {
+          createFile: async () => {
+            calls.push('create');
+            throw new Error('boom');
+          },
+          refetch: async () => {
+            calls.push('refetch');
+          },
+          setSelectedPath: () => {}
+        }
+      )
     ).rejects.toThrow('boom');
 
     expect(calls).toEqual(['create']);

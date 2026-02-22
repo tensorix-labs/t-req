@@ -11,11 +11,11 @@ export function ResponseBodyPanel() {
         <h3 class="m-0 text-sm font-semibold text-base-content">Response Body</h3>
         <div class="flex items-center gap-2">
           <span class="badge badge-success badge-sm font-mono">200 OK</span>
-          <span class="text-xs text-base-content/65">480 ms · 2 KB</span>
+          <span class="text-sm text-base-content/65">480 ms · 2 KB</span>
         </div>
       </header>
 
-      <div role="tablist" class="tabs tabs-bordered tabs-sm px-3 pt-1">
+      <div role="tablist" class="tabs tabs-bordered tabs-md px-3 pt-1">
         <button
           type="button"
           role="tab"
@@ -39,7 +39,7 @@ export function ResponseBodyPanel() {
       <div class="min-h-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
         <Switch>
           <Match when={activeTab() === 'response'}>
-            <pre class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-xs leading-6 text-base-content/80">
+            <pre class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-sm leading-7 text-base-content/80">
               {`{
   "status": "ok",
   "message": "Response preview appears here.",
@@ -49,7 +49,7 @@ export function ResponseBodyPanel() {
           </Match>
           <Match when={activeTab() === 'headers'}>
             <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
-              <table class="table table-xs">
+              <table class="table table-sm">
                 <thead>
                   <tr>
                     <th class="font-mono">Header</th>

@@ -1,6 +1,12 @@
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
+  type CreateWorkspaceItemKind,
+  DEFAULT_CREATE_WORKSPACE_ITEM_KIND,
+  getRequestTemplate,
+  isCreateRequestKind
+} from '../create-request';
+import {
   deriveRequestLineFromContent,
   FALLBACK_REQUEST_METHOD,
   FALLBACK_REQUEST_URL
@@ -8,6 +14,7 @@ import {
 import { useExplorerStore } from '../use-explorer-store';
 import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
+import { CreateRequestDialog } from './CreateRequestDialog';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
 import { ChevronRightIcon } from './icons';
@@ -32,10 +39,17 @@ function normalizeRequestMethod(method: string): RequestMethod {
 
 export default function ExplorerScreen() {
   const explorer = useExplorerStore();
-  const [createForm, setCreateForm] = createStore({
+  const [createDialog, setCreateDialog] = createStore<{
+    name: string;
+    kind: CreateWorkspaceItemKind;
+    targetDir: string | undefined;
+    error: string | undefined;
+    isOpen: boolean;
+  }>({
     name: '',
-    targetDir: undefined as string | undefined,
-    error: undefined as string | undefined,
+    kind: DEFAULT_CREATE_WORKSPACE_ITEM_KIND,
+    targetDir: undefined,
+    error: undefined,
     isOpen: false
   });
   const [requestMethod, setRequestMethod] = createSignal<RequestMethod>(
@@ -72,8 +86,8 @@ export default function ExplorerScreen() {
       : 'minmax(260px, 300px) minmax(0, 1fr)'
   }));
 
-  const openCreateForm = () => {
-    let targetDir = createForm.targetDir;
+  const openCreateDialog = () => {
+    let targetDir = createDialog.targetDir;
     const path = selectedPath();
     if (path && selectedIsDirectory()) {
       targetDir = path;
@@ -82,57 +96,66 @@ export default function ExplorerScreen() {
       targetDir = nextTarget || undefined;
     }
 
-    setCreateForm({
+    setCreateDialog({
       name: '',
+      kind: DEFAULT_CREATE_WORKSPACE_ITEM_KIND,
       targetDir,
       error: undefined,
       isOpen: true
     });
   };
 
-  const closeCreateForm = () => {
-    setCreateForm({
+  const closeCreateDialog = () => {
+    setCreateDialog({
       name: '',
+      kind: DEFAULT_CREATE_WORKSPACE_ITEM_KIND,
       error: undefined,
       isOpen: false
     });
   };
 
-  const submitCreateForm = async (event: Event) => {
-    event.preventDefault();
-    setCreateForm('error', undefined);
+  const submitCreateDialog = async () => {
+    setCreateDialog('error', undefined);
 
-    const parsedPath = toCreateHttpPath(createForm.name);
+    if (!isCreateRequestKind(createDialog.kind)) {
+      setCreateDialog('error', 'Selected type is not available yet.');
+      return;
+    }
+
+    const parsedPath = toCreateHttpPath(createDialog.name);
     if (!parsedPath.ok) {
-      setCreateForm('error', parsedPath.error);
+      setCreateDialog('error', parsedPath.error);
       return;
     }
 
     try {
-      await explorer.createFile(buildCreateFilePath(parsedPath.path, createForm.targetDir));
-      closeCreateForm();
+      await explorer.createFile({
+        path: buildCreateFilePath(parsedPath.path, createDialog.targetDir),
+        content: getRequestTemplate(createDialog.kind)
+      });
+      closeCreateDialog();
     } catch {
       // Store mutation error is displayed in the explorer panel.
     }
   };
 
   const handleToggleDirectory = (path: string) => {
-    setCreateForm('targetDir', path);
+    setCreateDialog('targetDir', path);
     explorer.toggleDir(path);
   };
 
   const handleSelectFile = (path: string) => {
     const nextTarget = parentDirectory(path);
-    setCreateForm('targetDir', nextTarget || undefined);
+    setCreateDialog('targetDir', nextTarget || undefined);
     explorer.selectPath(path);
   };
 
-  const createTargetLabel = createMemo(() => createForm.targetDir ?? 'workspace root');
+  const createTargetLabel = createMemo(() => createDialog.targetDir ?? 'workspace root');
   const toggleSidebarCollapsed = () => {
     setIsSidebarCollapsed((previous) => {
       const next = !previous;
       if (next) {
-        closeCreateForm();
+        closeCreateDialog();
       }
       return next;
     });
@@ -161,7 +184,7 @@ export default function ExplorerScreen() {
         aria-label="Workspace files"
       >
         <ExplorerToolbar
-          onCreate={openCreateForm}
+          onCreate={openCreateDialog}
           onRefresh={() => void explorer.refresh()}
           onToggleCollapsed={toggleSidebarCollapsed}
           isRefreshing={explorer.isLoading()}
@@ -171,49 +194,6 @@ export default function ExplorerScreen() {
         />
 
         <Show when={!isSidebarCollapsed()}>
-          <Show when={createForm.isOpen}>
-            <form
-              class="space-y-2 border-b border-base-300 bg-base-200/70 px-3.5 py-2.5"
-              onSubmit={(event) => void submitCreateForm(event)}
-            >
-              <label class="flex flex-col gap-1">
-                <span class="font-mono text-[11px] text-base-content/65">Filename</span>
-                <input
-                  type="text"
-                  class="input input-sm w-full rounded-md border-base-300 bg-base-100/70 font-mono text-xs"
-                  value={createForm.name}
-                  onInput={(event) => setCreateForm('name', event.currentTarget.value)}
-                  placeholder="new-request"
-                  aria-label="New request file name"
-                  disabled={isBusy()}
-                />
-              </label>
-              <span class="block font-mono text-[11px] text-base-content/70">
-                Create in: {createTargetLabel()}
-              </span>
-              <div class="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
-                  onClick={closeCreateForm}
-                  disabled={isBusy()}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary btn-xs h-7 min-h-7 px-2 font-mono text-[11px] normal-case"
-                  disabled={isBusy()}
-                >
-                  Create
-                </button>
-              </div>
-              <Show when={createForm.error}>
-                {(message) => <span class="text-xs text-error">{message()}</span>}
-              </Show>
-            </form>
-          </Show>
-
           <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent py-2">
             <Show when={explorer.error()}>
               {(message) => (
@@ -275,6 +255,19 @@ export default function ExplorerScreen() {
         </Show>
       </section>
 
+      <CreateRequestDialog
+        open={createDialog.isOpen}
+        isBusy={isBusy()}
+        name={createDialog.name}
+        kind={createDialog.kind}
+        targetLabel={createTargetLabel()}
+        error={createDialog.error}
+        onClose={closeCreateDialog}
+        onNameChange={(value) => setCreateDialog('name', value)}
+        onKindChange={(kind) => setCreateDialog('kind', kind)}
+        onSubmit={() => void submitCreateDialog()}
+      />
+
       <section
         class="min-w-0 min-h-0 flex flex-col overflow-hidden border border-base-300 rounded-tr-[14px] bg-[linear-gradient(180deg,_var(--app-pane-gradient-start)_0%,_var(--app-pane-gradient-end)_100%)] [box-shadow:var(--app-pane-shadow-top),_var(--app-pane-shadow-drop)] max-[960px]:rounded-tr-none"
         aria-label="Request workspace"
@@ -292,7 +285,7 @@ export default function ExplorerScreen() {
             >
               <ChevronRightIcon class={isSidebarCollapsed() ? 'size-3' : 'size-3 rotate-180'} />
             </button>
-            <h2 class="m-0 font-mono text-[0.8rem] font-semibold tracking-[0.015em] text-base-content">
+            <h2 class="m-0 font-mono text-[0.9rem] font-semibold tracking-[0.015em] text-base-content">
               Request Workspace
             </h2>
           </div>
@@ -300,7 +293,7 @@ export default function ExplorerScreen() {
             <Show when={selectedPath()}>
               {(path) => (
                 <span
-                  class="max-w-[320px] truncate font-mono text-[11px] text-base-content/65"
+                  class="max-w-[320px] truncate font-mono text-[12px] text-base-content/65"
                   title={path()}
                 >
                   {path()}
@@ -308,46 +301,44 @@ export default function ExplorerScreen() {
               )}
             </Show>
             <Show when={selectedPath()}>
-              <span class="badge badge-sm border-base-300 bg-base-300/60 px-2 font-mono text-[10px] text-base-content/80">
+              <span class="badge badge-sm border-base-300 bg-base-300/60 px-2 font-mono text-[11px] text-base-content/80">
                 {selectedRequestCount()} req
               </span>
             </Show>
           </div>
         </header>
         <Show when={selectedPath()} fallback={<EmptyRequestWorkspace />}>
-          {() => (
-            <div class="flex min-h-0 flex-1 flex-col">
-              <Show when={fileLoadError()}>
-                {(message) => (
-                  <div
-                    class="alert alert-error mx-3 mt-3 border border-error/50 bg-error/20 text-error-content"
-                    role="alert"
-                  >
-                    <span class="text-sm">{message()}</span>
-                  </div>
-                )}
-              </Show>
-
-              <Show when={isFileLoading()}>
-                <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
-                  <span class="text-sm">Loading request content…</span>
+          <div class="flex min-h-0 flex-1 flex-col">
+            <Show when={fileLoadError()}>
+              {(message) => (
+                <div
+                  class="alert alert-error mx-3 mt-3 border border-error/50 bg-error/20 text-error-content"
+                  role="alert"
+                >
+                  <span class="text-sm">{message()}</span>
                 </div>
-              </Show>
+              )}
+            </Show>
 
-              <RequestUrlBar
-                method={requestMethod()}
-                url={requestUrl()}
-                onMethodChange={(method) => setRequestMethod(normalizeRequestMethod(method))}
-                onUrlChange={setRequestUrl}
-                disabled={isBusy() || isFileLoading()}
-              />
-
-              <div class="grid min-h-0 flex-1 grid-cols-[minmax(320px,_48%)_minmax(0,_1fr)] gap-0 max-[1180px]:grid-cols-1">
-                <RequestDetailsPanel />
-                <ResponseBodyPanel />
+            <Show when={isFileLoading()}>
+              <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
+                <span class="text-sm">Loading request content…</span>
               </div>
+            </Show>
+
+            <RequestUrlBar
+              method={requestMethod()}
+              url={requestUrl()}
+              onMethodChange={(method) => setRequestMethod(normalizeRequestMethod(method))}
+              onUrlChange={setRequestUrl}
+              disabled={isBusy() || isFileLoading()}
+            />
+
+            <div class="grid min-h-0 flex-1 grid-cols-[minmax(320px,_48%)_minmax(0,_1fr)] gap-0 max-[1180px]:grid-cols-1">
+              <RequestDetailsPanel />
+              <ResponseBodyPanel />
             </div>
-          )}
+          </div>
         </Show>
       </section>
     </main>
