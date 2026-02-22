@@ -6,7 +6,7 @@ export function RequestDetailsPanel() {
   const [activeTab, setActiveTab] = createSignal<RequestDetailsTab>('params');
 
   return (
-    <section class="min-h-0 flex flex-col border-r border-base-300 bg-base-200/10 max-[1180px]:border-r-0 max-[1180px]:border-b">
+    <section class="min-h-0 flex flex-col border-r border-base-300 bg-base-200/10">
       <header class="border-b border-base-300/80 px-3 py-2.5">
         <h3 class="m-0 text-sm font-semibold text-base-content">Request Details</h3>
       </header>

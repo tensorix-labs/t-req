@@ -57,6 +57,7 @@ export default function ExplorerScreen() {
   );
   const [requestUrl, setRequestUrl] = createSignal(FALLBACK_REQUEST_URL);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
+  const [isResponseCollapsed, setIsResponseCollapsed] = createSignal(false);
   const selectedPath = explorer.selectedPath;
   const visibleItems = explorer.flattenedVisible;
   const selectedItem = createMemo(() => {
@@ -82,8 +83,16 @@ export default function ExplorerScreen() {
   const requestLineDefaults = createMemo(() => deriveRequestLineFromContent(selectedFileContent()));
   const explorerGridStyle = createMemo<Record<string, string>>(() => ({
     '--explorer-grid-cols': isSidebarCollapsed()
-      ? '52px minmax(0, 1fr)'
-      : 'minmax(260px, 300px) minmax(0, 1fr)'
+      ? 'minmax(0, 1fr)'
+      : 'minmax(260px, 300px) minmax(0, 1fr)',
+    '--explorer-grid-rows-mobile': isSidebarCollapsed()
+      ? 'minmax(0, 1fr)'
+      : 'minmax(220px, 42%) minmax(0, 1fr)'
+  }));
+  const requestPanelsStyle = createMemo<Record<string, string>>(() => ({
+    '--request-panels-cols': isResponseCollapsed()
+      ? 'minmax(0, 1fr) 34px'
+      : 'minmax(320px, 48%) minmax(0, 1fr)'
   }));
 
   const openCreateDialog = () => {
@@ -160,6 +169,8 @@ export default function ExplorerScreen() {
       return next;
     });
   };
+  const collapseResponsePanel = () => setIsResponseCollapsed(true);
+  const expandResponsePanel = () => setIsResponseCollapsed(false);
 
   createEffect(() => {
     const path = selectedPath();
@@ -176,24 +187,22 @@ export default function ExplorerScreen() {
 
   return (
     <main
-      class="flex-1 min-h-0 grid grid-cols-[var(--explorer-grid-cols)] gap-0 px-2 pt-2 max-[960px]:grid-cols-1 max-[960px]:grid-rows-[minmax(220px,_42%)_minmax(0,_1fr)]"
+      class="flex-1 min-h-0 grid grid-cols-[var(--explorer-grid-cols)] gap-0 px-2 pt-2 max-[960px]:grid-cols-1 max-[960px]:grid-rows-[var(--explorer-grid-rows-mobile)]"
       style={explorerGridStyle()}
     >
-      <section
-        class="min-h-0 flex flex-col overflow-hidden border border-base-300 border-r-0 rounded-tl-[14px] bg-[linear-gradient(180deg,_var(--app-pane-gradient-start)_0%,_var(--app-bg)_100%)] max-[960px]:border-r max-[960px]:rounded-tr-[14px]"
-        aria-label="Workspace files"
-      >
-        <ExplorerToolbar
-          onCreate={openCreateDialog}
-          onRefresh={() => void explorer.refresh()}
-          onToggleCollapsed={toggleSidebarCollapsed}
-          isRefreshing={explorer.isLoading()}
-          isMutating={isBusy()}
-          isCollapsed={isSidebarCollapsed()}
-          workspaceRoot={explorer.workspaceRoot()}
-        />
+      <Show when={!isSidebarCollapsed()}>
+        <section
+          class="min-h-0 flex flex-col overflow-hidden border border-base-300 border-r-0 rounded-tl-[14px] bg-[linear-gradient(180deg,_var(--app-pane-gradient-start)_0%,_var(--app-bg)_100%)] max-[960px]:border-r max-[960px]:rounded-tr-[14px]"
+          aria-label="Workspace files"
+        >
+          <ExplorerToolbar
+            onCreate={openCreateDialog}
+            onRefresh={() => void explorer.refresh()}
+            isRefreshing={explorer.isLoading()}
+            isMutating={isBusy()}
+            workspaceRoot={explorer.workspaceRoot()}
+          />
 
-        <Show when={!isSidebarCollapsed()}>
           <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent py-2">
             <Show when={explorer.error()}>
               {(message) => (
@@ -252,8 +261,8 @@ export default function ExplorerScreen() {
               </Match>
             </Switch>
           </div>
-        </Show>
-      </section>
+        </section>
+      </Show>
 
       <CreateRequestDialog
         open={createDialog.isOpen}
@@ -334,9 +343,34 @@ export default function ExplorerScreen() {
               disabled={isBusy() || isFileLoading()}
             />
 
-            <div class="grid min-h-0 flex-1 grid-cols-[minmax(320px,_48%)_minmax(0,_1fr)] gap-0 max-[1180px]:grid-cols-1">
+            <div
+              class="grid min-h-0 flex-1 grid-cols-[var(--request-panels-cols)] gap-0"
+              style={requestPanelsStyle()}
+            >
               <RequestDetailsPanel />
-              <ResponseBodyPanel />
+              <Show
+                when={!isResponseCollapsed()}
+                fallback={
+                  <aside class="min-h-0 bg-base-200/10 px-1 py-2">
+                    <div class="flex h-full flex-col items-center gap-3">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs btn-square h-7 min-h-7 text-base-content/70 hover:text-base-content"
+                        onClick={expandResponsePanel}
+                        aria-label="Expand response panel"
+                        title="Expand response panel"
+                      >
+                        <ChevronRightIcon class="size-3 rotate-180" />
+                      </button>
+                      <span class="[writing-mode:vertical-rl] text-[11px] font-mono uppercase tracking-[0.08em] text-base-content/55">
+                        Response
+                      </span>
+                    </div>
+                  </aside>
+                }
+              >
+                <ResponseBodyPanel onCollapse={collapseResponsePanel} />
+              </Show>
             </div>
           </div>
         </Show>

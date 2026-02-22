@@ -1,14 +1,30 @@
 import { createSignal, Match, Switch } from 'solid-js';
+import { ChevronRightIcon } from '../icons';
 
 type ResponseTab = 'response' | 'headers';
 
-export function ResponseBodyPanel() {
+type ResponseBodyPanelProps = {
+  onCollapse: () => void;
+};
+
+export function ResponseBodyPanel(props: ResponseBodyPanelProps) {
   const [activeTab, setActiveTab] = createSignal<ResponseTab>('response');
 
   return (
     <section class="min-h-0 flex flex-col bg-base-200/10">
       <header class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/80 px-3 py-2.5">
-        <h3 class="m-0 text-sm font-semibold text-base-content">Response Body</h3>
+        <div class="flex items-center gap-2">
+          <h3 class="m-0 text-sm font-semibold text-base-content">Response Body</h3>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs btn-square h-6 min-h-6 text-base-content/70 hover:text-base-content"
+            onClick={props.onCollapse}
+            aria-label="Collapse response panel"
+            title="Collapse response panel"
+          >
+            <ChevronRightIcon class="size-3" />
+          </button>
+        </div>
         <div class="flex items-center gap-2">
           <span class="badge badge-success badge-sm font-mono">200 OK</span>
           <span class="text-sm text-base-content/65">480 ms · 2 KB</span>
