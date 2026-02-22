@@ -35,7 +35,7 @@ export function ExplorerTreeItem(props: ExplorerTreeItemProps) {
       tabIndex={0}
       aria-selected={props.isSelected}
       aria-expanded={isDir() ? isExpanded() : undefined}
-      class="group flex min-h-[26px] cursor-pointer select-none items-center gap-1.5 pr-3.5 pl-[calc(10px+(var(--depth)*16px))] font-mono text-xs leading-none text-[var(--app-tree-text)] hover:bg-[var(--app-row-hover)] focus-visible:outline-2 focus-visible:outline-[var(--app-focus)] focus-visible:outline-offset-[-2px]"
+      class="group flex min-h-[29px] cursor-pointer select-none items-center gap-1.5 pr-3.5 pl-[calc(10px+(var(--depth)*16px))] font-mono text-[13px] leading-none text-[var(--app-tree-text)] hover:bg-[var(--app-row-hover)] focus-visible:outline-2 focus-visible:outline-[var(--app-focus)] focus-visible:outline-offset-[-2px]"
       classList={{
         'bg-[var(--app-row-selected)] text-[var(--app-row-selected-text)]': props.isSelected
       }}
@@ -77,7 +77,7 @@ export function ExplorerTreeItem(props: ExplorerTreeItemProps) {
       </span>
 
       <Show when={!isDir() && (node().requestCount ?? 0) > 0}>
-        <span class="rounded-full border border-[var(--app-count-border)] bg-[var(--app-count-bg)] px-1.5 py-px text-[10px] leading-[1.2] text-[var(--app-count-text)]">
+        <span class="rounded-full border border-[var(--app-count-border)] bg-[var(--app-count-bg)] px-1.5 py-px text-[11px] leading-[1.2] text-[var(--app-count-text)]">
           {node().requestCount}
         </span>
       </Show>

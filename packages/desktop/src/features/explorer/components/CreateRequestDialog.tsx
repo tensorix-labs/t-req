@@ -73,22 +73,27 @@ export function CreateRequestDialog(props: CreateRequestDialogProps) {
         >
           <div
             ref={dialogRef}
-            class="modal-box border border-base-300 bg-base-100/95 shadow-2xl"
+            class="modal-box border border-base-300 bg-base-100/95 text-base-content shadow-2xl"
             tabIndex={-1}
           >
-            <h3 id="new-item-title" class="text-base font-semibold text-base-content">
+            <h3
+              id="new-item-title"
+              class="font-mono text-[1.12rem] font-semibold tracking-[-0.01em] text-base-content"
+            >
               New Request
             </h3>
-            <p class="mt-1 text-xs text-base-content/65">Choose a type, then provide a filename.</p>
+            <p class="mt-1 font-mono text-[12px] text-base-content/65">
+              Choose a type, then provide a filename.
+            </p>
 
             <form class="mt-4 space-y-4" onSubmit={handleSubmit}>
               <fieldset class="space-y-2">
-                <legend class="font-mono text-[11px] text-base-content/70">Type</legend>
+                <legend class="font-mono text-[12px] text-base-content/70">Type</legend>
                 <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <For each={CREATE_WORKSPACE_ITEM_OPTIONS}>
                     {(option) => (
                       <label
-                        class="label cursor-pointer items-start justify-start gap-2 rounded-box border border-base-300 bg-base-200/40 p-3"
+                        class="label cursor-pointer items-start justify-start gap-2 rounded-box border border-base-300 bg-base-200/40 p-3 font-mono"
                         classList={{
                           'border-primary bg-primary/10': props.kind === option.kind,
                           'cursor-not-allowed opacity-60': option.disabled,
@@ -108,10 +113,10 @@ export function CreateRequestDialog(props: CreateRequestDialogProps) {
                         />
                         <span class="label-text flex min-w-0 items-start justify-between gap-2 text-left">
                           <span class="min-w-0">
-                            <span class="block text-sm font-medium text-base-content">
+                            <span class="block text-sm font-semibold tracking-[0.01em] text-base-content">
                               {option.label}
                             </span>
-                            <span class="block text-xs text-base-content/65">
+                            <span class="block text-[12px] text-base-content/65">
                               {option.description}
                             </span>
                           </span>
@@ -126,10 +131,10 @@ export function CreateRequestDialog(props: CreateRequestDialogProps) {
               </fieldset>
 
               <label class="form-control gap-1">
-                <span class="label-text font-mono text-[11px] text-base-content/70">Filename</span>
+                <span class="label-text font-mono text-[12px] text-base-content/70">Filename</span>
                 <input
                   type="text"
-                  class="input input-sm w-full border-base-300 bg-base-100/70 font-mono text-xs"
+                  class="input input-sm w-full border-base-300 bg-base-100/70 font-mono text-sm"
                   value={props.name}
                   onInput={(event) => props.onNameChange(event.currentTarget.value)}
                   placeholder="new-request"
@@ -139,20 +144,20 @@ export function CreateRequestDialog(props: CreateRequestDialogProps) {
               </label>
 
               <div class="rounded-box border border-base-300 bg-base-200/40 px-3 py-2">
-                <p class="font-mono text-[11px] text-base-content/70">
+                <p class="font-mono text-[12px] text-base-content/70">
                   Create in: {props.targetLabel}
                 </p>
-                <p class="mt-1 text-xs text-base-content/65">{selectedDescription()}</p>
+                <p class="mt-1 text-sm text-base-content/65">{selectedDescription()}</p>
               </div>
 
               <Show when={props.error}>
-                {(message) => <p class="text-xs text-error">{message()}</p>}
+                {(message) => <p class="text-sm text-error">{message()}</p>}
               </Show>
 
               <div class="modal-action mt-0">
                 <button
                   type="button"
-                  class="btn btn-ghost btn-sm font-mono text-[11px] normal-case"
+                  class="btn btn-ghost btn-sm font-mono text-[12px] normal-case"
                   onClick={props.onClose}
                   disabled={props.isBusy}
                 >
@@ -160,7 +165,7 @@ export function CreateRequestDialog(props: CreateRequestDialogProps) {
                 </button>
                 <button
                   type="submit"
-                  class="btn btn-primary btn-sm font-mono text-[11px] normal-case"
+                  class="btn btn-primary btn-sm rounded-full border border-primary/70 px-5 font-mono text-[13px] font-semibold tracking-[0.01em] normal-case shadow-sm hover:brightness-110"
                   disabled={isCreateDisabled()}
                 >
                   Create

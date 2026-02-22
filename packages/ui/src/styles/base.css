@@ -134,19 +134,19 @@
   --color-base-100: #1a1e26;
   --color-base-200: #20242d;
   --color-base-300: #2a303b;
-  --color-base-content: #d7dae0;
+  --color-base-content: #f1f4f8;
 
-  --color-primary: #4e9cf9;
-  --color-primary-content: #f0f6ff;
+  --color-primary: #2a7cf7;
+  --color-primary-content: #eef5ff;
   --color-secondary: #2d3441;
-  --color-secondary-content: #d7dae0;
+  --color-secondary-content: #f1f4f8;
   --color-accent: #efc36a;
   --color-accent-content: #32270f;
   --color-neutral: #151821;
-  --color-neutral-content: #d7dae0;
+  --color-neutral-content: #f1f4f8;
 
-  --color-info: #4e9cf9;
-  --color-info-content: #f0f6ff;
+  --color-info: #2a7cf7;
+  --color-info-content: #eef5ff;
   --color-success: #75be7e;
   --color-success-content: #0d2111;
   --color-warning: #efc36a;
@@ -161,10 +161,10 @@
   --app-row-hover: #2a303b;
   --app-row-selected: #2b4f79;
   --app-row-selected-text: #ecf3ff;
-  --app-focus: #6aa9ff;
+  --app-focus: #5e9fff;
   --app-folder: #efc36a;
   --app-file: #9ca5b8;
-  --app-text: #d7dae0;
+  --app-text: #f1f4f8;
   --app-neutral-bg: #151821;
   --app-shell-radial-start: #242a36;
   --app-shell-radial-end: #1e2834;
@@ -190,7 +190,7 @@
   --app-pane-shadow-top: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --app-pane-shadow-drop: 0 26px 54px rgba(7, 10, 16, 0.5);
   --app-toolbar-bg: #252a35;
-  --app-toolbar-title: #f3f5f9;
+  --app-toolbar-title: #f6f8fc;
   --app-form-bg: #202633;
   --app-form-label: #9aa8bf;
   --app-form-target: #aeb8cb;
@@ -200,12 +200,12 @@
   --app-action-border: #3b4558;
   --app-action-bg: #2b3340;
   --app-action-text: #d9e3f6;
-  --app-action-primary-border: #44618c;
-  --app-action-primary-bg: #2a4b74;
+  --app-action-primary-border: #3a7fe0;
+  --app-action-primary-bg: #2a7cf7;
   --app-action-hover-bg: #333d4c;
   --app-action-hover-border: #4c5870;
-  --app-action-primary-hover-bg: #346096;
-  --app-action-primary-hover-border: #5e81b4;
+  --app-action-primary-hover-bg: #3c8aff;
+  --app-action-primary-hover-border: #5398ff;
   --app-error-soft: #ff9aa0;
   --app-tree-text: #e4e9f4;
   --app-tree-dir: #f4f7ff;

@@ -285,7 +285,7 @@ export default function ExplorerScreen() {
             >
               <ChevronRightIcon class={isSidebarCollapsed() ? 'size-3' : 'size-3 rotate-180'} />
             </button>
-            <h2 class="m-0 font-mono text-[0.8rem] font-semibold tracking-[0.015em] text-base-content">
+            <h2 class="m-0 font-mono text-[0.9rem] font-semibold tracking-[0.015em] text-base-content">
               Request Workspace
             </h2>
           </div>
@@ -293,7 +293,7 @@ export default function ExplorerScreen() {
             <Show when={selectedPath()}>
               {(path) => (
                 <span
-                  class="max-w-[320px] truncate font-mono text-[11px] text-base-content/65"
+                  class="max-w-[320px] truncate font-mono text-[12px] text-base-content/65"
                   title={path()}
                 >
                   {path()}
@@ -301,7 +301,7 @@ export default function ExplorerScreen() {
               )}
             </Show>
             <Show when={selectedPath()}>
-              <span class="badge badge-sm border-base-300 bg-base-300/60 px-2 font-mono text-[10px] text-base-content/80">
+              <span class="badge badge-sm border-base-300 bg-base-300/60 px-2 font-mono text-[11px] text-base-content/80">
                 {selectedRequestCount()} req
               </span>
             </Show>
