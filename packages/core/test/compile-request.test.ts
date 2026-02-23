@@ -54,6 +54,59 @@ describe('compileExecuteRequest', () => {
     expect(result.executeRequest.body).toBe('{"key":"value"}');
   });
 
+  test('normalizes JSONC body into strict JSON when content type is json', async () => {
+    const result = await compileExecuteRequest(
+      {
+        method: 'POST',
+        url: 'https://example.com',
+        headers: { 'Content-Type': 'application/json' },
+        body: `{
+  // comment
+  "name": "test",
+  "items": [1, 2,],
+}`
+      },
+      { basePath: '/app' }
+    );
+
+    expect(result.executeRequest.body).toBe('{"name":"test","items":[1,2]}');
+  });
+
+  test('normalizes JSON-like body without explicit content type', async () => {
+    const result = await compileExecuteRequest(
+      {
+        method: 'POST',
+        url: 'https://example.com',
+        headers: {},
+        body: `{
+  "ok": true,
+}`
+      },
+      { basePath: '/app' }
+    );
+
+    expect(result.executeRequest.body).toBe('{"ok":true}');
+  });
+
+  test('throws for invalid JSONC body when body appears json-like', async () => {
+    try {
+      await compileExecuteRequest(
+        {
+          method: 'POST',
+          url: 'https://example.com',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{ invalid-json }'
+        },
+        { basePath: '/app' }
+      );
+      throw new Error('Expected compileExecuteRequest to throw for invalid JSONC');
+    } catch (error) {
+      expect(error instanceof Error ? error.message : String(error)).toContain(
+        'Invalid JSON/JSONC body'
+      );
+    }
+  });
+
   test('builds url-encoded body from non-file form data', async () => {
     const result = await compileExecuteRequest(
       {

@@ -31,6 +31,7 @@ import {
 } from '../utils/request-details';
 import {
   applyRequestEditsToContent,
+  applySpanEditToContent,
   buildUrlWithParams,
   cloneRequestRows
 } from '../utils/request-editing';
@@ -67,6 +68,7 @@ export default function ExplorerScreen() {
   const [draftRequestKey, setDraftRequestKey] = createSignal<string | undefined>(undefined);
   const [draftParams, setDraftParams] = createSignal<RequestDetailsRow[]>([]);
   const [draftHeaders, setDraftHeaders] = createSignal<RequestDetailsRow[]>([]);
+  const [draftBody, setDraftBody] = createSignal('');
   const [isDetailsDirty, setIsDetailsDirty] = createSignal(false);
   const [detailsSaveError, setDetailsSaveError] = createSignal<string | undefined>(undefined);
   const [latestExecution, setLatestExecution] = createSignal<PostExecuteResponses[200] | undefined>(
@@ -125,7 +127,8 @@ export default function ExplorerScreen() {
         context.client.postParse({
           body: {
             path: context.path,
-            includeDiagnostics: true
+            includeDiagnostics: true,
+            includeBodyContent: true
           }
         })
       );
@@ -172,6 +175,7 @@ export default function ExplorerScreen() {
         setDraftRequestKey(undefined);
         setDraftParams([]);
         setDraftHeaders([]);
+        setDraftBody('');
         setIsDetailsDirty(false);
         setDetailsSaveError(undefined);
         return;
@@ -184,9 +188,25 @@ export default function ExplorerScreen() {
       setDraftRequestKey(nextKey);
       setDraftParams(cloneRequestRows(requestSourceParams()));
       setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+      setDraftBody(requestSourceBody().text ?? '');
       setIsDetailsDirty(false);
       setDetailsSaveError(undefined);
     })
+  );
+
+  createEffect(
+    on(
+      [requestDraftKey, requestSourceParams, requestSourceHeaders, requestSourceBody],
+      ([nextKey, nextParams, nextHeaders, nextBody]) => {
+        if (!nextKey || draftRequestKey() !== nextKey || isDetailsDirty()) {
+          return;
+        }
+
+        setDraftParams(cloneRequestRows(nextParams));
+        setDraftHeaders(cloneRequestRows(nextHeaders));
+        setDraftBody(nextBody.text ?? '');
+      }
+    )
   );
 
   const updateDraftRows = (
@@ -225,6 +245,11 @@ export default function ExplorerScreen() {
     markDetailsDirty();
   };
 
+  const handleDraftBodyChange = (value: string) => {
+    setDraftBody(value);
+    markDetailsDirty();
+  };
+
   const addDraftParam = () => {
     setDraftParams((rows) => [...rows, { key: '', value: '' }]);
     markDetailsDirty();
@@ -248,6 +273,7 @@ export default function ExplorerScreen() {
   const discardRequestDetailsDraft = () => {
     setDraftParams(cloneRequestRows(requestSourceParams()));
     setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+    setDraftBody(requestSourceBody().text ?? '');
     setIsDetailsDirty(false);
     setDetailsSaveError(undefined);
   };
@@ -260,9 +286,27 @@ export default function ExplorerScreen() {
       return;
     }
 
+    const sourceBody = requestSourceBody();
+    const sourceBodyText = sourceBody.kind === 'inline' ? (sourceBody.text ?? '') : '';
+    let contentWithBody = content;
+    if (sourceBody.kind === 'inline' && draftBody() !== sourceBodyText) {
+      const bodySpan = sourceBody.spans?.body;
+      if (!bodySpan) {
+        setDetailsSaveError('Unable to update body text because body span data was unavailable.');
+        return;
+      }
+
+      const bodyRewrite = applySpanEditToContent(contentWithBody, bodySpan, draftBody());
+      if (!bodyRewrite.ok) {
+        setDetailsSaveError(bodyRewrite.error);
+        return;
+      }
+      contentWithBody = bodyRewrite.content;
+    }
+
     const nextUrl = buildUrlWithParams(sourceUrl, draftParams());
     const updatedContent = applyRequestEditsToContent(
-      content,
+      contentWithBody,
       request.index,
       nextUrl,
       draftHeaders()
@@ -664,6 +708,7 @@ export default function ExplorerScreen() {
                 params={requestParams()}
                 headers={requestHeaders()}
                 bodySummary={requestBodySummary()}
+                bodyDraft={draftBody()}
                 diagnostics={requestDiagnostics()}
                 fileDiagnostics={fileDiagnostics()}
                 isLoading={isRequestDetailsLoading()}
@@ -677,6 +722,7 @@ export default function ExplorerScreen() {
                 onRemoveParam={removeDraftParam}
                 onAddHeader={addDraftHeader}
                 onRemoveHeader={removeDraftHeader}
+                onBodyChange={handleDraftBodyChange}
                 onSave={() => void saveRequestDetailsDraft()}
                 onDiscard={discardRequestDetailsDraft}
               />

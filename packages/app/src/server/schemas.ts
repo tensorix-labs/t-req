@@ -69,11 +69,55 @@ export const ParseRequestSchema = z
   .object({
     content: z.string().max(MAX_CONTENT_SIZE).optional(),
     path: z.string().max(MAX_PATH_LENGTH).optional(),
-    includeDiagnostics: z.boolean().optional().default(true)
+    includeDiagnostics: z.boolean().optional().default(true),
+    includeBodyContent: z.boolean().optional().default(false)
   })
   .refine((data) => (data.content !== undefined) !== (data.path !== undefined), {
     message: 'Exactly one of "content" or "path" must be provided'
   });
+
+export const RequestOffsetSpanSchema = z.object({
+  startOffset: z.number().int().min(0),
+  endOffset: z.number().int().min(0)
+});
+
+export const ParsedRequestSpansSchema = z.object({
+  block: RequestOffsetSpanSchema,
+  requestLine: RequestOffsetSpanSchema,
+  url: RequestOffsetSpanSchema,
+  headers: RequestOffsetSpanSchema.optional(),
+  body: RequestOffsetSpanSchema.optional()
+});
+
+export const ParsedFormFieldSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+  isFile: z.boolean(),
+  path: z.string().optional(),
+  filename: z.string().optional()
+});
+
+export const ParsedRequestBodySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('none')
+  }),
+  z.object({
+    kind: z.literal('inline'),
+    text: z.string(),
+    contentType: z.string().optional(),
+    isJsonLike: z.boolean()
+  }),
+  z.object({
+    kind: z.literal('form-data'),
+    fields: z.array(ParsedFormFieldSchema),
+    contentType: z.string().optional()
+  }),
+  z.object({
+    kind: z.literal('file'),
+    path: z.string(),
+    contentType: z.string().optional()
+  })
+]);
 
 export const ParsedRequestInfoSchema = z.object({
   index: z.number(),
@@ -84,7 +128,9 @@ export const ParsedRequestInfoSchema = z.object({
   hasBody: z.boolean(),
   hasFormData: z.boolean(),
   hasBodyFile: z.boolean(),
-  meta: z.record(z.string(), z.string())
+  meta: z.record(z.string(), z.string()),
+  body: ParsedRequestBodySchema.optional(),
+  spans: ParsedRequestSpansSchema.optional()
 });
 
 export const ParsedBlockSchema = z.object({
@@ -912,6 +958,10 @@ export type ResolvedPaths = z.infer<typeof ResolvedPathsSchema>;
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export type CapabilitiesResponse = z.infer<typeof CapabilitiesResponseSchema>;
 export type ParseRequest = z.infer<typeof ParseRequestSchema>;
+export type RequestOffsetSpan = z.infer<typeof RequestOffsetSpanSchema>;
+export type ParsedRequestSpans = z.infer<typeof ParsedRequestSpansSchema>;
+export type ParsedFormField = z.infer<typeof ParsedFormFieldSchema>;
+export type ParsedRequestBody = z.infer<typeof ParsedRequestBodySchema>;
 export type ParsedRequestInfo = z.infer<typeof ParsedRequestInfoSchema>;
 export type ParsedBlock = z.infer<typeof ParsedBlockSchema>;
 export type ParseResponse = z.infer<typeof ParseResponseSchema>;

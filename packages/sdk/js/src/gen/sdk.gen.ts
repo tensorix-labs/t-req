@@ -87,7 +87,7 @@ export class TreqClient extends HeyApiClient {
     /**
      * Parse .http file content
      *
-     * Parse HTTP request content and return structured request information with diagnostics
+     * Parse HTTP request content and return structured request information with diagnostics. Enable includeBodyContent to return parsed body payloads and source spans for editing workflows.
      */
     public postParse<ThrowOnError extends boolean = false>(options?: Options<PostParseData, ThrowOnError>) {
         return (options?.client ?? this.client).post<PostParseResponses, PostParseErrors, ThrowOnError>({

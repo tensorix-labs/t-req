@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   ContentOrPathRequiredError,
+  ExecuteError,
   FileNotFoundError,
   NoRequestsFoundError,
   PathOutsideWorkspaceError,
@@ -57,7 +58,125 @@ describe('service.parse', () => {
     expect(result.requests).toHaveLength(1);
     expect(result.requests[0]?.request?.method).toBe('POST');
     expect(result.requests[0]?.request?.hasBody).toBe(true);
+    expect(result.requests[0]?.request?.body).toBeUndefined();
+    expect(result.requests[0]?.request?.spans).toBeUndefined();
     expect(result.resolved.httpFilePath).toBe('api/users.http');
+  });
+
+  test('should include parsed body and spans when includeBodyContent is enabled', async () => {
+    const content = [
+      'POST https://api.example.com/users',
+      'Content-Type: application/json',
+      '',
+      '{',
+      '  // keep this comment',
+      '  "name": "test",',
+      '}'
+    ].join('\n');
+
+    const result = await service.parse({
+      content,
+      includeDiagnostics: false,
+      includeBodyContent: true
+    });
+
+    const request = result.requests[0]?.request;
+    expect(request?.body).toEqual({
+      kind: 'inline',
+      text: ['{', '  // keep this comment', '  "name": "test",', '}'].join('\n'),
+      contentType: 'application/json',
+      isJsonLike: true
+    });
+
+    expect(request?.spans).toBeDefined();
+    if (!request?.spans) {
+      throw new Error('Expected spans to be returned');
+    }
+
+    expect(
+      content.slice(request.spans.requestLine.startOffset, request.spans.requestLine.endOffset)
+    ).toBe('POST https://api.example.com/users');
+    expect(content.slice(request.spans.url.startOffset, request.spans.url.endOffset)).toBe(
+      'https://api.example.com/users'
+    );
+    expect(
+      content.slice(request.spans.body?.startOffset ?? 0, request.spans.body?.endOffset ?? 0)
+    ).toBe('{\n  // keep this comment\n  "name": "test",\n}');
+  });
+
+  test('should include form-data and file body variants when includeBodyContent is enabled', async () => {
+    const formContent = [
+      'POST https://api.example.com/upload',
+      'Content-Type: multipart/form-data',
+      '',
+      'title = Example',
+      'document = @./files/report.pdf | report.pdf'
+    ].join('\n');
+    const formResult = await service.parse({
+      content: formContent,
+      includeDiagnostics: false,
+      includeBodyContent: true
+    });
+
+    expect(formResult.requests[0]?.request?.body).toEqual({
+      kind: 'form-data',
+      contentType: 'multipart/form-data',
+      fields: [
+        {
+          name: 'title',
+          value: 'Example',
+          isFile: false
+        },
+        {
+          name: 'document',
+          value: '',
+          isFile: true,
+          path: './files/report.pdf',
+          filename: 'report.pdf'
+        }
+      ]
+    });
+
+    const fileContent = ['POST https://api.example.com/import', '', '< ./payload.json'].join('\n');
+    const fileResult = await service.parse({
+      content: fileContent,
+      includeDiagnostics: false,
+      includeBodyContent: true
+    });
+
+    expect(fileResult.requests[0]?.request?.body).toEqual({
+      kind: 'file',
+      path: './payload.json'
+    });
+  });
+
+  test('should compute body and block spans correctly for CRLF multi-request content', async () => {
+    const content = [
+      'POST https://api.example.com/first',
+      'Content-Type: application/json',
+      '',
+      '{"first":true}',
+      '###',
+      'GET https://api.example.com/second'
+    ].join('\r\n');
+
+    const result = await service.parse({
+      content,
+      includeDiagnostics: false,
+      includeBodyContent: true
+    });
+
+    const firstRequest = result.requests[0]?.request;
+    if (!firstRequest?.spans?.body) {
+      throw new Error('Expected first request body spans');
+    }
+
+    expect(
+      content.slice(firstRequest.spans.body.startOffset, firstRequest.spans.body.endOffset)
+    ).toBe('{"first":true}');
+    expect(
+      content.slice(firstRequest.spans.block.startOffset, firstRequest.spans.block.endOffset)
+    ).not.toContain('###');
   });
 
   test('should reject when neither content nor path provided', async () => {
@@ -161,6 +280,19 @@ describe('service.execute', () => {
     expect(result.request.method).toBe('GET');
     expect(result.request.url).toBe('https://api.example.com/users/1');
     expect(fetchCalls).toHaveLength(1);
+  });
+
+  test('should reject invalid JSON/JSONC body during execution', async () => {
+    await expect(
+      service.execute({
+        content: [
+          'POST https://api.example.com/users',
+          'Content-Type: application/json',
+          '',
+          '{ invalid-json }'
+        ].join('\n')
+      })
+    ).rejects.toBeInstanceOf(ExecuteError);
   });
 
   test('should execute request from file path', async () => {

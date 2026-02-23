@@ -8,7 +8,7 @@ export {
   type RequestDefaults
 } from './engine-options';
 // JSONC parsing
-export { parseJsonc, stripJsonComments } from './jsonc';
+export { normalizeJsonc, parseJsonc, stripJsonComments, stripTrailingCommas } from './jsonc';
 // Config loading
 export { isLegacyFormat, type LoadConfigOptions, loadConfig } from './load';
 // Config merging

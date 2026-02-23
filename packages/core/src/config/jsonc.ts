@@ -101,12 +101,71 @@ export function stripJsonComments(content: string): string {
 }
 
 /**
+ * Strips trailing commas from JSON-like objects/arrays while preserving commas
+ * inside string values.
+ */
+export function stripTrailingCommas(content: string): string {
+  const result: string[] = [];
+  let state: 'code' | 'string' = 'code';
+  let i = 0;
+
+  while (i < content.length) {
+    const char = content.charAt(i);
+    const next = content[i + 1];
+
+    if (state === 'code') {
+      if (char === '"') {
+        result.push(char);
+        state = 'string';
+        i++;
+        continue;
+      }
+
+      if (char === ',') {
+        let lookahead = i + 1;
+        while (lookahead < content.length) {
+          const nextChar = content.charAt(lookahead);
+          if (nextChar === ' ' || nextChar === '\t' || nextChar === '\n' || nextChar === '\r') {
+            lookahead++;
+            continue;
+          }
+          break;
+        }
+
+        const tokenAfterComma = content.charAt(lookahead);
+        if (tokenAfterComma === '}' || tokenAfterComma === ']') {
+          i++;
+          continue;
+        }
+      }
+
+      result.push(char);
+      i++;
+      continue;
+    }
+
+    result.push(char);
+    if (char === '\\' && next !== undefined) {
+      result.push(next);
+      i += 2;
+      continue;
+    }
+    if (char === '"') {
+      state = 'code';
+    }
+    i++;
+  }
+
+  return result.join('');
+}
+
+/**
  * Parse JSONC content (JSON with comments) to an object.
  *
  * @throws {SyntaxError} if the content is not valid JSON after stripping comments
  */
 export function parseJsonc<T = unknown>(content: string): T {
-  const stripped = stripJsonComments(content);
+  const stripped = stripTrailingCommas(stripJsonComments(content));
   try {
     return JSON.parse(stripped) as T;
   } catch (err) {
@@ -115,4 +174,14 @@ export function parseJsonc<T = unknown>(content: string): T {
     }
     throw err;
   }
+}
+
+/**
+ * Normalize JSONC text into strict JSON.
+ *
+ * This removes comments/trailing commas and serializes with standard JSON encoding.
+ */
+export function normalizeJsonc(content: string): string {
+  const parsed = parseJsonc<unknown>(content);
+  return JSON.stringify(parsed);
 }

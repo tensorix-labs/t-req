@@ -5,6 +5,7 @@ import { analyzeParsedContent, getDiagnosticsForBlock, parseBlocks } from '../di
 import { ContentOrPathRequiredError, ParseError, PathOutsideWorkspaceError } from '../errors';
 import type { Diagnostic, ParsedRequestInfo, ParseRequest, ParseResponse } from '../schemas';
 import type { ConfigService } from './config-service';
+import { toParsedRequestBody, toParsedRequestSpans } from './parse-request-details';
 import type { ServiceContext } from './types';
 import { contentTypeIndicatesFormData } from './utils';
 
@@ -55,11 +56,16 @@ export function createParseService(
     const allDiagnostics = analyzeParsedContent(content, { includeDiagnostics });
     const contentBlocks = parseBlocks(content);
 
+    const includeBodyContent = request.includeBodyContent === true;
     const blocks = parsedRequests.map(
       (req, index): { request?: ParsedRequestInfo; diagnostics: Diagnostic[] } => {
         // Get block info for this request (by index)
         const blockInfo = contentBlocks[index];
         const blockDiagnostics = blockInfo ? getDiagnosticsForBlock(allDiagnostics, blockInfo) : [];
+        const body = includeBodyContent ? toParsedRequestBody(req) : undefined;
+        const spans = includeBodyContent
+          ? toParsedRequestSpans(content, blockInfo, req)
+          : undefined;
 
         return {
           request: {
@@ -73,7 +79,9 @@ export function createParseService(
               (req.formData !== undefined && req.formData.length > 0) ||
               contentTypeIndicatesFormData(req.headers),
             hasBodyFile: req.bodyFile !== undefined,
-            meta: req.meta
+            meta: req.meta,
+            ...(body !== undefined ? { body } : {}),
+            ...(spans !== undefined ? { spans } : {})
           },
           diagnostics: blockDiagnostics
         };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   applyRequestEditsToContent,
+  applySpanEditToContent,
   areRequestRowsEqual,
   buildUrlWithParams,
   cloneRequestRows
@@ -169,6 +170,21 @@ describe('applyRequestEditsToContent', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toContain('could not be located');
+    }
+  });
+});
+
+describe('applySpanEditToContent', () => {
+  it('replaces the content inside the provided span', () => {
+    const result = applySpanEditToContent('abc123xyz', { startOffset: 3, endOffset: 6 }, '---');
+    expect(result).toEqual({ ok: true, content: 'abc---xyz' });
+  });
+
+  it('returns an error for out-of-bounds spans', () => {
+    const result = applySpanEditToContent('abc', { startOffset: 1, endOffset: 10 }, 'x');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('out of bounds');
     }
   });
 });

@@ -115,6 +115,43 @@ describe('toRequestBodySummary', () => {
     });
   });
 
+  it('maps parsed inline body payload details when available', () => {
+    expect(
+      toRequestBodySummary(
+        createParsedRequest(0, {
+          hasBody: true,
+          body: {
+            kind: 'inline',
+            text: '{\n  "name": "test"\n}',
+            contentType: 'application/json',
+            isJsonLike: true
+          },
+          spans: {
+            block: { startOffset: 0, endOffset: 40 },
+            requestLine: { startOffset: 0, endOffset: 20 },
+            url: { startOffset: 4, endOffset: 20 },
+            body: { startOffset: 25, endOffset: 40 }
+          }
+        })
+      )
+    ).toEqual({
+      kind: 'inline',
+      hasBody: true,
+      hasFormData: false,
+      hasBodyFile: false,
+      description: 'Request includes an inline body payload.',
+      text: '{\n  "name": "test"\n}',
+      contentType: 'application/json',
+      isJsonLike: true,
+      spans: {
+        block: { startOffset: 0, endOffset: 40 },
+        requestLine: { startOffset: 0, endOffset: 20 },
+        url: { startOffset: 4, endOffset: 20 },
+        body: { startOffset: 25, endOffset: 40 }
+      }
+    });
+  });
+
   it('prioritizes form-data summary when form-data is present', () => {
     expect(
       toRequestBodySummary(createParsedRequest(0, { hasBody: true, hasFormData: true }))

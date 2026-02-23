@@ -5,10 +5,20 @@ type ParseResponse = PostParseResponses[200];
 export type ParseDiagnostic = ParseResponse['diagnostics'][number];
 export type ParseRequestBlock = ParseResponse['requests'][number];
 export type ParsedRequest = NonNullable<ParseRequestBlock['request']>;
+export type ParsedRequestBody = ParsedRequest['body'];
+export type ParsedRequestSpans = ParsedRequest['spans'];
 
 export type RequestDetailsRow = {
   key: string;
   value: string;
+};
+
+export type RequestBodyField = {
+  name: string;
+  value: string;
+  isFile: boolean;
+  path?: string;
+  filename?: string;
 };
 
 export type RequestBodySummary = {
@@ -17,6 +27,12 @@ export type RequestBodySummary = {
   hasFormData: boolean;
   hasBodyFile: boolean;
   description: string;
+  text?: string;
+  contentType?: string;
+  isJsonLike?: boolean;
+  fields?: RequestBodyField[];
+  filePath?: string;
+  spans?: ParsedRequestSpans;
 };
 
 function decodeQueryComponent(value: string): string {
@@ -76,6 +92,56 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
   const hasBody = request?.hasBody ?? false;
   const hasFormData = request?.hasFormData ?? false;
   const hasBodyFile = request?.hasBodyFile ?? false;
+  const parsedBody = request?.body;
+
+  if (parsedBody?.kind === 'inline') {
+    return {
+      kind: 'inline',
+      hasBody: true,
+      hasFormData,
+      hasBodyFile,
+      description: 'Request includes an inline body payload.',
+      text: parsedBody.text,
+      ...(parsedBody.contentType !== undefined ? { contentType: parsedBody.contentType } : {}),
+      isJsonLike: parsedBody.isJsonLike,
+      ...(request?.spans !== undefined ? { spans: request.spans } : {})
+    };
+  }
+
+  if (parsedBody?.kind === 'form-data') {
+    return {
+      kind: 'form-data',
+      hasBody,
+      hasFormData: true,
+      hasBodyFile,
+      description:
+        hasBodyFile || parsedBody.fields.some((field) => field.isFile)
+          ? 'Request includes form data fields and file references.'
+          : 'Request includes form data fields.',
+      fields: parsedBody.fields.map((field) => ({
+        name: field.name,
+        value: field.value,
+        isFile: field.isFile,
+        ...(field.path !== undefined ? { path: field.path } : {}),
+        ...(field.filename !== undefined ? { filename: field.filename } : {})
+      })),
+      ...(parsedBody.contentType !== undefined ? { contentType: parsedBody.contentType } : {}),
+      ...(request?.spans !== undefined ? { spans: request.spans } : {})
+    };
+  }
+
+  if (parsedBody?.kind === 'file') {
+    return {
+      kind: 'file',
+      hasBody,
+      hasFormData,
+      hasBodyFile: true,
+      description: 'Request body is loaded from a file reference.',
+      filePath: parsedBody.path,
+      ...(parsedBody.contentType !== undefined ? { contentType: parsedBody.contentType } : {}),
+      ...(request?.spans !== undefined ? { spans: request.spans } : {})
+    };
+  }
 
   if (hasFormData && hasBodyFile) {
     return {
@@ -113,7 +179,8 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
       hasBody,
       hasFormData,
       hasBodyFile,
-      description: 'Request includes an inline body payload.'
+      description: 'Request includes an inline body payload.',
+      ...(request?.spans !== undefined ? { spans: request.spans } : {})
     };
   }
 

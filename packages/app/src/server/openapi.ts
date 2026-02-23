@@ -81,7 +81,7 @@ export const parseRoute = createRoute({
   tags: ['Requests'],
   summary: 'Parse .http file content',
   description:
-    'Parse HTTP request content and return structured request information with diagnostics',
+    'Parse HTTP request content and return structured request information with diagnostics. Enable includeBodyContent to return parsed body payloads and source spans for editing workflows.',
   request: {
     body: {
       content: { 'application/json': { schema: ParseRequestSchema } }

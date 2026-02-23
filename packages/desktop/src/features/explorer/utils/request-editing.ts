@@ -10,6 +10,11 @@ export type ApplyRequestEditsResult =
       error: string;
     };
 
+export type RequestOffsetSpan = {
+  startOffset: number;
+  endOffset: number;
+};
+
 type LineRecord = {
   text: string;
   ending: string;
@@ -148,6 +153,30 @@ function rewriteRequestSegment(
 
 export function cloneRequestRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
   return rows.map((row) => ({ key: row.key, value: row.value }));
+}
+
+export function applySpanEditToContent(
+  content: string,
+  span: RequestOffsetSpan,
+  replacement: string
+): ApplyRequestEditsResult {
+  const { startOffset, endOffset } = span;
+  if (
+    startOffset < 0 ||
+    endOffset < startOffset ||
+    startOffset > content.length ||
+    endOffset > content.length
+  ) {
+    return {
+      ok: false,
+      error: 'Body span is out of bounds for current request content.'
+    };
+  }
+
+  return {
+    ok: true,
+    content: `${content.slice(0, startOffset)}${replacement}${content.slice(endOffset)}`
+  };
 }
 
 export function areRequestRowsEqual(

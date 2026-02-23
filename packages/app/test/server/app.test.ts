@@ -102,6 +102,31 @@ describe('POST /parse', () => {
     expect(status).toBe(200);
     expect(data.requests).toHaveLength(1);
     expect(data.requests[0]?.request?.method).toBe('GET');
+    expect(data.requests[0]?.request?.body).toBeUndefined();
+    expect(data.requests[0]?.request?.spans).toBeUndefined();
+  });
+
+  test('should include body payloads and spans when includeBodyContent is true', async () => {
+    const content = [
+      'POST https://api.example.com/users',
+      'Content-Type: application/json',
+      '',
+      '{"name":"test"}'
+    ].join('\n');
+
+    const { status, data } = await server.post<ParseResponse>('/parse', {
+      content,
+      includeBodyContent: true
+    });
+
+    expect(status).toBe(200);
+    expect(data.requests[0]?.request?.body).toEqual({
+      kind: 'inline',
+      text: '{"name":"test"}',
+      contentType: 'application/json',
+      isJsonLike: true
+    });
+    expect(data.requests[0]?.request?.spans).toBeDefined();
   });
 
   test('should parse content from file path', async () => {
@@ -161,6 +186,21 @@ describe('POST /execute', () => {
     expect(data.response.status).toBe(200);
     expect(data.request.method).toBe('GET');
     expect(data.runId).toBeDefined();
+  });
+
+  test('should return 400 for invalid JSON/JSONC request body', async () => {
+    const { status, data } = await server.post<ErrorResponse>('/execute', {
+      content: [
+        'POST https://api.example.com/users',
+        'Content-Type: application/json',
+        '',
+        '{ invalid-json }'
+      ].join('\n')
+    });
+
+    expect(status).toBe(400);
+    expect(data.error.code).toBe('EXECUTE_ERROR');
+    expect(data.error.message).toContain('Invalid JSON/JSONC body');
   });
 
   test('should execute request from file path', async () => {

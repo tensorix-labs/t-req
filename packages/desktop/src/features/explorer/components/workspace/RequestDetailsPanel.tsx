@@ -13,6 +13,7 @@ type RequestDetailsPanelProps = {
   params: RequestDetailsRow[];
   headers: RequestDetailsRow[];
   bodySummary: RequestBodySummary;
+  bodyDraft: string;
   diagnostics: ParseDiagnostic[];
   fileDiagnostics: ParseDiagnostic[];
   isLoading?: boolean;
@@ -26,6 +27,7 @@ type RequestDetailsPanelProps = {
   onRemoveParam: (index: number) => void;
   onAddHeader: () => void;
   onRemoveHeader: (index: number) => void;
+  onBodyChange: (value: string) => void;
   onSave: () => void;
   onDiscard: () => void;
 };
@@ -215,45 +217,95 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
                 <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3" />
               }
             >
-              {(() => {
-                const hasAnyBodySignal =
-                  props.bodySummary.hasBody ||
-                  props.bodySummary.hasFormData ||
-                  props.bodySummary.hasBodyFile;
-                const bodyKindLabel =
-                  props.bodySummary.kind === 'inline'
-                    ? 'Inline Body'
-                    : props.bodySummary.kind === 'form-data'
-                      ? 'Form Data'
-                      : props.bodySummary.kind === 'file'
-                        ? 'Body File'
-                        : undefined;
+              <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3">
+                <div class="mb-3 flex flex-wrap items-center gap-2">
+                  <span class="badge badge-sm border-base-300 bg-base-300/60 font-mono">
+                    {props.bodySummary.kind === 'inline'
+                      ? 'Inline Body'
+                      : props.bodySummary.kind === 'form-data'
+                        ? 'Form Data'
+                        : props.bodySummary.kind === 'file'
+                          ? 'Body File'
+                          : 'No Body'}
+                  </span>
+                  <Show when={props.bodySummary.contentType}>
+                    {(contentType) => (
+                      <span class="badge badge-sm border-base-300 bg-base-300/60 font-mono">
+                        {contentType()}
+                      </span>
+                    )}
+                  </Show>
+                  <Show when={props.bodySummary.kind === 'inline' && props.bodySummary.isJsonLike}>
+                    <span class="badge badge-sm badge-info font-mono">JSON-like</span>
+                  </Show>
+                </div>
 
-                return (
-                  <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3">
-                    <Show when={hasAnyBodySignal}>
-                      <div class="flex flex-wrap items-center gap-2">
-                        <Show when={bodyKindLabel}>
-                          {(label) => (
-                            <span class="badge badge-sm border-base-300 bg-base-300/60 font-mono">
-                              {label()}
-                            </span>
-                          )}
-                        </Show>
-                        <Show when={props.bodySummary.hasBody}>
-                          <span class="badge badge-sm badge-success font-mono">hasBody</span>
-                        </Show>
-                        <Show when={props.bodySummary.hasFormData}>
-                          <span class="badge badge-sm badge-success font-mono">hasFormData</span>
-                        </Show>
-                        <Show when={props.bodySummary.hasBodyFile}>
-                          <span class="badge badge-sm badge-success font-mono">hasBodyFile</span>
-                        </Show>
-                      </div>
-                    </Show>
-                  </div>
-                );
-              })()}
+                <Switch>
+                  <Match when={props.bodySummary.kind === 'inline'}>
+                    <textarea
+                      class="textarea textarea-sm h-[calc(100%-1rem)] w-full resize-none border-base-300 bg-base-100 font-mono text-xs leading-6"
+                      value={props.bodyDraft}
+                      onInput={(event) => props.onBodyChange(event.currentTarget.value)}
+                      spellcheck={false}
+                      disabled={!props.hasRequest}
+                    />
+                  </Match>
+
+                  <Match when={props.bodySummary.kind === 'form-data'}>
+                    <div class="space-y-2">
+                      <p class="text-sm text-base-content/75">{props.bodySummary.description}</p>
+                      <Show when={(props.bodySummary.fields?.length ?? 0) > 0}>
+                        <div class="max-h-[240px] overflow-auto rounded-box border border-base-300/70 bg-base-100/70 p-2">
+                          <table class="table table-xs table-fixed">
+                            <thead>
+                              <tr>
+                                <th class="w-[35%] font-mono">Field</th>
+                                <th class="w-[25%] font-mono">Type</th>
+                                <th class="w-[40%] font-mono">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <For each={props.bodySummary.fields}>
+                                {(field) => (
+                                  <tr>
+                                    <td class="font-mono text-xs">{field.name}</td>
+                                    <td class="font-mono text-xs text-base-content/70">
+                                      {field.isFile ? 'file' : 'text'}
+                                    </td>
+                                    <td class="font-mono text-xs break-all text-base-content/70">
+                                      {field.isFile ? (field.path ?? '') : field.value}
+                                    </td>
+                                  </tr>
+                                )}
+                              </For>
+                            </tbody>
+                          </table>
+                        </div>
+                      </Show>
+                    </div>
+                  </Match>
+
+                  <Match when={props.bodySummary.kind === 'file'}>
+                    <div class="space-y-2">
+                      <p class="text-sm text-base-content/75">{props.bodySummary.description}</p>
+                      <Show when={props.bodySummary.filePath}>
+                        {(path) => (
+                          <input
+                            type="text"
+                            class="input input-sm w-full border-base-300 bg-base-100 font-mono text-xs"
+                            value={path()}
+                            readOnly
+                          />
+                        )}
+                      </Show>
+                    </div>
+                  </Match>
+
+                  <Match when={props.bodySummary.kind === 'none'}>
+                    <p class="text-sm text-base-content/70">{props.bodySummary.description}</p>
+                  </Match>
+                </Switch>
+              </div>
             </Show>
           </Match>
 

@@ -110,6 +110,7 @@ export type PostParseData = {
         content?: string;
         path?: string;
         includeDiagnostics?: boolean;
+        includeBodyContent?: boolean;
     };
     path?: never;
     query?: never;
@@ -150,6 +151,50 @@ export type PostParseResponses = {
                 hasBodyFile: boolean;
                 meta: {
                     [key: string]: string;
+                };
+                body?: {
+                    kind: 'none';
+                } | {
+                    kind: 'inline';
+                    text: string;
+                    contentType?: string;
+                    isJsonLike: boolean;
+                } | {
+                    kind: 'form-data';
+                    fields: Array<{
+                        name: string;
+                        value: string;
+                        isFile: boolean;
+                        path?: string;
+                        filename?: string;
+                    }>;
+                    contentType?: string;
+                } | {
+                    kind: 'file';
+                    path: string;
+                    contentType?: string;
+                };
+                spans?: {
+                    block: {
+                        startOffset: number;
+                        endOffset: number;
+                    };
+                    requestLine: {
+                        startOffset: number;
+                        endOffset: number;
+                    };
+                    url: {
+                        startOffset: number;
+                        endOffset: number;
+                    };
+                    headers?: {
+                        startOffset: number;
+                        endOffset: number;
+                    };
+                    body?: {
+                        startOffset: number;
+                        endOffset: number;
+                    };
                 };
             };
             diagnostics: Array<{

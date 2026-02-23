@@ -322,7 +322,7 @@
       "post": {
         "tags": ["Requests"],
         "summary": "Parse .http file content",
-        "description": "Parse HTTP request content and return structured request information with diagnostics",
+        "description": "Parse HTTP request content and return structured request information with diagnostics. Enable includeBodyContent to return parsed body payloads and source spans for editing workflows.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -340,6 +340,10 @@
                   "includeDiagnostics": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "includeBodyContent": {
+                    "type": "boolean",
+                    "default": false
                   }
                 }
               }
@@ -394,6 +398,168 @@
                                 "additionalProperties": {
                                   "type": "string"
                                 }
+                              },
+                              "body": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": ["none"]
+                                      }
+                                    },
+                                    "required": ["kind"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": ["inline"]
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "contentType": {
+                                        "type": "string"
+                                      },
+                                      "isJsonLike": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": ["kind", "text", "isJsonLike"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": ["form-data"]
+                                      },
+                                      "fields": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "name": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            },
+                                            "isFile": {
+                                              "type": "boolean"
+                                            },
+                                            "path": {
+                                              "type": "string"
+                                            },
+                                            "filename": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": ["name", "value", "isFile"]
+                                        }
+                                      },
+                                      "contentType": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["kind", "fields"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": ["file"]
+                                      },
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "contentType": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["kind", "path"]
+                                  }
+                                ]
+                              },
+                              "spans": {
+                                "type": "object",
+                                "properties": {
+                                  "block": {
+                                    "type": "object",
+                                    "properties": {
+                                      "startOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "endOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": ["startOffset", "endOffset"]
+                                  },
+                                  "requestLine": {
+                                    "type": "object",
+                                    "properties": {
+                                      "startOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "endOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": ["startOffset", "endOffset"]
+                                  },
+                                  "url": {
+                                    "type": "object",
+                                    "properties": {
+                                      "startOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "endOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": ["startOffset", "endOffset"]
+                                  },
+                                  "headers": {
+                                    "type": "object",
+                                    "properties": {
+                                      "startOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "endOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": ["startOffset", "endOffset"]
+                                  },
+                                  "body": {
+                                    "type": "object",
+                                    "properties": {
+                                      "startOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "endOffset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": ["startOffset", "endOffset"]
+                                  }
+                                },
+                                "required": ["block", "requestLine", "url"]
                               }
                             },
                             "required": [
