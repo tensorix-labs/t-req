@@ -129,7 +129,9 @@ function rewriteRequestSegment(
     const ending = isLastHeader
       ? remainingLines.length > 0
         ? lineEnding
-        : (restLines[headerEndIndex - 1]?.ending ?? '')
+        : headerEndIndex > 0
+          ? (restLines[headerEndIndex - 1]?.ending ?? '')
+          : ''
       : lineEnding;
     updatedSegment += `${header.key}${header.value.length > 0 ? `: ${header.value}` : ':'}${ending}`;
   }

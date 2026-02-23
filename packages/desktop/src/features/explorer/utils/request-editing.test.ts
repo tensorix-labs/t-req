@@ -130,6 +130,18 @@ describe('applyRequestEditsToContent', () => {
     });
   });
 
+  it('supports adding headers when request has no existing headers and no trailing lines', () => {
+    const content = 'GET https://api.example.com/health';
+    const result = applyRequestEditsToContent(content, 0, 'https://api.example.com/health', [
+      { key: 'Accept', value: 'application/json' }
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      content: ['GET https://api.example.com/health', 'Accept: application/json'].join('\n')
+    });
+  });
+
   it('preserves HTTP version suffix and CRLF endings', () => {
     const content = 'GET https://api.example.com/health HTTP/1.1\r\nAccept: */*\r\n';
     const result = applyRequestEditsToContent(
