@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js';
+import { createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
 import {
   formatDiagnosticLocation,
   type ParseDiagnostic,
@@ -17,6 +17,17 @@ type RequestDetailsPanelProps = {
   fileDiagnostics: ParseDiagnostic[];
   isLoading?: boolean;
   error?: string;
+  saveError?: string;
+  hasUnsavedChanges: boolean;
+  isSaving?: boolean;
+  onParamChange: (index: number, field: 'key' | 'value', value: string) => void;
+  onHeaderChange: (index: number, field: 'key' | 'value', value: string) => void;
+  onAddParam: () => void;
+  onRemoveParam: (index: number) => void;
+  onAddHeader: () => void;
+  onRemoveHeader: (index: number) => void;
+  onSave: () => void;
+  onDiscard: () => void;
 };
 
 function diagnosticSeverityClass(severity: ParseDiagnostic['severity']): string {
@@ -39,12 +50,34 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
     }
     return props.fileDiagnostics;
   });
+  const saveDisabled = createMemo(
+    () => !props.hasRequest || !props.hasUnsavedChanges || Boolean(props.isSaving)
+  );
 
   return (
     <section class="min-h-0 min-w-0 flex flex-col overflow-hidden border-r border-base-300 bg-base-200/10">
       <header class="flex items-center justify-between gap-2 border-b border-base-300/80 px-3 py-2.5">
         <h3 class="m-0 text-sm font-semibold text-base-content">Request Details</h3>
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs font-mono"
+            onClick={props.onDiscard}
+            disabled={saveDisabled()}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-xs font-mono"
+            onClick={props.onSave}
+            disabled={saveDisabled()}
+          >
+            {props.isSaving ? 'Saving…' : 'Save'}
+          </button>
+          <Show when={props.hasUnsavedChanges && !props.isSaving}>
+            <span class="badge badge-sm badge-warning font-mono">Unsaved</span>
+          </Show>
           <Show when={props.isLoading}>
             <span class="badge badge-sm badge-warning font-mono">Parsing…</span>
           </Show>
@@ -55,6 +88,14 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
       </header>
 
       <Show when={props.error}>
+        {(message) => (
+          <div class="mx-3 mt-2 rounded-box border border-error/40 bg-error/15 px-3 py-2 text-sm text-base-content">
+            {message()}
+          </div>
+        )}
+      </Show>
+
+      <Show when={props.saveError}>
         {(message) => (
           <div class="mx-3 mt-2 rounded-box border border-error/40 bg-error/15 px-3 py-2 text-sm text-base-content">
             {message()}
@@ -104,33 +145,67 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
       <div class="min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
         <Switch>
           <Match when={activeTab() === 'params'}>
-            <Show
-              when={props.hasRequest}
-              fallback={
-                <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2" />
-              }
-            >
-              <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
-                <table class="table table-sm table-fixed">
-                  <thead>
-                    <tr>
-                      <th class="font-mono">Name</th>
-                      <th class="font-mono">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={props.params}>
-                      {(param) => (
-                        <tr>
-                          <td class="font-mono break-all text-base-content/70">{param.key}</td>
-                          <td class="font-mono break-all text-base-content/60">{param.value}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
+            <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
+              <div class="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs font-mono"
+                  onClick={props.onAddParam}
+                  disabled={!props.hasRequest}
+                >
+                  Add Param
+                </button>
               </div>
-            </Show>
+              <table class="table table-sm table-fixed">
+                <thead>
+                  <tr>
+                    <th class="w-[40%] font-mono">Name</th>
+                    <th class="w-[44%] font-mono">Value</th>
+                    <th class="w-[16%] font-mono text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <Index each={props.params}>
+                    {(param, index) => (
+                      <tr>
+                        <td>
+                          <input
+                            type="text"
+                            class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                            value={param().key}
+                            onInput={(event) =>
+                              props.onParamChange(index, 'key', event.currentTarget.value)
+                            }
+                            disabled={!props.hasRequest}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                            value={param().value}
+                            onInput={(event) =>
+                              props.onParamChange(index, 'value', event.currentTarget.value)
+                            }
+                            disabled={!props.hasRequest}
+                          />
+                        </td>
+                        <td class="text-right">
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs text-error"
+                            onClick={() => props.onRemoveParam(index)}
+                            disabled={!props.hasRequest}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </Index>
+                </tbody>
+              </table>
+            </div>
           </Match>
 
           <Match when={activeTab() === 'body'}>
@@ -183,33 +258,67 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
           </Match>
 
           <Match when={activeTab() === 'headers'}>
-            <Show
-              when={props.hasRequest}
-              fallback={
-                <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2" />
-              }
-            >
-              <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
-                <table class="table table-sm table-fixed">
-                  <thead>
-                    <tr>
-                      <th class="font-mono">Header</th>
-                      <th class="font-mono">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={props.headers}>
-                      {(header) => (
-                        <tr>
-                          <td class="font-mono break-all text-base-content/70">{header.key}</td>
-                          <td class="font-mono break-all text-base-content/60">{header.value}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
+            <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">
+              <div class="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs font-mono"
+                  onClick={props.onAddHeader}
+                  disabled={!props.hasRequest}
+                >
+                  Add Header
+                </button>
               </div>
-            </Show>
+              <table class="table table-sm table-fixed">
+                <thead>
+                  <tr>
+                    <th class="w-[40%] font-mono">Header</th>
+                    <th class="w-[44%] font-mono">Value</th>
+                    <th class="w-[16%] font-mono text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <Index each={props.headers}>
+                    {(header, index) => (
+                      <tr>
+                        <td>
+                          <input
+                            type="text"
+                            class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                            value={header().key}
+                            onInput={(event) =>
+                              props.onHeaderChange(index, 'key', event.currentTarget.value)
+                            }
+                            disabled={!props.hasRequest}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                            value={header().value}
+                            onInput={(event) =>
+                              props.onHeaderChange(index, 'value', event.currentTarget.value)
+                            }
+                            disabled={!props.hasRequest}
+                          />
+                        </td>
+                        <td class="text-right">
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs text-error"
+                            onClick={() => props.onRemoveHeader(index)}
+                            disabled={!props.hasRequest}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </Index>
+                </tbody>
+              </table>
+            </div>
           </Match>
 
           <Match when={activeTab() === 'diagnostics'}>
