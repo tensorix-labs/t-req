@@ -17,6 +17,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+
+  /* Desktop-local JSON editor tokens (JetBrains-inspired). */
+  --app-editor-jb-bg: #2b2d3a;
+  --app-editor-jb-gutter-bg: #272b3a;
+  --app-editor-jb-foreground: #d3dae3;
+  --app-editor-jb-gutter-fg: #7f8796;
+  --app-editor-jb-border: #3b4052;
+  --app-editor-jb-selection: #2679db;
+  --app-editor-jb-active-line: #333a4a;
+  --app-editor-jb-caret: #d3dae3;
+  --app-editor-jb-key: #c792ea;
+  --app-editor-jb-string: #8dc891;
+  --app-editor-jb-number: #7aa2f7;
+  --app-editor-jb-boolean: #e5c07b;
+  --app-editor-jb-punctuation: #c8ccd4;
 }
 
 html,
