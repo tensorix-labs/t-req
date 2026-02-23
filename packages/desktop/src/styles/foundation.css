@@ -28,6 +28,7 @@ body,
 body {
   margin: 0;
   min-height: 100%;
+  overflow: hidden;
   background:
     radial-gradient(1200px circle at 0% 0%, var(--app-shell-radial-start) 0%, transparent 45%),
     radial-gradient(900px circle at 100% 100%, var(--app-shell-radial-end) 0%, transparent 40%),
@@ -35,10 +36,12 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-main {
