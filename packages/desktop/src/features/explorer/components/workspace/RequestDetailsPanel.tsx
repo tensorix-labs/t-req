@@ -5,6 +5,7 @@ import {
   type RequestBodySummary,
   type RequestDetailsRow
 } from '../../utils/request-details';
+import { JsonBodyEditor } from './JsonBodyEditor';
 
 type RequestDetailsTab = 'params' | 'body' | 'headers' | 'diagnostics';
 
@@ -14,6 +15,7 @@ type RequestDetailsPanelProps = {
   headers: RequestDetailsRow[];
   bodySummary: RequestBodySummary;
   bodyDraft: string;
+  bodyValidationError?: string;
   diagnostics: ParseDiagnostic[];
   fileDiagnostics: ParseDiagnostic[];
   isLoading?: boolean;
@@ -28,6 +30,9 @@ type RequestDetailsPanelProps = {
   onAddHeader: () => void;
   onRemoveHeader: (index: number) => void;
   onBodyChange: (value: string) => void;
+  onBodyPrettify: () => void;
+  onBodyMinify: () => void;
+  onBodyCopy: () => void;
   onSave: () => void;
   onDiscard: () => void;
 };
@@ -46,11 +51,36 @@ function diagnosticSeverityClass(severity: ParseDiagnostic['severity']): string 
 
 export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
   const [activeTab, setActiveTab] = createSignal<RequestDetailsTab>('params');
+  const [isBodyFocused, setIsBodyFocused] = createSignal(false);
   const visibleDiagnostics = createMemo(() => {
     if (props.diagnostics.length > 0) {
       return props.diagnostics;
     }
     return props.fileDiagnostics;
+  });
+  const shouldShowBodyValidationError = createMemo(
+    () => Boolean(props.bodyValidationError) && !isBodyFocused()
+  );
+  const bodyValidationBadge = createMemo(() => {
+    if (!props.bodySummary.isJsonLike) {
+      return undefined;
+    }
+    if (props.bodyValidationError && isBodyFocused()) {
+      return {
+        className: 'badge badge-xs badge-warning font-mono',
+        label: 'Editing JSON'
+      };
+    }
+    if (props.bodyValidationError) {
+      return {
+        className: 'badge badge-xs badge-warning font-mono',
+        label: 'Needs Fix'
+      };
+    }
+    return {
+      className: 'badge badge-xs badge-success font-mono',
+      label: 'Valid JSON'
+    };
   });
   const saveDisabled = createMemo(
     () => !props.hasRequest || !props.hasUnsavedChanges || Boolean(props.isSaving)
@@ -218,37 +248,66 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
               }
             >
               <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3">
-                <div class="mb-3 flex flex-wrap items-center gap-2">
-                  <span class="badge badge-sm border-base-300 bg-base-300/60 font-mono">
-                    {props.bodySummary.kind === 'inline'
-                      ? 'Inline Body'
-                      : props.bodySummary.kind === 'form-data'
-                        ? 'Form Data'
-                        : props.bodySummary.kind === 'file'
-                          ? 'Body File'
-                          : 'No Body'}
-                  </span>
-                  <Show when={props.bodySummary.contentType}>
-                    {(contentType) => (
-                      <span class="badge badge-sm border-base-300 bg-base-300/60 font-mono">
-                        {contentType()}
-                      </span>
-                    )}
-                  </Show>
-                  <Show when={props.bodySummary.kind === 'inline' && props.bodySummary.isJsonLike}>
-                    <span class="badge badge-sm badge-info font-mono">JSON-like</span>
-                  </Show>
-                </div>
-
                 <Switch>
                   <Match when={props.bodySummary.kind === 'inline'}>
-                    <textarea
-                      class="textarea textarea-sm h-[calc(100%-1rem)] w-full resize-none border-base-300 bg-base-100 font-mono text-xs leading-6"
-                      value={props.bodyDraft}
-                      onInput={(event) => props.onBodyChange(event.currentTarget.value)}
-                      spellcheck={false}
-                      disabled={!props.hasRequest}
-                    />
+                    <div class="flex h-full min-h-0 flex-col gap-2">
+                      <Show when={props.bodySummary.isJsonLike}>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs font-mono"
+                            onClick={props.onBodyPrettify}
+                            disabled={!props.hasRequest || Boolean(props.bodyValidationError)}
+                          >
+                            Prettify
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs font-mono"
+                            onClick={props.onBodyMinify}
+                            disabled={!props.hasRequest || Boolean(props.bodyValidationError)}
+                          >
+                            Minify
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs font-mono"
+                            onClick={props.onBodyCopy}
+                            disabled={!props.hasRequest}
+                          >
+                            Copy
+                          </button>
+                          <Show when={bodyValidationBadge()}>
+                            {(badge) => <span class={badge().className}>{badge().label}</span>}
+                          </Show>
+                        </div>
+                      </Show>
+
+                      <Show
+                        when={
+                          shouldShowBodyValidationError() ? props.bodyValidationError : undefined
+                        }
+                      >
+                        {(message) => (
+                          <div
+                            class="rounded-box border border-warning/[0.35] bg-warning/[0.12] px-2.5 py-2 text-xs text-base-content"
+                            role="alert"
+                          >
+                            {message()}
+                          </div>
+                        )}
+                      </Show>
+
+                      <div class="min-h-0 min-w-0 flex-1 overflow-hidden rounded-box border border-base-300 bg-base-100">
+                        <JsonBodyEditor
+                          value={props.bodyDraft}
+                          disabled={!props.hasRequest}
+                          onChange={props.onBodyChange}
+                          onSaveRequest={props.onSave}
+                          onFocusChange={setIsBodyFocused}
+                        />
+                      </div>
+                    </div>
                   </Match>
 
                   <Match when={props.bodySummary.kind === 'form-data'}>

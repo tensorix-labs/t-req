@@ -20,6 +20,7 @@ import {
 } from '../create-request';
 import { FALLBACK_REQUEST_METHOD, FALLBACK_REQUEST_URL } from '../request-line';
 import { useExplorerStore } from '../use-explorer-store';
+import { formatJsonBodyText, validateJsonBodyText } from '../utils/json-body';
 import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
 import {
@@ -282,7 +283,16 @@ export default function ExplorerScreen() {
     const request = selectedRequest();
     const sourceUrl = requestSourceUrl();
     const content = explorer.fileDraftContent();
-    if (!request || !sourceUrl || content === undefined) {
+    if (!request) {
+      setDetailsSaveError('Select a request before saving request details.');
+      return;
+    }
+    if (!sourceUrl) {
+      setDetailsSaveError('Unable to resolve the request URL for this request.');
+      return;
+    }
+    if (content === undefined) {
+      setDetailsSaveError('Request file content is still loading. Try saving again.');
       return;
     }
 
@@ -350,10 +360,26 @@ export default function ExplorerScreen() {
 
     return sourceUrl;
   });
-  const requestParams = createMemo(() => draftParams());
-  const requestHeaders = createMemo(() => draftHeaders());
-  const requestBodySummary = createMemo(() => requestSourceBody());
-  const requestDiagnostics = createMemo(() => requestSourceDiagnostics());
+  const inlineJsonBodyText = createMemo(() => {
+    const body = requestSourceBody();
+    if (body.kind !== 'inline' || !body.isJsonLike) {
+      return undefined;
+    }
+
+    if (isDetailsDirty()) {
+      return draftBody();
+    }
+
+    return body.text ?? '';
+  });
+  const bodyValidationError = createMemo(() => {
+    const text = inlineJsonBodyText();
+    if (text === undefined) {
+      return undefined;
+    }
+    return validateJsonBodyText(text);
+  });
+  const hasSelectedRequest = createMemo(() => Boolean(selectedRequest()));
   const fileDiagnostics = createMemo(() => parsedRequestFile()?.diagnostics ?? []);
 
   const requestDetailsError = createMemo(() => {
@@ -365,13 +391,29 @@ export default function ExplorerScreen() {
   const isRequestDetailsLoading = createMemo(
     () => Boolean(parseSource()) && parsedRequestFile.loading
   );
-  const isUnsupportedProtocol = createMemo(() => !isHttpProtocol(selectedRequest()?.protocol));
+  const isUnsupportedProtocol = createMemo(() => {
+    const request = selectedRequest();
+    if (!request) {
+      return false;
+    }
+    return !isHttpProtocol(request.protocol);
+  });
+  const unsupportedProtocolLabel = createMemo(() => {
+    const request = selectedRequest();
+    if (!request || !isUnsupportedProtocol()) {
+      return undefined;
+    }
+    return request.protocol?.toUpperCase() ?? 'THIS';
+  });
   const isBusy = createMemo(() => explorer.isMutating());
   const sendDisabled = createMemo(() => {
     if (!selectedPath() || !selectedRequest() || !server.client()) {
       return true;
     }
     if (isUnsupportedProtocol()) {
+      return true;
+    }
+    if (bodyValidationError()) {
       return true;
     }
     return isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile() || isSending();
@@ -512,6 +554,54 @@ export default function ExplorerScreen() {
     }
   };
 
+  const prettifyDraftBody = () => {
+    const body = requestSourceBody();
+    if (body.kind !== 'inline' || !body.isJsonLike) {
+      return;
+    }
+
+    const result = formatJsonBodyText(draftBody(), 'prettify');
+    if (!result.ok) {
+      return;
+    }
+
+    setDraftBody(result.text);
+    markDetailsDirty();
+  };
+
+  const minifyDraftBody = () => {
+    const body = requestSourceBody();
+    if (body.kind !== 'inline' || !body.isJsonLike) {
+      return;
+    }
+
+    const result = formatJsonBodyText(draftBody(), 'minify');
+    if (!result.ok) {
+      return;
+    }
+
+    setDraftBody(result.text);
+    markDetailsDirty();
+  };
+
+  const copyDraftBody = async () => {
+    if (!selectedRequest()) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(draftBody());
+    } catch {
+      // Ignore clipboard failures and keep editing flow uninterrupted.
+    }
+  };
+
+  const refreshExplorer = () => void explorer.refresh();
+  const submitCreateDialogRequest = () => void submitCreateDialog();
+  const sendSelectedRequestAction = () => void sendSelectedRequest();
+  const copyDraftBodyAction = () => void copyDraftBody();
+  const saveRequestDetailsDraftAction = () => void saveRequestDetailsDraft();
+
   return (
     <main
       class="flex-1 min-h-0 overflow-hidden grid grid-cols-[var(--explorer-grid-cols)] gap-0 px-2 pt-2 max-[960px]:grid-cols-1 max-[960px]:grid-rows-[var(--explorer-grid-rows-mobile)]"
@@ -524,7 +614,7 @@ export default function ExplorerScreen() {
         >
           <ExplorerToolbar
             onCreate={openCreateDialog}
-            onRefresh={() => void explorer.refresh()}
+            onRefresh={refreshExplorer}
             isRefreshing={explorer.isLoading()}
             isMutating={isBusy()}
             workspaceRoot={explorer.workspaceRoot()}
@@ -601,7 +691,7 @@ export default function ExplorerScreen() {
         onClose={closeCreateDialog}
         onNameChange={(value) => setCreateDialog('name', value)}
         onKindChange={(kind) => setCreateDialog('kind', kind)}
-        onSubmit={() => void submitCreateDialog()}
+        onSubmit={submitCreateDialogRequest}
       />
 
       <section
@@ -679,12 +769,12 @@ export default function ExplorerScreen() {
               </div>
             </Show>
 
-            <Show when={isUnsupportedProtocol() && selectedRequest()}>
-              <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
-                <span class="text-sm">
-                  {selectedRequest()?.protocol?.toUpperCase()} execution wiring is coming next.
-                </span>
-              </div>
+            <Show when={unsupportedProtocolLabel()}>
+              {(protocol) => (
+                <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
+                  <span class="text-sm">{protocol()} execution wiring is coming next.</span>
+                </div>
+              )}
             </Show>
 
             <RequestUrlBar
@@ -693,7 +783,7 @@ export default function ExplorerScreen() {
               requestOptions={requestOptions()}
               selectedRequestIndex={selectedRequestIndex()}
               onRequestIndexChange={handleRequestIndexChange}
-              onSend={() => void sendSelectedRequest()}
+              onSend={sendSelectedRequestAction}
               disabled={isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile()}
               sendDisabled={sendDisabled()}
               isSending={isSending()}
@@ -704,12 +794,13 @@ export default function ExplorerScreen() {
               style={requestPanelsStyle()}
             >
               <RequestDetailsPanel
-                hasRequest={Boolean(selectedRequest())}
-                params={requestParams()}
-                headers={requestHeaders()}
-                bodySummary={requestBodySummary()}
+                hasRequest={hasSelectedRequest()}
+                params={draftParams()}
+                headers={draftHeaders()}
+                bodySummary={requestSourceBody()}
                 bodyDraft={draftBody()}
-                diagnostics={requestDiagnostics()}
+                bodyValidationError={bodyValidationError()}
+                diagnostics={requestSourceDiagnostics()}
                 fileDiagnostics={fileDiagnostics()}
                 isLoading={isRequestDetailsLoading()}
                 error={requestDetailsError()}
@@ -723,7 +814,10 @@ export default function ExplorerScreen() {
                 onAddHeader={addDraftHeader}
                 onRemoveHeader={removeDraftHeader}
                 onBodyChange={handleDraftBodyChange}
-                onSave={() => void saveRequestDetailsDraft()}
+                onBodyPrettify={prettifyDraftBody}
+                onBodyMinify={minifyDraftBody}
+                onBodyCopy={copyDraftBodyAction}
+                onSave={saveRequestDetailsDraftAction}
                 onDiscard={discardRequestDetailsDraft}
               />
               <Show
