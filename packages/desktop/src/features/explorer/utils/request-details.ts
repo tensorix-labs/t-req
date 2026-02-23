@@ -1,0 +1,133 @@
+import type { PostParseResponses } from '@t-req/sdk/client';
+
+type ParseResponse = PostParseResponses[200];
+
+export type ParseDiagnostic = ParseResponse['diagnostics'][number];
+export type ParseRequestBlock = ParseResponse['requests'][number];
+export type ParsedRequest = NonNullable<ParseRequestBlock['request']>;
+
+export type RequestDetailsRow = {
+  key: string;
+  value: string;
+};
+
+export type RequestBodySummary = {
+  kind: 'none' | 'inline' | 'form-data' | 'file';
+  hasBody: boolean;
+  hasFormData: boolean;
+  hasBodyFile: boolean;
+  description: string;
+};
+
+function decodeQueryComponent(value: string): string {
+  const normalized = value.replace(/\+/g, ' ');
+  try {
+    return decodeURIComponent(normalized);
+  } catch {
+    return normalized;
+  }
+}
+
+function extractQuery(url: string): string | undefined {
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1 || queryStart === url.length - 1) {
+    return undefined;
+  }
+
+  const hashStart = url.indexOf('#', queryStart + 1);
+  if (hashStart === -1) {
+    return url.slice(queryStart + 1);
+  }
+  return url.slice(queryStart + 1, hashStart);
+}
+
+export function toRequestParams(url: string): RequestDetailsRow[] {
+  const query = extractQuery(url);
+  if (!query) {
+    return [];
+  }
+
+  return query
+    .split('&')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => {
+      const separator = segment.indexOf('=');
+      const rawKey = separator === -1 ? segment : segment.slice(0, separator);
+      const rawValue = separator === -1 ? '' : segment.slice(separator + 1);
+      return {
+        key: decodeQueryComponent(rawKey),
+        value: decodeQueryComponent(rawValue)
+      };
+    });
+}
+
+export function toRequestHeaders(headers: Record<string, string>): RequestDetailsRow[] {
+  return Object.entries(headers).map(([key, value]) => ({ key, value }));
+}
+
+export function findRequestBlock(
+  blocks: ParseRequestBlock[],
+  requestIndex: number
+): ParseRequestBlock | undefined {
+  return blocks.find((block) => block.request?.index === requestIndex);
+}
+
+export function toRequestBodySummary(request: ParsedRequest | undefined): RequestBodySummary {
+  const hasBody = request?.hasBody ?? false;
+  const hasFormData = request?.hasFormData ?? false;
+  const hasBodyFile = request?.hasBodyFile ?? false;
+
+  if (hasFormData && hasBodyFile) {
+    return {
+      kind: 'form-data',
+      hasBody,
+      hasFormData,
+      hasBodyFile,
+      description: 'Request includes form data fields and file references.'
+    };
+  }
+
+  if (hasFormData) {
+    return {
+      kind: 'form-data',
+      hasBody,
+      hasFormData,
+      hasBodyFile,
+      description: 'Request includes form data fields.'
+    };
+  }
+
+  if (hasBodyFile) {
+    return {
+      kind: 'file',
+      hasBody,
+      hasFormData,
+      hasBodyFile,
+      description: 'Request body is loaded from a file reference.'
+    };
+  }
+
+  if (hasBody) {
+    return {
+      kind: 'inline',
+      hasBody,
+      hasFormData,
+      hasBodyFile,
+      description: 'Request includes an inline body payload.'
+    };
+  }
+
+  return {
+    kind: 'none',
+    hasBody,
+    hasFormData,
+    hasBodyFile,
+    description: 'No body is defined for this request.'
+  };
+}
+
+export function formatDiagnosticLocation(diagnostic: ParseDiagnostic): string {
+  const line = diagnostic.range.start.line + 1;
+  const column = diagnostic.range.start.column + 1;
+  return `L${line}:C${column}`;
+}

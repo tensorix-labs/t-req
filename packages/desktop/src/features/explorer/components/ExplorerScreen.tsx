@@ -1,5 +1,5 @@
 import { type PostExecuteResponses, unwrap } from '@t-req/sdk/client';
-import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
+import { createMemo, createResource, createSignal, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useServer } from '../../../context/server-context';
 import { toErrorMessage } from '../../../lib/errors';
@@ -13,6 +13,12 @@ import { FALLBACK_REQUEST_METHOD, FALLBACK_REQUEST_URL } from '../request-line';
 import { useExplorerStore } from '../use-explorer-store';
 import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
+import {
+  findRequestBlock,
+  toRequestBodySummary,
+  toRequestHeaders,
+  toRequestParams
+} from '../utils/request-details';
 import { isHttpProtocol, type RequestOption, toRequestOption } from '../utils/request-workspace';
 import { CreateRequestDialog } from './CreateRequestDialog';
 import { ExplorerToolbar } from './ExplorerToolbar';
@@ -80,11 +86,67 @@ export default function ExplorerScreen() {
     const targetIndex = selectedRequestIndex();
     return requests.find((request) => request.index === targetIndex) ?? requests[0];
   });
+  const parseSource = createMemo(() => {
+    const client = server.client();
+    const path = selectedPath();
+    if (!client || !path) {
+      return null;
+    }
+    return {
+      client,
+      path
+    };
+  });
+  const [parsedRequestFile] = createResource(parseSource, async (context) => {
+    return await unwrap(
+      context.client.postParse({
+        body: {
+          path: context.path,
+          includeDiagnostics: true
+        }
+      })
+    );
+  });
+  const requestDetailsError = createMemo(() => {
+    if (!parseSource() || !parsedRequestFile.error) {
+      return undefined;
+    }
+    return `Failed to parse request details: ${toErrorMessage(parsedRequestFile.error)}`;
+  });
+  const isRequestDetailsLoading = createMemo(
+    () => Boolean(parseSource()) && parsedRequestFile.loading
+  );
+  const selectedRequestBlock = createMemo(() => {
+    const request = selectedRequest();
+    if (!request) {
+      return undefined;
+    }
+    return findRequestBlock(parsedRequestFile()?.requests ?? [], request.index);
+  });
   const requestOptions = createMemo<RequestOption[]>(() => selectedRequests().map(toRequestOption));
   const requestMethod = createMemo(
     () => selectedRequest()?.method.toUpperCase() ?? FALLBACK_REQUEST_METHOD
   );
   const requestUrl = createMemo(() => selectedRequest()?.url ?? FALLBACK_REQUEST_URL);
+  const requestParams = createMemo(() => {
+    const request = selectedRequest();
+    if (!request) {
+      return [];
+    }
+    return toRequestParams(request.url);
+  });
+  const requestHeaders = createMemo(() => {
+    const parsedRequest = selectedRequestBlock()?.request;
+    if (!parsedRequest) {
+      return [];
+    }
+    return toRequestHeaders(parsedRequest.headers);
+  });
+  const requestBodySummary = createMemo(() =>
+    toRequestBodySummary(selectedRequestBlock()?.request)
+  );
+  const requestDiagnostics = createMemo(() => selectedRequestBlock()?.diagnostics ?? []);
+  const fileDiagnostics = createMemo(() => parsedRequestFile()?.diagnostics ?? []);
   const isUnsupportedProtocol = createMemo(() => !isHttpProtocol(selectedRequest()?.protocol));
   const isBusy = createMemo(() => explorer.isMutating());
   const sendDisabled = createMemo(() => {
@@ -423,7 +485,16 @@ export default function ExplorerScreen() {
               class="grid min-h-0 min-w-0 flex-1 overflow-hidden grid-cols-[var(--request-panels-cols)] gap-0"
               style={requestPanelsStyle()}
             >
-              <RequestDetailsPanel />
+              <RequestDetailsPanel
+                hasRequest={Boolean(selectedRequest())}
+                params={requestParams()}
+                headers={requestHeaders()}
+                bodySummary={requestBodySummary()}
+                diagnostics={requestDiagnostics()}
+                fileDiagnostics={fileDiagnostics()}
+                isLoading={isRequestDetailsLoading()}
+                error={requestDetailsError()}
+              />
               <Show
                 when={!isResponseCollapsed()}
                 fallback={
