@@ -1,43 +1,32 @@
-import { createEffect, createMemo, createSignal, Match, Show, Switch } from 'solid-js';
+import { type PostExecuteResponses, unwrap } from '@t-req/sdk/client';
+import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import { useServer } from '../../../context/server-context';
+import { toErrorMessage } from '../../../lib/errors';
 import {
   type CreateWorkspaceItemKind,
   DEFAULT_CREATE_WORKSPACE_ITEM_KIND,
   getRequestTemplate,
   isCreateRequestKind
 } from '../create-request';
-import {
-  deriveRequestLineFromContent,
-  FALLBACK_REQUEST_METHOD,
-  FALLBACK_REQUEST_URL
-} from '../request-line';
+import { FALLBACK_REQUEST_METHOD, FALLBACK_REQUEST_URL } from '../request-line';
 import { useExplorerStore } from '../use-explorer-store';
 import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
+import { isHttpProtocol, type RequestOption, toRequestOption } from '../utils/request-workspace';
 import { CreateRequestDialog } from './CreateRequestDialog';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { ExplorerTree } from './ExplorerTree';
 import { ChevronRightIcon } from './icons';
 import {
   EmptyRequestWorkspace,
-  REQUEST_METHODS,
   RequestDetailsPanel,
-  type RequestMethod,
   RequestUrlBar,
   ResponseBodyPanel
 } from './workspace';
 
-const REQUEST_METHOD_SET = new Set<string>(REQUEST_METHODS);
-
-function normalizeRequestMethod(method: string): RequestMethod {
-  const nextMethod = method.toUpperCase();
-  if (REQUEST_METHOD_SET.has(nextMethod)) {
-    return nextMethod as RequestMethod;
-  }
-  return FALLBACK_REQUEST_METHOD;
-}
-
 export default function ExplorerScreen() {
+  const server = useServer();
   const explorer = useExplorerStore();
   const [createDialog, setCreateDialog] = createStore<{
     name: string;
@@ -52,13 +41,18 @@ export default function ExplorerScreen() {
     error: undefined,
     isOpen: false
   });
-  const [requestMethod, setRequestMethod] = createSignal<RequestMethod>(
-    normalizeRequestMethod(FALLBACK_REQUEST_METHOD)
+  const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
+  const [isSending, setIsSending] = createSignal(false);
+  const [latestExecution, setLatestExecution] = createSignal<PostExecuteResponses[200] | undefined>(
+    undefined
   );
-  const [requestUrl, setRequestUrl] = createSignal(FALLBACK_REQUEST_URL);
+  const [executionError, setExecutionError] = createSignal<string | undefined>(undefined);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [isResponseCollapsed, setIsResponseCollapsed] = createSignal(false);
   const selectedPath = explorer.selectedPath;
+  const selectedRequests = explorer.selectedRequests;
+  const isRequestsLoading = explorer.isRequestsLoading;
+  const requestsLoadError = explorer.requestsLoadError;
   const visibleItems = explorer.flattenedVisible;
   const selectedItem = createMemo(() => {
     const path = selectedPath();
@@ -76,11 +70,32 @@ export default function ExplorerScreen() {
     return item?.node.requestCount ?? 0;
   });
   const mutationError = explorer.mutationError;
-  const selectedFileContent = explorer.selectedFileContent;
   const isFileLoading = explorer.isFileLoading;
   const fileLoadError = explorer.fileLoadError;
+  const selectedRequest = createMemo(() => {
+    const requests = selectedRequests();
+    if (requests.length === 0) {
+      return undefined;
+    }
+    const targetIndex = selectedRequestIndex();
+    return requests.find((request) => request.index === targetIndex) ?? requests[0];
+  });
+  const requestOptions = createMemo<RequestOption[]>(() => selectedRequests().map(toRequestOption));
+  const requestMethod = createMemo(
+    () => selectedRequest()?.method.toUpperCase() ?? FALLBACK_REQUEST_METHOD
+  );
+  const requestUrl = createMemo(() => selectedRequest()?.url ?? FALLBACK_REQUEST_URL);
+  const isUnsupportedProtocol = createMemo(() => !isHttpProtocol(selectedRequest()?.protocol));
   const isBusy = createMemo(() => explorer.isMutating());
-  const requestLineDefaults = createMemo(() => deriveRequestLineFromContent(selectedFileContent()));
+  const sendDisabled = createMemo(() => {
+    if (!selectedPath() || !selectedRequest() || !server.client()) {
+      return true;
+    }
+    if (isUnsupportedProtocol()) {
+      return true;
+    }
+    return isBusy() || isFileLoading() || isRequestsLoading() || isSending();
+  });
   const explorerGridStyle = createMemo<Record<string, string>>(() => ({
     '--explorer-grid-cols': isSidebarCollapsed()
       ? 'minmax(0, 1fr)'
@@ -156,7 +171,15 @@ export default function ExplorerScreen() {
   const handleSelectFile = (path: string) => {
     const nextTarget = parentDirectory(path);
     setCreateDialog('targetDir', nextTarget || undefined);
+    setLatestExecution(undefined);
+    setExecutionError(undefined);
     explorer.selectPath(path);
+  };
+
+  const handleRequestIndexChange = (requestIndex: number) => {
+    setSelectedRequestIndex(requestIndex);
+    setLatestExecution(undefined);
+    setExecutionError(undefined);
   };
 
   const createTargetLabel = createMemo(() => createDialog.targetDir ?? 'workspace root');
@@ -172,22 +195,45 @@ export default function ExplorerScreen() {
   const collapseResponsePanel = () => setIsResponseCollapsed(true);
   const expandResponsePanel = () => setIsResponseCollapsed(false);
 
-  createEffect(() => {
+  const sendSelectedRequest = async () => {
     const path = selectedPath();
-    if (!path) {
-      setRequestMethod(normalizeRequestMethod(FALLBACK_REQUEST_METHOD));
-      setRequestUrl(FALLBACK_REQUEST_URL);
+    const request = selectedRequest();
+    const client = server.client();
+    if (!path || !request || !client) {
       return;
     }
 
-    const nextRequestLine = requestLineDefaults();
-    setRequestMethod(normalizeRequestMethod(nextRequestLine.method));
-    setRequestUrl(nextRequestLine.url);
-  });
+    if (!isHttpProtocol(request.protocol)) {
+      setExecutionError(
+        `Execution for ${request.protocol?.toUpperCase() ?? 'this'} requests is not wired yet.`
+      );
+      return;
+    }
+
+    setIsSending(true);
+    setExecutionError(undefined);
+    setLatestExecution(undefined);
+
+    try {
+      const response = await unwrap(
+        client.postExecute({
+          body: {
+            path,
+            requestIndex: request.index
+          }
+        })
+      );
+      setLatestExecution(response);
+    } catch (error) {
+      setExecutionError(`Failed to execute request: ${toErrorMessage(error)}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <main
-      class="flex-1 min-h-0 grid grid-cols-[var(--explorer-grid-cols)] gap-0 px-2 pt-2 max-[960px]:grid-cols-1 max-[960px]:grid-rows-[var(--explorer-grid-rows-mobile)]"
+      class="flex-1 min-h-0 overflow-hidden grid grid-cols-[var(--explorer-grid-cols)] gap-0 px-2 pt-2 max-[960px]:grid-cols-1 max-[960px]:grid-rows-[var(--explorer-grid-rows-mobile)]"
       style={explorerGridStyle()}
     >
       <Show when={!isSidebarCollapsed()}>
@@ -317,7 +363,7 @@ export default function ExplorerScreen() {
           </div>
         </header>
         <Show when={selectedPath()} fallback={<EmptyRequestWorkspace />}>
-          <div class="flex min-h-0 flex-1 flex-col">
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Show when={fileLoadError()}>
               {(message) => (
                 <div
@@ -335,16 +381,45 @@ export default function ExplorerScreen() {
               </div>
             </Show>
 
+            <Show when={requestsLoadError()}>
+              {(message) => (
+                <div
+                  class="alert alert-error mx-3 mt-3 border border-error/50 bg-error/20 text-error-content"
+                  role="alert"
+                >
+                  <span class="text-sm">{message()}</span>
+                </div>
+              )}
+            </Show>
+
+            <Show when={isRequestsLoading()}>
+              <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
+                <span class="text-sm">Loading requests in selected file…</span>
+              </div>
+            </Show>
+
+            <Show when={isUnsupportedProtocol() && selectedRequest()}>
+              <div class="alert mx-3 mt-3 border border-base-300 bg-base-200/70 text-base-content">
+                <span class="text-sm">
+                  {selectedRequest()?.protocol?.toUpperCase()} execution wiring is coming next.
+                </span>
+              </div>
+            </Show>
+
             <RequestUrlBar
               method={requestMethod()}
               url={requestUrl()}
-              onMethodChange={(method) => setRequestMethod(normalizeRequestMethod(method))}
-              onUrlChange={setRequestUrl}
-              disabled={isBusy() || isFileLoading()}
+              requestOptions={requestOptions()}
+              selectedRequestIndex={selectedRequest()?.index ?? 0}
+              onRequestIndexChange={handleRequestIndexChange}
+              onSend={() => void sendSelectedRequest()}
+              disabled={isBusy() || isFileLoading() || isRequestsLoading()}
+              sendDisabled={sendDisabled()}
+              isSending={isSending()}
             />
 
             <div
-              class="grid min-h-0 flex-1 grid-cols-[var(--request-panels-cols)] gap-0"
+              class="grid min-h-0 min-w-0 flex-1 overflow-hidden grid-cols-[var(--request-panels-cols)] gap-0"
               style={requestPanelsStyle()}
             >
               <RequestDetailsPanel />
@@ -369,7 +444,13 @@ export default function ExplorerScreen() {
                   </aside>
                 }
               >
-                <ResponseBodyPanel onCollapse={collapseResponsePanel} />
+                <ResponseBodyPanel
+                  onCollapse={collapseResponsePanel}
+                  response={latestExecution()?.response}
+                  durationMs={latestExecution()?.timing.durationMs}
+                  isExecuting={isSending()}
+                  error={executionError()}
+                />
               </Show>
             </div>
           </div>

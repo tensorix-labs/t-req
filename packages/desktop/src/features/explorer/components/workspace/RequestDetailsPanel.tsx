@@ -6,7 +6,7 @@ export function RequestDetailsPanel() {
   const [activeTab, setActiveTab] = createSignal<RequestDetailsTab>('params');
 
   return (
-    <section class="min-h-0 flex flex-col border-r border-base-300 bg-base-200/10">
+    <section class="min-h-0 min-w-0 flex flex-col overflow-hidden border-r border-base-300 bg-base-200/10">
       <header class="border-b border-base-300/80 px-3 py-2.5">
         <h3 class="m-0 text-sm font-semibold text-base-content">Request Details</h3>
       </header>
@@ -41,7 +41,7 @@ export function RequestDetailsPanel() {
         </button>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
+      <div class="min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
         <Switch>
           <Match when={activeTab() === 'params'}>
             <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2">

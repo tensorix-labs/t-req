@@ -1,4 +1,4 @@
-import { unwrap } from '@t-req/sdk/client';
+import { unwrap, type WorkspaceRequest } from '@t-req/sdk/client';
 import { createEffect, createMemo, createResource, on, untrack } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useServer } from '../../context/server-context';
@@ -34,12 +34,15 @@ export interface ExplorerStore {
   flattenedVisible: () => ExplorerFlatNode[];
   expandedDirs: () => ExplorerExpandedState;
   selectedPath: () => string | undefined;
+  selectedRequests: () => WorkspaceRequest[];
   isMutating: () => boolean;
   mutationError: () => string | undefined;
   selectedFileContent: () => string | undefined;
   fileDraftContent: () => string | undefined;
   isFileLoading: () => boolean;
+  isRequestsLoading: () => boolean;
   fileLoadError: () => string | undefined;
+  requestsLoadError: () => string | undefined;
   isSavingFile: () => boolean;
   fileSaveError: () => string | undefined;
   refresh: () => Promise<void>;
@@ -140,6 +143,28 @@ export function useExplorerStore(): ExplorerStore {
       };
     }
   );
+  const selectedRequestsSource = createMemo(() => {
+    const currentSource = source();
+    const path = selectedPath();
+    if (!currentSource || !path) {
+      return null;
+    }
+
+    return {
+      client: currentSource.client,
+      path
+    };
+  });
+
+  const [selectedRequests, { mutate: mutateSelectedRequests }] = createResource(
+    selectedRequestsSource,
+    async (context) => {
+      const response = await unwrap(
+        context.client.getWorkspaceRequests({ query: { path: context.path } })
+      );
+      return response.requests;
+    }
+  );
 
   const workspaceRoot = createMemo(() => {
     const currentSource = source();
@@ -212,8 +237,12 @@ export function useExplorerStore(): ExplorerStore {
   };
 
   const selectedFileContent = createMemo(() => selectedFile()?.content);
+  const selectedRequestsData = createMemo<WorkspaceRequest[]>(() => selectedRequests() ?? []);
   const fileDraftContent = createMemo(() => state.fileEditor.draftContent);
   const isFileLoading = createMemo(() => Boolean(selectedFileSource()) && selectedFile.loading);
+  const isRequestsLoading = createMemo(
+    () => Boolean(selectedRequestsSource()) && selectedRequests.loading
+  );
   const fileLoadError = createMemo(() => {
     if (!selectedFileSource()) {
       return undefined;
@@ -222,6 +251,15 @@ export function useExplorerStore(): ExplorerStore {
       return undefined;
     }
     return `Failed to load file: ${toErrorMessage(selectedFile.error)}`;
+  });
+  const requestsLoadError = createMemo(() => {
+    if (!selectedRequestsSource()) {
+      return undefined;
+    }
+    if (!selectedRequests.error) {
+      return undefined;
+    }
+    return `Failed to load requests: ${toErrorMessage(selectedRequests.error)}`;
   });
   const isSavingFile = createMemo(() => state.fileEditor.isSaving);
   const fileSaveError = createMemo(() => state.fileEditor.saveError);
@@ -434,6 +472,29 @@ export function useExplorerStore(): ExplorerStore {
   );
 
   createEffect(
+    on(selectedRequestsSource, (currentRequestsSource) => {
+      if (currentRequestsSource) {
+        return;
+      }
+
+      mutateSelectedRequests(undefined);
+    })
+  );
+
+  createEffect(
+    on(
+      () => selectedRequestsSource()?.path,
+      (nextPath, previousPath) => {
+        if (!nextPath || nextPath === previousPath) {
+          return;
+        }
+
+        mutateSelectedRequests(undefined);
+      }
+    )
+  );
+
+  createEffect(
     on(selectedFile, (data) => {
       if (!data) {
         setState('fileEditor', {
@@ -486,12 +547,15 @@ export function useExplorerStore(): ExplorerStore {
     flattenedVisible,
     expandedDirs,
     selectedPath,
+    selectedRequests: selectedRequestsData,
     isMutating,
     mutationError,
     selectedFileContent,
     fileDraftContent,
     isFileLoading,
+    isRequestsLoading,
     fileLoadError,
+    requestsLoadError,
     isSavingFile,
     fileSaveError,
     refresh,
