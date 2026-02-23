@@ -30,6 +30,10 @@ describe('decodeResponseBody', () => {
   it('decodes base64 body', () => {
     expect(decodeResponseBody({ body: 'aGVsbG8=', encoding: 'base64' })).toBe('hello');
   });
+
+  it('decodes utf-8 multibyte content from base64', () => {
+    expect(decodeResponseBody({ body: 'Sm9zw6k=', encoding: 'base64' })).toBe('José');
+  });
 });
 
 describe('formatResponseBody', () => {

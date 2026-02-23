@@ -27,7 +27,9 @@ export function decodeResponseBody(response: ResponseBody): string | undefined {
 
   if (response.encoding === 'base64') {
     try {
-      return atob(response.body);
+      const binary = atob(response.body);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
     } catch {
       return response.body;
     }

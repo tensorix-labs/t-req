@@ -171,6 +171,7 @@ export default function ExplorerScreen() {
   const handleSelectFile = (path: string) => {
     const nextTarget = parentDirectory(path);
     setCreateDialog('targetDir', nextTarget || undefined);
+    setSelectedRequestIndex(0);
     setLatestExecution(undefined);
     setExecutionError(undefined);
     explorer.selectPath(path);
@@ -410,7 +411,7 @@ export default function ExplorerScreen() {
               method={requestMethod()}
               url={requestUrl()}
               requestOptions={requestOptions()}
-              selectedRequestIndex={selectedRequest()?.index ?? 0}
+              selectedRequestIndex={selectedRequestIndex()}
               onRequestIndexChange={handleRequestIndexChange}
               onSend={() => void sendSelectedRequest()}
               disabled={isBusy() || isFileLoading() || isRequestsLoading()}

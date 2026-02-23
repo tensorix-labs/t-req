@@ -1,10 +1,6 @@
 import { For, Show } from 'solid-js';
 import { type RequestOption, toRequestIndex } from '../../utils/request-workspace';
 
-export const REQUEST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-
-export type RequestMethod = (typeof REQUEST_METHODS)[number];
-
 type RequestUrlBarProps = {
   method: string;
   url: string;
