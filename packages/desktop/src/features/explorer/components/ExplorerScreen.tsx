@@ -1,5 +1,14 @@
 import { type PostExecuteResponses, unwrap } from '@t-req/sdk/client';
-import { createMemo, createResource, createSignal, Match, Show, Switch } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  Match,
+  on,
+  Show,
+  Switch
+} from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useServer } from '../../../context/server-context';
 import { toErrorMessage } from '../../../lib/errors';
@@ -15,10 +24,16 @@ import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
 import {
   findRequestBlock,
+  type RequestDetailsRow,
   toRequestBodySummary,
   toRequestHeaders,
   toRequestParams
 } from '../utils/request-details';
+import {
+  applyRequestEditsToContent,
+  buildUrlWithParams,
+  cloneRequestRows
+} from '../utils/request-editing';
 import { isHttpProtocol, type RequestOption, toRequestOption } from '../utils/request-workspace';
 import { CreateRequestDialog } from './CreateRequestDialog';
 import { ExplorerToolbar } from './ExplorerToolbar';
@@ -49,6 +64,11 @@ export default function ExplorerScreen() {
   });
   const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
   const [isSending, setIsSending] = createSignal(false);
+  const [draftRequestKey, setDraftRequestKey] = createSignal<string | undefined>(undefined);
+  const [draftParams, setDraftParams] = createSignal<RequestDetailsRow[]>([]);
+  const [draftHeaders, setDraftHeaders] = createSignal<RequestDetailsRow[]>([]);
+  const [isDetailsDirty, setIsDetailsDirty] = createSignal(false);
+  const [detailsSaveError, setDetailsSaveError] = createSignal<string | undefined>(undefined);
   const [latestExecution, setLatestExecution] = createSignal<PostExecuteResponses[200] | undefined>(
     undefined
   );
@@ -77,6 +97,7 @@ export default function ExplorerScreen() {
   });
   const mutationError = explorer.mutationError;
   const isFileLoading = explorer.isFileLoading;
+  const isSavingFile = explorer.isSavingFile;
   const fileLoadError = explorer.fileLoadError;
   const selectedRequest = createMemo(() => {
     const requests = selectedRequests();
@@ -97,16 +118,200 @@ export default function ExplorerScreen() {
       path
     };
   });
-  const [parsedRequestFile] = createResource(parseSource, async (context) => {
-    return await unwrap(
-      context.client.postParse({
-        body: {
-          path: context.path,
-          includeDiagnostics: true
-        }
-      })
-    );
+  const [parsedRequestFile, { refetch: refetchParsedRequestFile }] = createResource(
+    parseSource,
+    async (context) => {
+      return await unwrap(
+        context.client.postParse({
+          body: {
+            path: context.path,
+            includeDiagnostics: true
+          }
+        })
+      );
+    }
+  );
+  const selectedRequestBlock = createMemo(() => {
+    const request = selectedRequest();
+    if (!request) {
+      return undefined;
+    }
+    return findRequestBlock(parsedRequestFile()?.requests ?? [], request.index);
   });
+  const requestDraftKey = createMemo(() => {
+    const path = selectedPath();
+    const request = selectedRequest();
+    if (!path || !request) {
+      return undefined;
+    }
+    return `${path}:${request.index}`;
+  });
+  const requestSourceUrl = createMemo(() => {
+    return selectedRequestBlock()?.request?.url ?? selectedRequest()?.url;
+  });
+  const requestSourceParams = createMemo(() => {
+    const url = requestSourceUrl();
+    if (!url) {
+      return [];
+    }
+    return toRequestParams(url);
+  });
+  const requestSourceHeaders = createMemo(() => {
+    const parsedRequest = selectedRequestBlock()?.request;
+    if (!parsedRequest) {
+      return [];
+    }
+    return toRequestHeaders(parsedRequest.headers);
+  });
+  const requestSourceDiagnostics = createMemo(() => selectedRequestBlock()?.diagnostics ?? []);
+  const requestSourceBody = createMemo(() => toRequestBodySummary(selectedRequestBlock()?.request));
+
+  createEffect(
+    on(requestDraftKey, (nextKey, previousKey) => {
+      if (!nextKey) {
+        setDraftRequestKey(undefined);
+        setDraftParams([]);
+        setDraftHeaders([]);
+        setIsDetailsDirty(false);
+        setDetailsSaveError(undefined);
+        return;
+      }
+
+      if (nextKey === previousKey) {
+        return;
+      }
+
+      setDraftRequestKey(nextKey);
+      setDraftParams(cloneRequestRows(requestSourceParams()));
+      setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+      setIsDetailsDirty(false);
+      setDetailsSaveError(undefined);
+    })
+  );
+
+  const updateDraftRows = (
+    rows: RequestDetailsRow[],
+    index: number,
+    field: 'key' | 'value',
+    value: string
+  ): RequestDetailsRow[] => {
+    if (index < 0 || index >= rows.length) {
+      return rows;
+    }
+
+    return rows.map((row, rowIndex) => {
+      if (rowIndex !== index) {
+        return row;
+      }
+      return {
+        ...row,
+        [field]: value
+      };
+    });
+  };
+
+  const markDetailsDirty = () => {
+    setIsDetailsDirty(true);
+    setDetailsSaveError(undefined);
+  };
+
+  const handleDraftParamChange = (index: number, field: 'key' | 'value', value: string) => {
+    setDraftParams((rows) => updateDraftRows(rows, index, field, value));
+    markDetailsDirty();
+  };
+
+  const handleDraftHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    setDraftHeaders((rows) => updateDraftRows(rows, index, field, value));
+    markDetailsDirty();
+  };
+
+  const addDraftParam = () => {
+    setDraftParams((rows) => [...rows, { key: '', value: '' }]);
+    markDetailsDirty();
+  };
+
+  const removeDraftParam = (index: number) => {
+    setDraftParams((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+    markDetailsDirty();
+  };
+
+  const addDraftHeader = () => {
+    setDraftHeaders((rows) => [...rows, { key: '', value: '' }]);
+    markDetailsDirty();
+  };
+
+  const removeDraftHeader = (index: number) => {
+    setDraftHeaders((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+    markDetailsDirty();
+  };
+
+  const discardRequestDetailsDraft = () => {
+    setDraftParams(cloneRequestRows(requestSourceParams()));
+    setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+    setIsDetailsDirty(false);
+    setDetailsSaveError(undefined);
+  };
+
+  const saveRequestDetailsDraft = async () => {
+    const request = selectedRequest();
+    const sourceUrl = requestSourceUrl();
+    const content = explorer.fileDraftContent();
+    if (!request || !sourceUrl || content === undefined) {
+      return;
+    }
+
+    const nextUrl = buildUrlWithParams(sourceUrl, draftParams());
+    const updatedContent = applyRequestEditsToContent(
+      content,
+      request.index,
+      nextUrl,
+      draftHeaders()
+    );
+    if (!updatedContent.ok) {
+      setDetailsSaveError(updatedContent.error);
+      return;
+    }
+
+    explorer.setFileDraftContent(updatedContent.content);
+    setDetailsSaveError(undefined);
+    try {
+      await explorer.saveSelectedFile();
+      setIsDetailsDirty(false);
+      await refetchParsedRequestFile();
+    } catch (error) {
+      setDetailsSaveError(toErrorMessage(error));
+    }
+  };
+
+  const requestDetailsSaveError = createMemo(() => detailsSaveError() ?? explorer.fileSaveError());
+
+  const requestOptions = createMemo<RequestOption[]>(() => selectedRequests().map(toRequestOption));
+  const requestMethod = createMemo(() => {
+    const parsedMethod = selectedRequestBlock()?.request?.method;
+    if (parsedMethod) {
+      return parsedMethod.toUpperCase();
+    }
+    return selectedRequest()?.method.toUpperCase() ?? FALLBACK_REQUEST_METHOD;
+  });
+  const requestUrl = createMemo(() => {
+    const sourceUrl = requestSourceUrl();
+    const key = requestDraftKey();
+    if (!sourceUrl || !key) {
+      return FALLBACK_REQUEST_URL;
+    }
+
+    if (draftRequestKey() === key) {
+      return buildUrlWithParams(sourceUrl, draftParams());
+    }
+
+    return sourceUrl;
+  });
+  const requestParams = createMemo(() => draftParams());
+  const requestHeaders = createMemo(() => draftHeaders());
+  const requestBodySummary = createMemo(() => requestSourceBody());
+  const requestDiagnostics = createMemo(() => requestSourceDiagnostics());
+  const fileDiagnostics = createMemo(() => parsedRequestFile()?.diagnostics ?? []);
+
   const requestDetailsError = createMemo(() => {
     if (!parseSource() || !parsedRequestFile.error) {
       return undefined;
@@ -116,37 +321,6 @@ export default function ExplorerScreen() {
   const isRequestDetailsLoading = createMemo(
     () => Boolean(parseSource()) && parsedRequestFile.loading
   );
-  const selectedRequestBlock = createMemo(() => {
-    const request = selectedRequest();
-    if (!request) {
-      return undefined;
-    }
-    return findRequestBlock(parsedRequestFile()?.requests ?? [], request.index);
-  });
-  const requestOptions = createMemo<RequestOption[]>(() => selectedRequests().map(toRequestOption));
-  const requestMethod = createMemo(
-    () => selectedRequest()?.method.toUpperCase() ?? FALLBACK_REQUEST_METHOD
-  );
-  const requestUrl = createMemo(() => selectedRequest()?.url ?? FALLBACK_REQUEST_URL);
-  const requestParams = createMemo(() => {
-    const request = selectedRequest();
-    if (!request) {
-      return [];
-    }
-    return toRequestParams(request.url);
-  });
-  const requestHeaders = createMemo(() => {
-    const parsedRequest = selectedRequestBlock()?.request;
-    if (!parsedRequest) {
-      return [];
-    }
-    return toRequestHeaders(parsedRequest.headers);
-  });
-  const requestBodySummary = createMemo(() =>
-    toRequestBodySummary(selectedRequestBlock()?.request)
-  );
-  const requestDiagnostics = createMemo(() => selectedRequestBlock()?.diagnostics ?? []);
-  const fileDiagnostics = createMemo(() => parsedRequestFile()?.diagnostics ?? []);
   const isUnsupportedProtocol = createMemo(() => !isHttpProtocol(selectedRequest()?.protocol));
   const isBusy = createMemo(() => explorer.isMutating());
   const sendDisabled = createMemo(() => {
@@ -156,7 +330,7 @@ export default function ExplorerScreen() {
     if (isUnsupportedProtocol()) {
       return true;
     }
-    return isBusy() || isFileLoading() || isRequestsLoading() || isSending();
+    return isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile() || isSending();
   });
   const explorerGridStyle = createMemo<Record<string, string>>(() => ({
     '--explorer-grid-cols': isSidebarCollapsed()
@@ -476,7 +650,7 @@ export default function ExplorerScreen() {
               selectedRequestIndex={selectedRequestIndex()}
               onRequestIndexChange={handleRequestIndexChange}
               onSend={() => void sendSelectedRequest()}
-              disabled={isBusy() || isFileLoading() || isRequestsLoading()}
+              disabled={isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile()}
               sendDisabled={sendDisabled()}
               isSending={isSending()}
             />
@@ -494,6 +668,17 @@ export default function ExplorerScreen() {
                 fileDiagnostics={fileDiagnostics()}
                 isLoading={isRequestDetailsLoading()}
                 error={requestDetailsError()}
+                saveError={requestDetailsSaveError()}
+                hasUnsavedChanges={isDetailsDirty()}
+                isSaving={isSavingFile()}
+                onParamChange={handleDraftParamChange}
+                onHeaderChange={handleDraftHeaderChange}
+                onAddParam={addDraftParam}
+                onRemoveParam={removeDraftParam}
+                onAddHeader={addDraftHeader}
+                onRemoveHeader={removeDraftHeader}
+                onSave={() => void saveRequestDetailsDraft()}
+                onDiscard={discardRequestDetailsDraft}
               />
               <Show
                 when={!isResponseCollapsed()}
