@@ -2,19 +2,24 @@ import { createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid
 import {
   formatDiagnosticLocation,
   type ParseDiagnostic,
+  type RequestBodyField,
   type RequestBodySummary,
   type RequestDetailsRow
 } from '../../utils/request-details';
 import { JsonBodyEditor } from './JsonBodyEditor';
 
 type RequestDetailsTab = 'params' | 'body' | 'headers' | 'diagnostics';
+type RequestBodyDraftMode = 'none' | 'inline' | 'form-data' | 'file';
 
 type RequestDetailsPanelProps = {
   hasRequest: boolean;
   params: RequestDetailsRow[];
   headers: RequestDetailsRow[];
   bodySummary: RequestBodySummary;
+  bodyMode: RequestBodyDraftMode;
+  isJsonBodyMode: boolean;
   bodyDraft: string;
+  formDataDraft: RequestBodyField[];
   bodyValidationError?: string;
   diagnostics: ParseDiagnostic[];
   fileDiagnostics: ParseDiagnostic[];
@@ -29,7 +34,14 @@ type RequestDetailsPanelProps = {
   onRemoveParam: (index: number) => void;
   onAddHeader: () => void;
   onRemoveHeader: (index: number) => void;
+  onBodyModeChange: (mode: RequestBodyDraftMode) => void;
   onBodyChange: (value: string) => void;
+  onBodyFormDataNameChange: (index: number, value: string) => void;
+  onBodyFormDataTypeChange: (index: number, isFile: boolean) => void;
+  onBodyFormDataValueChange: (index: number, value: string) => void;
+  onBodyFormDataFilenameChange: (index: number, value: string) => void;
+  onBodyFormDataAddField: () => void;
+  onBodyFormDataRemoveField: (index: number) => void;
   onBodyPrettify: () => void;
   onBodyMinify: () => void;
   onBodyCopy: () => void;
@@ -62,7 +74,7 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
     () => Boolean(props.bodyValidationError) && !isBodyFocused()
   );
   const bodyValidationBadge = createMemo(() => {
-    if (!props.bodySummary.isJsonLike) {
+    if (!props.isJsonBodyMode) {
       return undefined;
     }
     if (props.bodyValidationError && isBodyFocused()) {
@@ -248,10 +260,31 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
               }
             >
               <div class="h-full min-w-0 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3">
+                <div class="mb-2 flex items-center gap-2">
+                  <span class="font-mono text-[11px] uppercase tracking-[0.05em] text-base-content/55">
+                    Type
+                  </span>
+                  <select
+                    class="select select-xs w-[160px] border-base-300 bg-base-100 font-mono text-xs"
+                    value={props.bodyMode}
+                    onChange={(event) =>
+                      props.onBodyModeChange(event.currentTarget.value as RequestBodyDraftMode)
+                    }
+                    disabled={!props.hasRequest}
+                  >
+                    <option value="none">none</option>
+                    <option value="inline">json</option>
+                    <option value="form-data">form-data</option>
+                    <Show when={props.bodySummary.kind === 'file'}>
+                      <option value="file">file</option>
+                    </Show>
+                  </select>
+                </div>
+
                 <Switch>
-                  <Match when={props.bodySummary.kind === 'inline'}>
+                  <Match when={props.bodyMode === 'inline'}>
                     <div class="flex h-full min-h-0 flex-col gap-2">
-                      <Show when={props.bodySummary.isJsonLike}>
+                      <Show when={props.isJsonBodyMode}>
                         <div class="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
@@ -310,41 +343,126 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
                     </div>
                   </Match>
 
-                  <Match when={props.bodySummary.kind === 'form-data'}>
-                    <div class="space-y-2">
-                      <p class="text-sm text-base-content/75">{props.bodySummary.description}</p>
-                      <Show when={(props.bodySummary.fields?.length ?? 0) > 0}>
-                        <div class="max-h-[240px] overflow-auto rounded-box border border-base-300/70 bg-base-100/70 p-2">
-                          <table class="table table-xs table-fixed">
-                            <thead>
-                              <tr>
-                                <th class="w-[35%] font-mono">Field</th>
-                                <th class="w-[25%] font-mono">Type</th>
-                                <th class="w-[40%] font-mono">Value</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <For each={props.bodySummary.fields}>
-                                {(field) => (
+                  <Match when={props.bodyMode === 'form-data'}>
+                    <div class="flex h-full min-h-0 flex-col gap-2">
+                      <div class="flex items-center justify-end">
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs font-mono"
+                          onClick={props.onBodyFormDataAddField}
+                          disabled={!props.hasRequest}
+                        >
+                          Add Field
+                        </button>
+                      </div>
+
+                      <div class="min-h-0 min-w-0 flex-1 overflow-auto rounded-box border border-base-300 bg-base-100/70 p-2">
+                        <table class="table table-sm table-fixed">
+                          <thead>
+                            <tr>
+                              <th class="w-[30%] font-mono">Field</th>
+                              <th class="w-[18%] font-mono">Type</th>
+                              <th class="w-[40%] font-mono">Value</th>
+                              <th class="w-[12%] font-mono text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <Index each={props.formDataDraft}>
+                              {(field, index) => (
+                                <>
                                   <tr>
-                                    <td class="font-mono text-xs">{field.name}</td>
-                                    <td class="font-mono text-xs text-base-content/70">
-                                      {field.isFile ? 'file' : 'text'}
+                                    <td>
+                                      <input
+                                        type="text"
+                                        class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                                        value={field().name}
+                                        onInput={(event) =>
+                                          props.onBodyFormDataNameChange(
+                                            index,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        disabled={!props.hasRequest}
+                                      />
                                     </td>
-                                    <td class="font-mono text-xs break-all text-base-content/70">
-                                      {field.isFile ? (field.path ?? '') : field.value}
+                                    <td>
+                                      <select
+                                        class="select select-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                                        value={field().isFile ? 'file' : 'text'}
+                                        onChange={(event) =>
+                                          props.onBodyFormDataTypeChange(
+                                            index,
+                                            event.currentTarget.value === 'file'
+                                          )
+                                        }
+                                        disabled={!props.hasRequest}
+                                      >
+                                        <option value="text">text</option>
+                                        <option value="file">file</option>
+                                      </select>
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="text"
+                                        class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                                        value={
+                                          field().isFile ? (field().path ?? '') : field().value
+                                        }
+                                        onInput={(event) =>
+                                          props.onBodyFormDataValueChange(
+                                            index,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        placeholder={field().isFile ? './path/to/file' : 'value'}
+                                        disabled={!props.hasRequest}
+                                      />
+                                    </td>
+                                    <td class="text-right align-top">
+                                      <button
+                                        type="button"
+                                        class="btn btn-ghost btn-xs text-error"
+                                        onClick={() => props.onBodyFormDataRemoveField(index)}
+                                        disabled={!props.hasRequest}
+                                      >
+                                        Remove
+                                      </button>
                                     </td>
                                   </tr>
-                                )}
-                              </For>
-                            </tbody>
-                          </table>
-                        </div>
-                      </Show>
+                                  <Show when={field().isFile}>
+                                    <tr>
+                                      <td />
+                                      <td class="font-mono text-[11px] text-base-content/55">
+                                        filename
+                                      </td>
+                                      <td>
+                                        <input
+                                          type="text"
+                                          class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                                          value={field().filename ?? ''}
+                                          onInput={(event) =>
+                                            props.onBodyFormDataFilenameChange(
+                                              index,
+                                              event.currentTarget.value
+                                            )
+                                          }
+                                          placeholder="optional filename"
+                                          disabled={!props.hasRequest}
+                                        />
+                                      </td>
+                                      <td />
+                                    </tr>
+                                  </Show>
+                                </>
+                              )}
+                            </Index>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </Match>
 
-                  <Match when={props.bodySummary.kind === 'file'}>
+                  <Match when={props.bodyMode === 'file'}>
                     <div class="space-y-2">
                       <p class="text-sm text-base-content/75">{props.bodySummary.description}</p>
                       <Show when={props.bodySummary.filePath}>
@@ -360,8 +478,8 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
                     </div>
                   </Match>
 
-                  <Match when={props.bodySummary.kind === 'none'}>
-                    <p class="text-sm text-base-content/70">{props.bodySummary.description}</p>
+                  <Match when={props.bodyMode === 'none'}>
+                    <p class="text-sm text-base-content/70">No body is defined for this request.</p>
                   </Match>
                 </Switch>
               </div>

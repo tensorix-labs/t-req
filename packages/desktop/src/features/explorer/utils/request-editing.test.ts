@@ -4,7 +4,8 @@ import {
   applySpanEditToContent,
   areRequestRowsEqual,
   buildUrlWithParams,
-  cloneRequestRows
+  cloneRequestRows,
+  insertRequestBodyIntoContent
 } from './request-editing';
 
 describe('cloneRequestRows', () => {
@@ -186,5 +187,55 @@ describe('applySpanEditToContent', () => {
     if (!result.ok) {
       expect(result.error).toContain('out of bounds');
     }
+  });
+});
+
+describe('insertRequestBodyIntoContent', () => {
+  it('inserts a new body for a request with no body', () => {
+    const content = 'GET https://api.example.com/health';
+    const result = insertRequestBodyIntoContent(content, 0, '{"ok":true}');
+
+    expect(result).toEqual({
+      ok: true,
+      content: ['GET https://api.example.com/health', '', '{"ok":true}'].join('\n')
+    });
+  });
+
+  it('inserts body before separators and preserves following requests', () => {
+    const content = [
+      'GET https://api.example.com/health',
+      'Accept: application/json',
+      '',
+      '###',
+      'POST https://api.example.com/login',
+      '',
+      '{"email":"person@example.com"}'
+    ].join('\n');
+    const result = insertRequestBodyIntoContent(content, 0, 'trace = true');
+
+    expect(result).toEqual({
+      ok: true,
+      content: [
+        'GET https://api.example.com/health',
+        'Accept: application/json',
+        '',
+        'trace = true',
+        '###',
+        'POST https://api.example.com/login',
+        '',
+        '{"email":"person@example.com"}'
+      ].join('\n')
+    });
+  });
+
+  it('normalizes inserted body line endings for CRLF content', () => {
+    const content = 'GET https://api.example.com/health HTTP/1.1\r\nAccept: */*\r\n';
+    const result = insertRequestBodyIntoContent(content, 0, '{\n  "ok": true\n}');
+
+    expect(result).toEqual({
+      ok: true,
+      content:
+        'GET https://api.example.com/health HTTP/1.1\r\nAccept: */*\r\n\r\n{\r\n  "ok": true\r\n}'
+    });
   });
 });

@@ -21,6 +21,18 @@ type LineRecord = {
   start: number;
 };
 
+type RequestSegmentResult =
+  | {
+      ok: true;
+      startOffset: number;
+      endOffset: number;
+      segment: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 const REQUEST_LINE_PATTERN = /^([A-Za-z]+)\s+(\S+)(?:\s+HTTP\/\d+(?:\.\d+)?)?\s*$/;
 const REQUEST_LINE_PARTS_PATTERN = /^(\s*)([A-Za-z]+)\s+(\S+)(\s+HTTP\/\d+(?:\.\d+)?)?(\s*)$/;
 const HEADER_LINE_PATTERN = /^\s*[^:\s][^:]*:.*$/;
@@ -151,6 +163,96 @@ function rewriteRequestSegment(
   };
 }
 
+function rewriteRequestSegmentWithInsertedBody(
+  segment: string,
+  body: string
+): ApplyRequestEditsResult {
+  if (body.length === 0) {
+    return {
+      ok: true,
+      content: segment
+    };
+  }
+
+  const lines = splitLines(segment);
+  const requestLine = lines[0];
+  if (!requestLine) {
+    return {
+      ok: false,
+      error: 'Selected request content is empty.'
+    };
+  }
+
+  const restLines = lines.slice(1);
+  let headerEndIndex = 0;
+  while (headerEndIndex < restLines.length && isHeaderLine(restLines[headerEndIndex]?.text ?? '')) {
+    headerEndIndex += 1;
+  }
+
+  const headerLines = restLines.slice(0, headerEndIndex);
+  const remainingLines = restLines.slice(headerEndIndex);
+  const preservedRemainingLines =
+    (remainingLines[0]?.text ?? '').trim() === '' ? remainingLines.slice(1) : remainingLines;
+  const lineEnding = preferredLineEnding(lines);
+  const normalizedBody = body.replace(/\r?\n/g, lineEnding);
+  const requestLineEnding = requestLine.ending || lineEnding;
+
+  let updatedSegment = `${requestLine.text}${requestLineEnding}`;
+  for (const line of headerLines) {
+    updatedSegment += `${line.text}${line.ending || lineEnding}`;
+  }
+
+  updatedSegment += lineEnding;
+  updatedSegment += normalizedBody;
+
+  if (preservedRemainingLines.length > 0 && !normalizedBody.endsWith(lineEnding)) {
+    updatedSegment += lineEnding;
+  }
+
+  for (const line of preservedRemainingLines) {
+    updatedSegment += `${line.text}${line.ending}`;
+  }
+
+  return {
+    ok: true,
+    content: updatedSegment
+  };
+}
+
+function findRequestSegment(content: string, requestIndex: number): RequestSegmentResult {
+  const lines = splitLines(content);
+  const requestLineIndexes = lines.flatMap((line, index) =>
+    isRequestLineCandidate(line.text) ? [index] : []
+  );
+
+  if (requestIndex < 0 || requestIndex >= requestLineIndexes.length) {
+    return {
+      ok: false,
+      error: `Request #${requestIndex + 1} could not be located in file content.`
+    };
+  }
+
+  const startLineIndex = requestLineIndexes[requestIndex];
+  if (startLineIndex === undefined) {
+    return {
+      ok: false,
+      error: 'Selected request line was not found.'
+    };
+  }
+
+  const nextLineIndex = requestLineIndexes[requestIndex + 1];
+  const startOffset = lines[startLineIndex]?.start ?? 0;
+  const endOffset =
+    nextLineIndex !== undefined ? (lines[nextLineIndex]?.start ?? content.length) : content.length;
+
+  return {
+    ok: true,
+    startOffset,
+    endOffset,
+    segment: content.slice(startOffset, endOffset)
+  };
+}
+
 export function cloneRequestRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
   return rows.map((row) => ({ key: row.key, value: row.value }));
 }
@@ -232,39 +334,39 @@ export function applyRequestEditsToContent(
   nextUrl: string,
   nextHeaders: RequestDetailsRow[]
 ): ApplyRequestEditsResult {
-  const lines = splitLines(content);
-  const requestLineIndexes = lines.flatMap((line, index) =>
-    isRequestLineCandidate(line.text) ? [index] : []
-  );
-
-  if (requestIndex < 0 || requestIndex >= requestLineIndexes.length) {
-    return {
-      ok: false,
-      error: `Request #${requestIndex + 1} could not be located in file content.`
-    };
+  const requestSegment = findRequestSegment(content, requestIndex);
+  if (!requestSegment.ok) {
+    return requestSegment;
   }
 
-  const startLineIndex = requestLineIndexes[requestIndex];
-  if (startLineIndex === undefined) {
-    return {
-      ok: false,
-      error: 'Selected request line was not found.'
-    };
-  }
-
-  const nextLineIndex = requestLineIndexes[requestIndex + 1];
-  const startOffset = lines[startLineIndex]?.start ?? 0;
-  const endOffset =
-    nextLineIndex !== undefined ? (lines[nextLineIndex]?.start ?? content.length) : content.length;
-
-  const segment = content.slice(startOffset, endOffset);
-  const rewritten = rewriteRequestSegment(segment, nextUrl, nextHeaders);
+  const rewritten = rewriteRequestSegment(requestSegment.segment, nextUrl, nextHeaders);
   if (!rewritten.ok) {
     return rewritten;
   }
 
   return {
     ok: true,
-    content: `${content.slice(0, startOffset)}${rewritten.content}${content.slice(endOffset)}`
+    content: `${content.slice(0, requestSegment.startOffset)}${rewritten.content}${content.slice(requestSegment.endOffset)}`
+  };
+}
+
+export function insertRequestBodyIntoContent(
+  content: string,
+  requestIndex: number,
+  body: string
+): ApplyRequestEditsResult {
+  const requestSegment = findRequestSegment(content, requestIndex);
+  if (!requestSegment.ok) {
+    return requestSegment;
+  }
+
+  const rewritten = rewriteRequestSegmentWithInsertedBody(requestSegment.segment, body);
+  if (!rewritten.ok) {
+    return rewritten;
+  }
+
+  return {
+    ok: true,
+    content: `${content.slice(0, requestSegment.startOffset)}${rewritten.content}${content.slice(requestSegment.endOffset)}`
   };
 }

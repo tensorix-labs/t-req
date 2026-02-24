@@ -25,6 +25,7 @@ import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
 import {
   findRequestBlock,
+  type RequestBodyField,
   type RequestDetailsRow,
   toRequestBodySummary,
   toRequestHeaders,
@@ -34,8 +35,10 @@ import {
   applyRequestEditsToContent,
   applySpanEditToContent,
   buildUrlWithParams,
-  cloneRequestRows
+  cloneRequestRows,
+  insertRequestBodyIntoContent
 } from '../utils/request-editing';
+import { cloneFormDataFields, serializeFormDataBody } from '../utils/request-form-data';
 import { isHttpProtocol, type RequestOption, toRequestOption } from '../utils/request-workspace';
 import { CreateRequestDialog } from './CreateRequestDialog';
 import { ExplorerToolbar } from './ExplorerToolbar';
@@ -49,6 +52,11 @@ import {
 } from './workspace';
 
 export default function ExplorerScreen() {
+  type RequestBodyDraftMode = 'none' | 'inline' | 'form-data' | 'file';
+
+  const toDraftBodyMode = (kind: 'none' | 'inline' | 'form-data' | 'file'): RequestBodyDraftMode =>
+    kind;
+
   const server = useServer();
   const explorer = useExplorerStore();
   const [createDialog, setCreateDialog] = createStore<{
@@ -69,7 +77,9 @@ export default function ExplorerScreen() {
   const [draftRequestKey, setDraftRequestKey] = createSignal<string | undefined>(undefined);
   const [draftParams, setDraftParams] = createSignal<RequestDetailsRow[]>([]);
   const [draftHeaders, setDraftHeaders] = createSignal<RequestDetailsRow[]>([]);
+  const [draftBodyMode, setDraftBodyMode] = createSignal<RequestBodyDraftMode>('none');
   const [draftBody, setDraftBody] = createSignal('');
+  const [draftFormData, setDraftFormData] = createSignal<RequestBodyField[]>([]);
   const [isDetailsDirty, setIsDetailsDirty] = createSignal(false);
   const [detailsSaveError, setDetailsSaveError] = createSignal<string | undefined>(undefined);
   const [latestExecution, setLatestExecution] = createSignal<PostExecuteResponses[200] | undefined>(
@@ -169,6 +179,13 @@ export default function ExplorerScreen() {
   });
   const requestSourceDiagnostics = createMemo(() => selectedRequestBlock()?.diagnostics ?? []);
   const requestSourceBody = createMemo(() => toRequestBodySummary(selectedRequestBlock()?.request));
+  const requestSourceFormData = createMemo(() => {
+    const sourceBody = requestSourceBody();
+    if (sourceBody.kind !== 'form-data' || !sourceBody.fields) {
+      return [];
+    }
+    return cloneFormDataFields(sourceBody.fields);
+  });
 
   createEffect(
     on(requestDraftKey, (nextKey, previousKey) => {
@@ -176,7 +193,9 @@ export default function ExplorerScreen() {
         setDraftRequestKey(undefined);
         setDraftParams([]);
         setDraftHeaders([]);
+        setDraftBodyMode('none');
         setDraftBody('');
+        setDraftFormData([]);
         setIsDetailsDirty(false);
         setDetailsSaveError(undefined);
         return;
@@ -189,7 +208,9 @@ export default function ExplorerScreen() {
       setDraftRequestKey(nextKey);
       setDraftParams(cloneRequestRows(requestSourceParams()));
       setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+      setDraftBodyMode(toDraftBodyMode(requestSourceBody().kind));
       setDraftBody(requestSourceBody().text ?? '');
+      setDraftFormData(cloneFormDataFields(requestSourceFormData()));
       setIsDetailsDirty(false);
       setDetailsSaveError(undefined);
     })
@@ -197,15 +218,23 @@ export default function ExplorerScreen() {
 
   createEffect(
     on(
-      [requestDraftKey, requestSourceParams, requestSourceHeaders, requestSourceBody],
-      ([nextKey, nextParams, nextHeaders, nextBody]) => {
+      [
+        requestDraftKey,
+        requestSourceParams,
+        requestSourceHeaders,
+        requestSourceBody,
+        requestSourceFormData
+      ],
+      ([nextKey, nextParams, nextHeaders, nextBody, nextFormData]) => {
         if (!nextKey || draftRequestKey() !== nextKey || isDetailsDirty()) {
           return;
         }
 
         setDraftParams(cloneRequestRows(nextParams));
         setDraftHeaders(cloneRequestRows(nextHeaders));
+        setDraftBodyMode(toDraftBodyMode(nextBody.kind));
         setDraftBody(nextBody.text ?? '');
+        setDraftFormData(cloneFormDataFields(nextFormData));
       }
     )
   );
@@ -251,6 +280,117 @@ export default function ExplorerScreen() {
     markDetailsDirty();
   };
 
+  const handleDraftBodyModeChange = (nextMode: RequestBodyDraftMode) => {
+    if (nextMode === draftBodyMode()) {
+      return;
+    }
+
+    setDraftBodyMode(nextMode);
+    if (nextMode === 'form-data' && draftFormData().length === 0) {
+      setDraftFormData([{ name: '', value: '', isFile: false }]);
+    }
+    markDetailsDirty();
+  };
+
+  const updateDraftFormDataRows = (
+    fields: RequestBodyField[],
+    index: number,
+    update: (field: RequestBodyField) => RequestBodyField
+  ): RequestBodyField[] => {
+    if (index < 0 || index >= fields.length) {
+      return fields;
+    }
+
+    return fields.map((field, fieldIndex) => {
+      if (fieldIndex !== index) {
+        return field;
+      }
+      return update(field);
+    });
+  };
+
+  const handleDraftFormDataNameChange = (index: number, value: string) => {
+    setDraftFormData((fields) =>
+      updateDraftFormDataRows(fields, index, (field) => ({
+        ...field,
+        name: value
+      }))
+    );
+    markDetailsDirty();
+  };
+
+  const handleDraftFormDataTypeChange = (index: number, isFile: boolean) => {
+    setDraftFormData((fields) =>
+      updateDraftFormDataRows(fields, index, (field) => {
+        if (!isFile) {
+          return {
+            name: field.name,
+            value: field.value,
+            isFile: false
+          };
+        }
+
+        const filename = field.filename?.trim();
+        return {
+          name: field.name,
+          value: '',
+          isFile: true,
+          path: field.path ?? '',
+          ...(filename ? { filename } : {})
+        };
+      })
+    );
+    markDetailsDirty();
+  };
+
+  const handleDraftFormDataValueChange = (index: number, value: string) => {
+    setDraftFormData((fields) =>
+      updateDraftFormDataRows(fields, index, (field) => {
+        if (field.isFile) {
+          return {
+            ...field,
+            path: value
+          };
+        }
+
+        return {
+          ...field,
+          value
+        };
+      })
+    );
+    markDetailsDirty();
+  };
+
+  const handleDraftFormDataFilenameChange = (index: number, value: string) => {
+    setDraftFormData((fields) =>
+      updateDraftFormDataRows(fields, index, (field) => {
+        const filename = value.trim();
+        if (!filename) {
+          const nextField = { ...field };
+          delete nextField.filename;
+          return nextField;
+        }
+
+        return {
+          ...field,
+          filename
+        };
+      })
+    );
+    markDetailsDirty();
+  };
+
+  const addDraftFormDataField = () => {
+    setDraftFormData((fields) => [...fields, { name: '', value: '', isFile: false }]);
+    markDetailsDirty();
+  };
+
+  const removeDraftFormDataField = (index: number) => {
+    setDraftFormData((fields) => fields.filter((_, fieldIndex) => fieldIndex !== index));
+    markDetailsDirty();
+  };
+
   const addDraftParam = () => {
     setDraftParams((rows) => [...rows, { key: '', value: '' }]);
     markDetailsDirty();
@@ -274,7 +414,9 @@ export default function ExplorerScreen() {
   const discardRequestDetailsDraft = () => {
     setDraftParams(cloneRequestRows(requestSourceParams()));
     setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
+    setDraftBodyMode(toDraftBodyMode(requestSourceBody().kind));
     setDraftBody(requestSourceBody().text ?? '');
+    setDraftFormData(cloneFormDataFields(requestSourceFormData()));
     setIsDetailsDirty(false);
     setDetailsSaveError(undefined);
   };
@@ -298,20 +440,55 @@ export default function ExplorerScreen() {
 
     const sourceBody = requestSourceBody();
     const sourceBodyText = sourceBody.kind === 'inline' ? (sourceBody.text ?? '') : '';
+    const sourceFormData = sourceBody.kind === 'form-data' ? (sourceBody.fields ?? []) : [];
+    const sourceFileBodyText = sourceBody.kind === 'file' ? `< ${sourceBody.filePath ?? ''}` : '';
+    const sourceBodyMode = toDraftBodyMode(sourceBody.kind);
+    const sourceSerializedBody =
+      sourceBodyMode === 'inline'
+        ? sourceBodyText
+        : sourceBodyMode === 'form-data'
+          ? serializeFormDataBody(sourceFormData)
+          : sourceBodyMode === 'file'
+            ? sourceFileBodyText
+            : '';
+    const nextBodyMode = draftBodyMode();
+    const nextSerializedBody =
+      nextBodyMode === 'inline'
+        ? draftBody()
+        : nextBodyMode === 'form-data'
+          ? serializeFormDataBody(draftFormData())
+          : nextBodyMode === 'file'
+            ? sourceFileBodyText
+            : '';
+    const shouldRewriteBody =
+      nextBodyMode !== sourceBodyMode || nextSerializedBody !== sourceSerializedBody;
+
     let contentWithBody = content;
-    if (sourceBody.kind === 'inline' && draftBody() !== sourceBodyText) {
+    if (shouldRewriteBody && sourceBody.spans?.body) {
       const bodySpan = sourceBody.spans?.body;
       if (!bodySpan) {
         setDetailsSaveError('Unable to update body text because body span data was unavailable.');
         return;
       }
 
-      const bodyRewrite = applySpanEditToContent(contentWithBody, bodySpan, draftBody());
+      const bodyRewrite = applySpanEditToContent(contentWithBody, bodySpan, nextSerializedBody);
       if (!bodyRewrite.ok) {
         setDetailsSaveError(bodyRewrite.error);
         return;
       }
       contentWithBody = bodyRewrite.content;
+    }
+    if (shouldRewriteBody && !sourceBody.spans?.body && nextSerializedBody.length > 0) {
+      const bodyInsert = insertRequestBodyIntoContent(
+        contentWithBody,
+        request.index,
+        nextSerializedBody
+      );
+      if (!bodyInsert.ok) {
+        setDetailsSaveError(bodyInsert.error);
+        return;
+      }
+      contentWithBody = bodyInsert.content;
     }
 
     const nextUrl = buildUrlWithParams(sourceUrl, draftParams());
@@ -360,17 +537,23 @@ export default function ExplorerScreen() {
 
     return sourceUrl;
   });
-  const inlineJsonBodyText = createMemo(() => {
+  const isInlineJsonBodyMode = createMemo(() => {
+    if (draftBodyMode() !== 'inline') {
+      return false;
+    }
+
     const body = requestSourceBody();
-    if (body.kind !== 'inline' || !body.isJsonLike) {
+    if (body.kind === 'inline') {
+      return body.isJsonLike ?? false;
+    }
+
+    return true;
+  });
+  const inlineJsonBodyText = createMemo(() => {
+    if (!isInlineJsonBodyMode()) {
       return undefined;
     }
-
-    if (isDetailsDirty()) {
-      return draftBody();
-    }
-
-    return body.text ?? '';
+    return draftBody();
   });
   const bodyValidationError = createMemo(() => {
     const text = inlineJsonBodyText();
@@ -555,8 +738,7 @@ export default function ExplorerScreen() {
   };
 
   const prettifyDraftBody = () => {
-    const body = requestSourceBody();
-    if (body.kind !== 'inline' || !body.isJsonLike) {
+    if (!isInlineJsonBodyMode()) {
       return;
     }
 
@@ -570,8 +752,7 @@ export default function ExplorerScreen() {
   };
 
   const minifyDraftBody = () => {
-    const body = requestSourceBody();
-    if (body.kind !== 'inline' || !body.isJsonLike) {
+    if (!isInlineJsonBodyMode()) {
       return;
     }
 
@@ -798,7 +979,10 @@ export default function ExplorerScreen() {
                 params={draftParams()}
                 headers={draftHeaders()}
                 bodySummary={requestSourceBody()}
+                bodyMode={draftBodyMode()}
+                isJsonBodyMode={isInlineJsonBodyMode()}
                 bodyDraft={draftBody()}
+                formDataDraft={draftFormData()}
                 bodyValidationError={bodyValidationError()}
                 diagnostics={requestSourceDiagnostics()}
                 fileDiagnostics={fileDiagnostics()}
@@ -813,7 +997,14 @@ export default function ExplorerScreen() {
                 onRemoveParam={removeDraftParam}
                 onAddHeader={addDraftHeader}
                 onRemoveHeader={removeDraftHeader}
+                onBodyModeChange={handleDraftBodyModeChange}
                 onBodyChange={handleDraftBodyChange}
+                onBodyFormDataNameChange={handleDraftFormDataNameChange}
+                onBodyFormDataTypeChange={handleDraftFormDataTypeChange}
+                onBodyFormDataValueChange={handleDraftFormDataValueChange}
+                onBodyFormDataFilenameChange={handleDraftFormDataFilenameChange}
+                onBodyFormDataAddField={addDraftFormDataField}
+                onBodyFormDataRemoveField={removeDraftFormDataField}
                 onBodyPrettify={prettifyDraftBody}
                 onBodyMinify={minifyDraftBody}
                 onBodyCopy={copyDraftBodyAction}
