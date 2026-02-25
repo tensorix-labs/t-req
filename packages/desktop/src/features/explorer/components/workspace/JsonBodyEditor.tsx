@@ -4,6 +4,10 @@ import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 import { createEffect, on, onCleanup, onMount } from 'solid-js';
 import { createJsonCodeMirrorExtensions } from './json-codemirror';
+import {
+  createTemplateCodeMirrorExtensions,
+  type TemplateTokenResolver
+} from './template-codemirror';
 
 type JsonBodyEditorProps = {
   value: string;
@@ -11,6 +15,8 @@ type JsonBodyEditorProps = {
   onChange: (value: string) => void;
   onSaveRequest?: () => void;
   onFocusChange?: (focused: boolean) => void;
+  resolveTemplateToken?: TemplateTokenResolver;
+  templateRefreshKey?: string;
 };
 
 export function JsonBodyEditor(props: JsonBodyEditorProps) {
@@ -20,6 +26,12 @@ export function JsonBodyEditor(props: JsonBodyEditorProps) {
 
   const editableCompartment = new Compartment();
   const readOnlyCompartment = new Compartment();
+  const templateCompartment = new Compartment();
+
+  const templateExtensions = () =>
+    createTemplateCodeMirrorExtensions({
+      resolveToken: props.resolveTemplateToken
+    });
 
   onMount(() => {
     if (!container) {
@@ -31,6 +43,7 @@ export function JsonBodyEditor(props: JsonBodyEditorProps) {
       extensions: [
         basicSetup,
         ...createJsonCodeMirrorExtensions(),
+        templateCompartment.of(templateExtensions()),
         Prec.high(
           keymap.of([
             indentWithTab,
@@ -97,6 +110,18 @@ export function JsonBodyEditor(props: JsonBodyEditorProps) {
         isApplyingExternalValue = false;
       }
     )
+  );
+
+  createEffect(
+    on([() => props.resolveTemplateToken, () => props.templateRefreshKey], () => {
+      if (!view) {
+        return;
+      }
+
+      view.dispatch({
+        effects: templateCompartment.reconfigure(templateExtensions())
+      });
+    })
   );
 
   createEffect(

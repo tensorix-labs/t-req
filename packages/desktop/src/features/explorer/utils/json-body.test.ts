@@ -11,6 +11,15 @@ describe('validateJsonBodyText', () => {
     expect(validateJsonBodyText(text)).toBeUndefined();
   });
 
+  it('accepts template placeholders in value positions', () => {
+    const text = `{
+  "id": {{user.id}},
+  "token": {{$uuid()}},
+  "name": "{{user.name}}"
+}`;
+    expect(validateJsonBodyText(text)).toBeUndefined();
+  });
+
   it('returns an error for invalid json content', () => {
     expect(validateJsonBodyText('{ invalid-json }')).toBeDefined();
   });
@@ -35,6 +44,20 @@ describe('formatJsonBodyText', () => {
     expect(result).toEqual({
       ok: true,
       text: '{"name":"test"}'
+    });
+  });
+
+  it('preserves template placeholders while formatting', () => {
+    const text = `{
+  "id": {{user.id}},
+  "token": {{$uuid()}},
+  "name": "{{user.name}}",
+}`;
+
+    const result = formatJsonBodyText(text, 'minify');
+    expect(result).toEqual({
+      ok: true,
+      text: '{"id":{{user.id}},"token":{{$uuid()}},"name":"{{user.name}}"}'
     });
   });
 
