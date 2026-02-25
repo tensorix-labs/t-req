@@ -6,7 +6,9 @@ import {
   type RequestBodySummary,
   type RequestDetailsRow
 } from '../../utils/request-details';
+import { formatUnresolvedVariablesPreview } from '../../utils/template-variables';
 import { JsonBodyEditor } from './JsonBodyEditor';
+import type { TemplateTokenResolver } from './template-codemirror';
 
 type RequestDetailsTab = 'params' | 'body' | 'headers' | 'diagnostics';
 type RequestBodyDraftMode = 'none' | 'inline' | 'form-data' | 'file';
@@ -20,9 +22,12 @@ type RequestDetailsPanelProps = {
   isJsonBodyMode: boolean;
   bodyDraft: string;
   formDataDraft: RequestBodyField[];
+  bodyUnresolvedVariables?: string[];
   bodyValidationError?: string;
   diagnostics: ParseDiagnostic[];
   fileDiagnostics: ParseDiagnostic[];
+  resolveTemplateToken?: TemplateTokenResolver;
+  templateRefreshKey?: string;
   isLoading?: boolean;
   error?: string;
   saveError?: string;
@@ -64,6 +69,7 @@ function diagnosticSeverityClass(severity: ParseDiagnostic['severity']): string 
 export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
   const [activeTab, setActiveTab] = createSignal<RequestDetailsTab>('params');
   const [isBodyFocused, setIsBodyFocused] = createSignal(false);
+  const bodyUnresolvedVariables = createMemo(() => props.bodyUnresolvedVariables ?? []);
   const visibleDiagnostics = createMemo(() => {
     if (props.diagnostics.length > 0) {
       return props.diagnostics;
@@ -331,6 +337,13 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
                         )}
                       </Show>
 
+                      <Show when={bodyUnresolvedVariables().length > 0}>
+                        <output class="rounded-box border border-warning/[0.35] bg-warning/[0.12] px-2.5 py-2 text-xs text-base-content">
+                          Unresolved body variables:{' '}
+                          {formatUnresolvedVariablesPreview(bodyUnresolvedVariables())}
+                        </output>
+                      </Show>
+
                       <div class="min-h-0 min-w-0 flex-1 overflow-hidden rounded-box border border-base-300 bg-base-100">
                         <JsonBodyEditor
                           value={props.bodyDraft}
@@ -338,6 +351,8 @@ export function RequestDetailsPanel(props: RequestDetailsPanelProps) {
                           onChange={props.onBodyChange}
                           onSaveRequest={props.onSave}
                           onFocusChange={setIsBodyFocused}
+                          resolveTemplateToken={props.resolveTemplateToken}
+                          templateRefreshKey={props.templateRefreshKey}
                         />
                       </div>
                     </div>
