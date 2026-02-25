@@ -104,6 +104,26 @@ describe('buildTemplatePreviewVariables', () => {
       token: 'local-token'
     });
   });
+
+  it('keeps dotted file variable keys resolvable for template lookup', () => {
+    const variables = buildTemplatePreviewVariables({
+      resolvedVariables: {
+        api: {
+          version: 'v2'
+        }
+      },
+      draftContent: '@api.version = v1'
+    });
+
+    const token = scanTemplateTokens('{{api.version}}')[0];
+    if (!token) {
+      throw new Error('Expected token to exist');
+    }
+
+    const resolved = resolveTemplateTokenFromVariables(token, variables);
+    expect(resolved.status).toBe('resolved');
+    expect(resolved.displayValue).toBe('v1');
+  });
 });
 
 describe('interpolateTemplatePreview', () => {

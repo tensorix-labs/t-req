@@ -197,9 +197,27 @@ function sanitizeTemplatePlaceholders(content: string): {
   }
 
   const replacements: TemplatePlaceholderReplacement[] = [];
+  const usedPlaceholders = new Set<string>();
   let replacementIndex = 0;
   let cursor = 0;
   let sanitizedText = '';
+
+  const createPlaceholder = (): string => {
+    while (true) {
+      const nextPlaceholder = `${TEMPLATE_PLACEHOLDER_PREFIX}${replacementIndex}__`;
+      replacementIndex += 1;
+
+      if (usedPlaceholders.has(nextPlaceholder)) {
+        continue;
+      }
+      if (content.includes(nextPlaceholder)) {
+        continue;
+      }
+
+      usedPlaceholders.add(nextPlaceholder);
+      return nextPlaceholder;
+    }
+  };
 
   for (const token of tokens) {
     if (token.kind === 'invalid') {
@@ -214,10 +232,9 @@ function sanitizeTemplatePlaceholders(content: string): {
     if (isInsideDoubleQuotedString(content, token.start)) {
       sanitizedText += content.slice(token.start, token.end);
     } else {
-      const placeholder = `${TEMPLATE_PLACEHOLDER_PREFIX}${replacementIndex}__`;
+      const placeholder = createPlaceholder();
       replacements.push({ placeholder, raw: token.raw });
       sanitizedText += `"${placeholder}"`;
-      replacementIndex += 1;
     }
 
     cursor = token.end;

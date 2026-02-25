@@ -29,6 +29,7 @@ type RequestUrlBarProps = {
 type UrlCodeEditorProps = {
   value: string;
   disabled?: boolean;
+  sendDisabled?: boolean;
   onChange: (value: string) => void;
   onSend?: () => void;
   resolveTemplateToken?: TemplateTokenResolver;
@@ -90,7 +91,7 @@ function UrlCodeEditor(props: UrlCodeEditorProps) {
             {
               key: 'Enter',
               run: () => {
-                if (props.disabled) {
+                if (props.disabled || props.sendDisabled) {
                   return true;
                 }
                 props.onSend?.();
@@ -211,6 +212,7 @@ function UrlCodeEditor(props: UrlCodeEditorProps) {
 
 export function RequestUrlBar(props: RequestUrlBarProps) {
   const unresolvedVariables = () => props.unresolvedVariables ?? [];
+  const sendDisabled = () => props.sendDisabled || props.disabled || props.isSending;
   const showResolvedPreview = () =>
     Boolean(props.resolvedUrlPreview) && props.resolvedUrlPreview !== props.url;
 
@@ -244,6 +246,7 @@ export function RequestUrlBar(props: RequestUrlBarProps) {
             <UrlCodeEditor
               value={props.url}
               disabled={props.disabled}
+              sendDisabled={sendDisabled()}
               onChange={props.onUrlChange}
               onSend={props.onSend}
               resolveTemplateToken={props.resolveTemplateToken}
@@ -254,7 +257,7 @@ export function RequestUrlBar(props: RequestUrlBarProps) {
             type="button"
             class="btn btn-primary btn-sm"
             onClick={props.onSend}
-            disabled={props.sendDisabled || props.disabled || props.isSending}
+            disabled={sendDisabled()}
             aria-busy={props.isSending}
           >
             {props.isSending ? 'Sending…' : 'Send'}

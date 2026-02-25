@@ -59,6 +59,10 @@ function parseResolverExpression(expression: string): ResolverExpression | undef
 }
 
 function getNestedValue(variables: Record<string, unknown>, path: string): unknown {
+  if (Object.getOwnPropertyDescriptor(variables, path) !== undefined) {
+    return variables[path];
+  }
+
   const segments = path.split('.');
   let current: unknown = variables;
 

@@ -61,6 +61,19 @@ describe('formatJsonBodyText', () => {
     });
   });
 
+  it('does not rewrite real string values that look like internal placeholders', () => {
+    const text = `{
+  "literal": "__treq_template_placeholder_0__",
+  "id": {{user.id}}
+}`;
+
+    const result = formatJsonBodyText(text, 'minify');
+    expect(result).toEqual({
+      ok: true,
+      text: '{"literal":"__treq_template_placeholder_0__","id":{{user.id}}}'
+    });
+  });
+
   it('returns an error when body is invalid', () => {
     const result = formatJsonBodyText('{ invalid-json }', 'minify');
     expect(result.ok).toBe(false);
