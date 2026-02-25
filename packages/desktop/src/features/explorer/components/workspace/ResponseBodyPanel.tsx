@@ -1,12 +1,9 @@
 import type { PostExecuteResponses } from '@t-req/sdk/client';
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js';
-import {
-  decodeResponseBody,
-  formatBytes,
-  formatDuration,
-  formatResponseBody
-} from '../../utils/response';
+import { decodeResponseBody, formatBytes, formatDuration } from '../../utils/response';
+import { toResponseBodyViewModel } from '../../utils/response-view';
 import { ChevronRightIcon } from '../icons';
+import { JsonResponseViewer } from './JsonResponseViewer';
 
 type ResponseTab = 'response' | 'headers';
 
@@ -72,15 +69,12 @@ export function ResponseBodyPanel(props: ResponseBodyPanelProps) {
     return `${formatDuration(duration)} · ${size}${truncated}`;
   });
 
-  const formattedBody = createMemo(() => {
-    if (!props.response) {
+  const responseBodyView = createMemo(() => {
+    const response = props.response;
+    if (!response) {
       return undefined;
     }
-    const decoded = decodeResponseBody(props.response);
-    if (!decoded) {
-      return undefined;
-    }
-    return formatResponseBody(decoded);
+    return toResponseBodyViewModel(decodeResponseBody(response), response.headers);
   });
 
   return (
@@ -152,18 +146,30 @@ export function ResponseBodyPanel(props: ResponseBodyPanelProps) {
                 </div>
               </Match>
 
-              <Match when={formattedBody()}>
-                {(body) => (
-                  <pre class="h-full min-w-0 overflow-auto whitespace-pre-wrap break-all rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-sm leading-7 text-base-content/80">
-                    {body()}
-                  </pre>
-                )}
-              </Match>
-
-              <Match when={props.response}>
-                <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-sm text-base-content/70">
-                  No response body.
-                </div>
+              <Match when={responseBodyView()}>
+                {(bodyView) => {
+                  const resolvedBodyView = bodyView();
+                  switch (resolvedBodyView.kind) {
+                    case 'json':
+                      return (
+                        <div class="h-full min-w-0 overflow-hidden rounded-box border border-base-300 bg-base-100">
+                          <JsonResponseViewer value={resolvedBodyView.text} />
+                        </div>
+                      );
+                    case 'text':
+                      return (
+                        <pre class="h-full min-w-0 overflow-auto whitespace-pre-wrap break-all rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-sm leading-7 text-base-content/80">
+                          {resolvedBodyView.text}
+                        </pre>
+                      );
+                    case 'empty':
+                      return (
+                        <div class="h-full overflow-auto rounded-box border border-base-300 bg-base-100/80 p-3 font-mono text-sm text-base-content/70">
+                          No response body.
+                        </div>
+                      );
+                  }
+                }}
               </Match>
             </Switch>
           </Match>
