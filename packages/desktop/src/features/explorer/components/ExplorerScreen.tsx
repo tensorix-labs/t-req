@@ -75,6 +75,7 @@ export default function ExplorerScreen() {
   const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
   const [isSending, setIsSending] = createSignal(false);
   const [draftRequestKey, setDraftRequestKey] = createSignal<string | undefined>(undefined);
+  const [draftUrl, setDraftUrl] = createSignal('');
   const [draftParams, setDraftParams] = createSignal<RequestDetailsRow[]>([]);
   const [draftHeaders, setDraftHeaders] = createSignal<RequestDetailsRow[]>([]);
   const [draftBodyMode, setDraftBodyMode] = createSignal<RequestBodyDraftMode>('none');
@@ -191,6 +192,7 @@ export default function ExplorerScreen() {
     on(requestDraftKey, (nextKey, previousKey) => {
       if (!nextKey) {
         setDraftRequestKey(undefined);
+        setDraftUrl('');
         setDraftParams([]);
         setDraftHeaders([]);
         setDraftBodyMode('none');
@@ -206,6 +208,7 @@ export default function ExplorerScreen() {
       }
 
       setDraftRequestKey(nextKey);
+      setDraftUrl(requestSourceUrl() ?? '');
       setDraftParams(cloneRequestRows(requestSourceParams()));
       setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
       setDraftBodyMode(toDraftBodyMode(requestSourceBody().kind));
@@ -220,16 +223,18 @@ export default function ExplorerScreen() {
     on(
       [
         requestDraftKey,
+        requestSourceUrl,
         requestSourceParams,
         requestSourceHeaders,
         requestSourceBody,
         requestSourceFormData
       ],
-      ([nextKey, nextParams, nextHeaders, nextBody, nextFormData]) => {
+      ([nextKey, nextUrl, nextParams, nextHeaders, nextBody, nextFormData]) => {
         if (!nextKey || draftRequestKey() !== nextKey || isDetailsDirty()) {
           return;
         }
 
+        setDraftUrl(nextUrl ?? '');
         setDraftParams(cloneRequestRows(nextParams));
         setDraftHeaders(cloneRequestRows(nextHeaders));
         setDraftBodyMode(toDraftBodyMode(nextBody.kind));
@@ -265,8 +270,20 @@ export default function ExplorerScreen() {
     setDetailsSaveError(undefined);
   };
 
+  const setDraftParamsAndSyncUrl = (nextParams: RequestDetailsRow[]) => {
+    setDraftParams(nextParams);
+    setDraftUrl((currentUrl) => buildUrlWithParams(currentUrl, nextParams));
+  };
+
+  const handleDraftUrlChange = (nextUrl: string) => {
+    setDraftUrl(nextUrl);
+    setDraftParams(toRequestParams(nextUrl));
+    markDetailsDirty();
+  };
+
   const handleDraftParamChange = (index: number, field: 'key' | 'value', value: string) => {
-    setDraftParams((rows) => updateDraftRows(rows, index, field, value));
+    const nextRows = updateDraftRows(draftParams(), index, field, value);
+    setDraftParamsAndSyncUrl(nextRows);
     markDetailsDirty();
   };
 
@@ -392,12 +409,14 @@ export default function ExplorerScreen() {
   };
 
   const addDraftParam = () => {
-    setDraftParams((rows) => [...rows, { key: '', value: '' }]);
+    const nextRows = [...draftParams(), { key: '', value: '' }];
+    setDraftParamsAndSyncUrl(nextRows);
     markDetailsDirty();
   };
 
   const removeDraftParam = (index: number) => {
-    setDraftParams((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+    const nextRows = draftParams().filter((_, rowIndex) => rowIndex !== index);
+    setDraftParamsAndSyncUrl(nextRows);
     markDetailsDirty();
   };
 
@@ -412,6 +431,7 @@ export default function ExplorerScreen() {
   };
 
   const discardRequestDetailsDraft = () => {
+    setDraftUrl(requestSourceUrl() ?? '');
     setDraftParams(cloneRequestRows(requestSourceParams()));
     setDraftHeaders(cloneRequestRows(requestSourceHeaders()));
     setDraftBodyMode(toDraftBodyMode(requestSourceBody().kind));
@@ -423,18 +443,19 @@ export default function ExplorerScreen() {
 
   const saveRequestDetailsDraft = async () => {
     const request = selectedRequest();
-    const sourceUrl = requestSourceUrl();
     const content = explorer.fileDraftContent();
     if (!request) {
       setDetailsSaveError('Select a request before saving request details.');
       return;
     }
-    if (!sourceUrl) {
-      setDetailsSaveError('Unable to resolve the request URL for this request.');
-      return;
-    }
     if (content === undefined) {
       setDetailsSaveError('Request file content is still loading. Try saving again.');
+      return;
+    }
+
+    const nextUrl = draftUrl().trim();
+    if (!nextUrl) {
+      setDetailsSaveError('Request URL cannot be empty.');
       return;
     }
 
@@ -491,7 +512,6 @@ export default function ExplorerScreen() {
       contentWithBody = bodyInsert.content;
     }
 
-    const nextUrl = buildUrlWithParams(sourceUrl, draftParams());
     const updatedContent = applyRequestEditsToContent(
       contentWithBody,
       request.index,
@@ -525,17 +545,16 @@ export default function ExplorerScreen() {
     return selectedRequest()?.method.toUpperCase() ?? FALLBACK_REQUEST_METHOD;
   });
   const requestUrl = createMemo(() => {
-    const sourceUrl = requestSourceUrl();
     const key = requestDraftKey();
-    if (!sourceUrl || !key) {
+    if (!key) {
       return FALLBACK_REQUEST_URL;
     }
 
-    if (draftRequestKey() === key) {
-      return buildUrlWithParams(sourceUrl, draftParams());
+    if (draftRequestKey() !== key) {
+      return requestSourceUrl() ?? FALLBACK_REQUEST_URL;
     }
 
-    return sourceUrl;
+    return draftUrl();
   });
   const isInlineJsonBodyMode = createMemo(() => {
     if (draftBodyMode() !== 'inline') {
@@ -599,7 +618,14 @@ export default function ExplorerScreen() {
     if (bodyValidationError()) {
       return true;
     }
-    return isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile() || isSending();
+    return (
+      isBusy() ||
+      isFileLoading() ||
+      isRequestsLoading() ||
+      isSavingFile() ||
+      isSending() ||
+      isDetailsDirty()
+    );
   });
   const explorerGridStyle = createMemo<Record<string, string>>(() => ({
     '--explorer-grid-cols': isSidebarCollapsed()
@@ -964,6 +990,7 @@ export default function ExplorerScreen() {
               requestOptions={requestOptions()}
               selectedRequestIndex={selectedRequestIndex()}
               onRequestIndexChange={handleRequestIndexChange}
+              onUrlChange={handleDraftUrlChange}
               onSend={sendSelectedRequestAction}
               disabled={isBusy() || isFileLoading() || isRequestsLoading() || isSavingFile()}
               sendDisabled={sendDisabled()}

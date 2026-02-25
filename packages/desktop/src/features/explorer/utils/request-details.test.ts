@@ -62,6 +62,12 @@ describe('toRequestParams', () => {
     expect(toRequestParams('https://api.example.com/users')).toEqual([]);
   });
 
+  it('ignores hash fragments when parsing query parameters', () => {
+    expect(toRequestParams('https://api.example.com/users?limit=50#section')).toEqual([
+      { key: 'limit', value: '50' }
+    ]);
+  });
+
   it('falls back to raw content for malformed encoded values', () => {
     expect(toRequestParams('https://api.example.com/users?name=%E0%A4%A')).toEqual([
       { key: 'name', value: '%E0%A4%A' }

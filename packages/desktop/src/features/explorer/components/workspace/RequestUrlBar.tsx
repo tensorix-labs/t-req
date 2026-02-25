@@ -10,6 +10,7 @@ type RequestUrlBarProps = {
   sendDisabled?: boolean;
   isSending?: boolean;
   onRequestIndexChange: (requestIndex: number) => void;
+  onUrlChange: (url: string) => void;
   onSend: () => void;
 };
 
@@ -43,7 +44,7 @@ export function RequestUrlBar(props: RequestUrlBarProps) {
           type="text"
           class="input input-sm flex-1 border-base-300 bg-base-100 font-mono text-sm"
           value={props.url}
-          readOnly
+          onInput={(event) => props.onUrlChange(event.currentTarget.value)}
           placeholder="https://api.example.com"
           disabled={props.disabled}
           aria-label="Request URL"

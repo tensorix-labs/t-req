@@ -71,6 +71,12 @@ describe('buildUrlWithParams', () => {
       ])
     ).toBe('https://api.example.com/search?q=foo%20bar&name=Jos%C3%A9');
   });
+
+  it('rebuilds query params from the edited URL base and preserves hash fragments', () => {
+    expect(
+      buildUrlWithParams('{{baseUrl}}/users/me?limit=10#profile', [{ key: 'sort', value: 'desc' }])
+    ).toBe('{{baseUrl}}/users/me?sort=desc#profile');
+  });
 });
 
 describe('applyRequestEditsToContent', () => {
