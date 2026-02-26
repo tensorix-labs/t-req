@@ -2,7 +2,7 @@
   <a href="https://t-req.io"><img src="./docs/assets/logo.jpg" alt="t-req logo" height="170"></a>
 </p>
 
-<h3 align="center">The Programmable API Engine</h3>
+<h3 align="center">API testing that lives in your code</h3>
 
 <p align="center">
 Tired of API tools that lock your requests in proprietary formats and GUI-only workflows?<br/>
