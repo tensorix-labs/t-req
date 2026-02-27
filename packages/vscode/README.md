@@ -1,6 +1,6 @@
-# t-req for VS Code
+# t-req 
 
-Run and manage HTTP requests directly from `.http` files in VS Code — powered by the [t-req](https://t-req.io) engine.
+Run and manage HTTP requests directly from `.http` files - powered by the [t-req](https://t-req.io) engine.
 
 
 ## Features
