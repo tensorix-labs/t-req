@@ -20,6 +20,7 @@ import { createStore } from './store';
 export interface TuiConfig {
   serverUrl: string;
   token?: string;
+  autoUpdate?: boolean;
   onExit?: (reason?: unknown) => Promise<void> | void;
 }
 
@@ -78,7 +79,7 @@ export async function startTui(config: TuiConfig): Promise<void> {
                 <LogProvider>
                   <ToastProvider>
                     <DialogProvider>
-                      <UpdateProvider>
+                      <UpdateProvider autoUpdateEnabled={config.autoUpdate}>
                         <App />
                       </UpdateProvider>
                     </DialogProvider>

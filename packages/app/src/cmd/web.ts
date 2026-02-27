@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { flushPendingCookieSaves } from '@t-req/core/cookies/persistence';
 import type { CommandModule } from 'yargs';
 import { createApp, type ServerConfig } from '../server/app';
+import { resolveAutoUpdateEnabled, runAutoUpdate } from '../update';
 import {
   DEFAULT_HOST,
   DEFAULT_PORT,
@@ -16,6 +17,7 @@ interface WebOptions {
   workspace?: string;
   port?: number;
   host: string;
+  autoUpdate?: boolean;
 }
 
 export const webCommand: CommandModule<object, WebOptions> = {
@@ -38,6 +40,11 @@ export const webCommand: CommandModule<object, WebOptions> = {
         describe: 'Host to bind to',
         alias: 'H',
         default: DEFAULT_HOST
+      })
+      .option('auto-update', {
+        type: 'boolean',
+        describe: 'Automatically check and apply updates on startup',
+        default: true
       }),
   handler: async (argv) => {
     await runWeb(argv);
@@ -113,6 +120,34 @@ async function runWeb(argv: WebOptions): Promise<void> {
   const webUrl = `${serverUrl}/auth/init`;
   console.log(`Opening browser: ${webUrl}`);
   openBrowser(webUrl);
+
+  void runAutoUpdate({
+    enabled: resolveAutoUpdateEnabled(argv.autoUpdate),
+    interactive: process.stdout.isTTY === true
+  }).then((outcome) => {
+    switch (outcome.status) {
+      case 'updated':
+        console.log(`Update installed: v${outcome.latestVersion} (applies next run)`);
+        break;
+      case 'available_manual':
+        console.log(`Update available: v${outcome.latestVersion}. Run: ${outcome.command}`);
+        break;
+      case 'backoff_skipped':
+        console.warn(
+          `Update available: v${outcome.latestVersion}. Auto-update temporarily paused.`
+        );
+        console.warn(`Run manually: ${outcome.command}`);
+        break;
+      case 'failed':
+        if (outcome.phase === 'upgrade' && outcome.command) {
+          console.warn('Auto-update failed. Continuing startup.');
+          console.warn(`Run manually: ${outcome.command}`);
+        }
+        break;
+      default:
+        break;
+    }
+  });
 
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
