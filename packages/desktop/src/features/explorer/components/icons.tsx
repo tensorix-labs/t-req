@@ -70,3 +70,13 @@ export function PlusIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function ImportIcon(props: IconProps) {
+  return (
+    <Svg class={props.class}>
+      <path d="M8 2.5v7" />
+      <path d="M5.25 6.75 8 9.5l2.75-2.75" />
+      <path d="M3 10.5v2.25A1.25 1.25 0 0 0 4.25 14h7.5A1.25 1.25 0 0 0 13 12.75V10.5" />
+    </Svg>
+  );
+}
