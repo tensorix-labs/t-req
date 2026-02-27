@@ -150,6 +150,7 @@ type CurlImportPreviewKeyInput = {
   command: string;
   outputDir: string;
   onConflict: CurlImportConflictPolicy;
+  mergeVariables: boolean;
   convertOptions?: CurlImportConvertOptions;
 };
 
@@ -158,6 +159,7 @@ export function buildCurlImportPreviewKey(input: CurlImportPreviewKeyInput): str
     command: input.command.trim(),
     outputDir: input.outputDir,
     onConflict: input.onConflict,
+    mergeVariables: input.mergeVariables,
     fileName: input.convertOptions?.fileName ?? '',
     requestName: input.convertOptions?.requestName ?? ''
   });
@@ -208,6 +210,7 @@ export function resolveCurlImportInput(input: CurlImportFormInput): ResolveCurlI
         command,
         outputDir,
         onConflict: input.onConflict,
+        mergeVariables: input.mergeVariables,
         ...(convertOptions ? { convertOptions } : {})
       }),
       previewRequest,

@@ -133,6 +133,7 @@ describe('buildCurlImportPreviewKey', () => {
       command: 'curl https://api.example.com/users',
       outputDir: 'imports',
       onConflict: 'fail',
+      mergeVariables: false,
       convertOptions: {
         fileName: 'curl-request'
       }
@@ -142,9 +143,28 @@ describe('buildCurlImportPreviewKey', () => {
       command: 'curl https://api.example.com/users',
       outputDir: 'imports',
       onConflict: 'fail',
+      mergeVariables: false,
       convertOptions: {
         fileName: 'curl-request-2'
       }
+    });
+
+    expect(baseKey).not.toBe(nextKey);
+  });
+
+  it('changes key when mergeVariables changes', () => {
+    const baseKey = buildCurlImportPreviewKey({
+      command: 'curl https://api.example.com/users',
+      outputDir: 'imports',
+      onConflict: 'fail',
+      mergeVariables: false
+    });
+
+    const nextKey = buildCurlImportPreviewKey({
+      command: 'curl https://api.example.com/users',
+      outputDir: 'imports',
+      onConflict: 'fail',
+      mergeVariables: true
     });
 
     expect(baseKey).not.toBe(nextKey);

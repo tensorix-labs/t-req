@@ -569,7 +569,7 @@ export default function ExplorerScreen() {
 
   const handleCurlImportMergeVariablesChange = (checked: boolean) => {
     setCurlImportDialog('mergeVariables', checked);
-    clearCurlImportApplyOutcome();
+    clearCurlImportPreviewOutcome();
   };
 
   const handleCurlImportForceChange = (checked: boolean) => {
