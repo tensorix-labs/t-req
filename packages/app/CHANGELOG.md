@@ -1,5 +1,11 @@
 # @t-req/app
 
+## 0.3.13
+
+### Patch Changes
+
+- b2d2f8f: fix for init assert directives
+
 ## 0.3.12
 
 ### Patch Changes
