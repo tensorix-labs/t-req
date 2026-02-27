@@ -5,6 +5,7 @@ import { ExplorerTree } from './ExplorerTree';
 
 type ExplorerSidebarPanelProps = {
   onCreate: () => void;
+  onImport: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   isMutating: boolean;
@@ -26,6 +27,7 @@ export function ExplorerSidebarPanel(props: ExplorerSidebarPanelProps) {
     >
       <ExplorerToolbar
         onCreate={props.onCreate}
+        onImport={props.onImport}
         onRefresh={props.onRefresh}
         isRefreshing={props.isRefreshing}
         isMutating={props.isMutating}

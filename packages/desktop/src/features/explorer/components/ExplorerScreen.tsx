@@ -1,4 +1,9 @@
-import { type PostExecuteResponses, unwrap } from '@t-req/sdk/client';
+import {
+  importCurlApply,
+  importCurlPreview,
+  type PostExecuteResponses,
+  unwrap
+} from '@t-req/sdk/client';
 import { createMemo, createResource, createSignal, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useServer } from '../../../context/server-context';
@@ -13,6 +18,15 @@ import {
 import { FALLBACK_REQUEST_METHOD, FALLBACK_REQUEST_URL } from '../request-line';
 import { useExplorerStore } from '../use-explorer-store';
 import { useRequestDraftController } from '../use-request-draft-controller';
+import {
+  type CurlImportConflictPolicy,
+  type CurlImportDiagnostics,
+  type CurlImportStats,
+  type CurlImportSummary,
+  normalizeCurlImportApplyOutcome,
+  normalizeCurlImportPreviewOutcome,
+  resolveCurlImportInput
+} from '../utils/curl-import';
 import { formatJsonBodyText, validateJsonBodyText } from '../utils/json-body';
 import { buildCreateFilePath, toCreateHttpPath } from '../utils/mutations';
 import { parentDirectory } from '../utils/path';
@@ -32,10 +46,14 @@ import {
   type TemplateToken
 } from '../utils/template-variables';
 import { CreateRequestDialog } from './CreateRequestDialog';
+import { CurlImportDialog } from './CurlImportDialog';
 import { ExplorerSidebarPanel } from './ExplorerSidebarPanel';
 import { RequestWorkspacePanel } from './workspace';
 
 export default function ExplorerScreen() {
+  const DEFAULT_CURL_IMPORT_OUTPUT_DIR = 'curl-import';
+  const DEFAULT_CURL_IMPORT_CONFLICT_POLICY: CurlImportConflictPolicy = 'fail';
+
   const server = useServer();
   const explorer = useExplorerStore();
   const templateConfigQuery = createMemo(() => ({
@@ -56,6 +74,52 @@ export default function ExplorerScreen() {
     targetDir: undefined,
     error: undefined,
     isOpen: false
+  });
+  const [curlImportDialog, setCurlImportDialog] = createStore<{
+    isOpen: boolean;
+    command: string;
+    outputDir: string;
+    onConflict: CurlImportConflictPolicy;
+    fileName: string;
+    requestName: string;
+    mergeVariables: boolean;
+    force: boolean;
+    advancedOpen: boolean;
+    isPreviewing: boolean;
+    isApplying: boolean;
+    previewKey: string | undefined;
+    previewSummary: CurlImportSummary | undefined;
+    previewDiagnostics: CurlImportDiagnostics;
+    previewStats: CurlImportStats | undefined;
+    previewDiagnosticsBlocked: boolean;
+    previewError: string | undefined;
+    applyResult:
+      | {
+          kind: 'success' | 'partial';
+          summary: CurlImportSummary;
+        }
+      | undefined;
+    applyError: string | undefined;
+  }>({
+    isOpen: false,
+    command: '',
+    outputDir: DEFAULT_CURL_IMPORT_OUTPUT_DIR,
+    onConflict: DEFAULT_CURL_IMPORT_CONFLICT_POLICY,
+    fileName: '',
+    requestName: '',
+    mergeVariables: false,
+    force: false,
+    advancedOpen: false,
+    isPreviewing: false,
+    isApplying: false,
+    previewKey: undefined,
+    previewSummary: undefined,
+    previewDiagnostics: [],
+    previewStats: undefined,
+    previewDiagnosticsBlocked: false,
+    previewError: undefined,
+    applyResult: undefined,
+    applyError: undefined
   });
   const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
   const [isSending, setIsSending] = createSignal(false);
@@ -337,6 +401,107 @@ export default function ExplorerScreen() {
       ? 'minmax(0, 1fr) 34px'
       : 'minmax(320px, 48%) minmax(0, 1fr)'
   }));
+  const isImportBusy = createMemo(
+    () => curlImportDialog.isPreviewing || curlImportDialog.isApplying
+  );
+  const toCurlImportInput = () => ({
+    command: curlImportDialog.command,
+    outputDir: curlImportDialog.outputDir,
+    onConflict: curlImportDialog.onConflict,
+    fileName: curlImportDialog.fileName,
+    requestName: curlImportDialog.requestName,
+    mergeVariables: curlImportDialog.mergeVariables,
+    force: curlImportDialog.force
+  });
+  const resolvedCurlImportInput = createMemo(() => resolveCurlImportInput(toCurlImportInput()));
+  const hasCurrentPreviewForImport = createMemo(() => {
+    const resolved = resolvedCurlImportInput();
+    if (!resolved.ok) {
+      return false;
+    }
+
+    if (curlImportDialog.previewKey !== resolved.value.previewKey) {
+      return false;
+    }
+
+    return Boolean(curlImportDialog.previewStats);
+  });
+  const canApplyCurlImport = createMemo(() => {
+    if (isImportBusy()) {
+      return false;
+    }
+
+    if (!hasCurrentPreviewForImport()) {
+      return false;
+    }
+
+    if (curlImportDialog.previewDiagnosticsBlocked && !curlImportDialog.force) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const createCurlImportDialogState = (
+    outputDir: string,
+    isOpen: boolean
+  ): typeof curlImportDialog => ({
+    isOpen,
+    command: '',
+    outputDir,
+    onConflict: DEFAULT_CURL_IMPORT_CONFLICT_POLICY,
+    fileName: '',
+    requestName: '',
+    mergeVariables: false,
+    force: false,
+    advancedOpen: false,
+    isPreviewing: false,
+    isApplying: false,
+    previewKey: undefined,
+    previewSummary: undefined,
+    previewDiagnostics: [],
+    previewStats: undefined,
+    previewDiagnosticsBlocked: false,
+    previewError: undefined,
+    applyResult: undefined,
+    applyError: undefined
+  });
+
+  const clearCurlImportApplyOutcome = () => {
+    setCurlImportDialog({
+      applyResult: undefined,
+      applyError: undefined
+    });
+  };
+
+  const clearCurlImportPreviewOutcome = () => {
+    setCurlImportDialog({
+      previewKey: undefined,
+      previewSummary: undefined,
+      previewDiagnostics: [],
+      previewStats: undefined,
+      previewDiagnosticsBlocked: false,
+      previewError: undefined,
+      applyResult: undefined,
+      applyError: undefined
+    });
+  };
+
+  const withSelectedImportOutputDir = (): string => {
+    const path = selectedPath();
+    if (path && selectedIsDirectory()) {
+      return path;
+    }
+
+    if (path) {
+      const parent = parentDirectory(path);
+      if (parent) {
+        return parent;
+      }
+    }
+
+    return DEFAULT_CURL_IMPORT_OUTPUT_DIR;
+  };
 
   const openCreateDialog = () => {
     let targetDir = createDialog.targetDir;
@@ -366,6 +531,52 @@ export default function ExplorerScreen() {
     });
   };
 
+  const openCurlImportDialog = () => {
+    setCurlImportDialog(createCurlImportDialogState(withSelectedImportOutputDir(), true));
+  };
+
+  const closeCurlImportDialog = () => {
+    if (isImportBusy()) {
+      return;
+    }
+    setCurlImportDialog('isOpen', false);
+  };
+
+  const handleCurlImportCommandChange = (value: string) => {
+    setCurlImportDialog('command', value);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportOutputDirChange = (value: string) => {
+    setCurlImportDialog('outputDir', value);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportConflictChange = (value: CurlImportConflictPolicy) => {
+    setCurlImportDialog('onConflict', value);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportFileNameChange = (value: string) => {
+    setCurlImportDialog('fileName', value);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportRequestNameChange = (value: string) => {
+    setCurlImportDialog('requestName', value);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportMergeVariablesChange = (checked: boolean) => {
+    setCurlImportDialog('mergeVariables', checked);
+    clearCurlImportPreviewOutcome();
+  };
+
+  const handleCurlImportForceChange = (checked: boolean) => {
+    setCurlImportDialog('force', checked);
+    clearCurlImportApplyOutcome();
+  };
+
   const submitCreateDialog = async () => {
     setCreateDialog('error', undefined);
 
@@ -388,6 +599,174 @@ export default function ExplorerScreen() {
       closeCreateDialog();
     } catch {
       // Store mutation error is displayed in the explorer panel.
+    }
+  };
+
+  const previewCurlImport = async () => {
+    const client = server.client();
+    if (!client) {
+      return;
+    }
+
+    const resolvedInput = resolveCurlImportInput(toCurlImportInput());
+    if (!resolvedInput.ok) {
+      setCurlImportDialog('previewError', resolvedInput.error);
+      return;
+    }
+
+    setCurlImportDialog({
+      isPreviewing: true,
+      previewError: undefined,
+      applyError: undefined,
+      applyResult: undefined
+    });
+
+    try {
+      const response = await importCurlPreview(client, resolvedInput.value.previewRequest);
+      const normalized = normalizeCurlImportPreviewOutcome(response);
+      if (normalized.kind === 'success') {
+        setCurlImportDialog({
+          previewKey: resolvedInput.value.previewKey,
+          previewSummary: normalized.data.result,
+          previewDiagnostics: normalized.data.diagnostics,
+          previewStats: normalized.data.stats,
+          previewDiagnosticsBlocked: false,
+          previewError: undefined,
+          applyError: undefined,
+          applyResult: undefined
+        });
+        return;
+      }
+
+      if (normalized.kind === 'diagnostics') {
+        setCurlImportDialog({
+          previewKey: resolvedInput.value.previewKey,
+          previewSummary: undefined,
+          previewDiagnostics: normalized.data.diagnostics,
+          previewStats: normalized.data.stats,
+          previewDiagnosticsBlocked: true,
+          previewError: normalized.data.message,
+          applyError: undefined,
+          applyResult: undefined
+        });
+        return;
+      }
+
+      setCurlImportDialog({
+        previewKey: undefined,
+        previewSummary: undefined,
+        previewDiagnostics: [],
+        previewStats: undefined,
+        previewDiagnosticsBlocked: false,
+        previewError: normalized.message
+      });
+    } catch (error) {
+      setCurlImportDialog('previewError', `Failed to preview import: ${toErrorMessage(error)}`);
+    } finally {
+      setCurlImportDialog('isPreviewing', false);
+    }
+  };
+
+  const applyCurlImport = async () => {
+    const client = server.client();
+    if (!client) {
+      return;
+    }
+
+    const resolvedInput = resolveCurlImportInput(toCurlImportInput());
+    if (!resolvedInput.ok) {
+      setCurlImportDialog('applyError', resolvedInput.error);
+      return;
+    }
+
+    if (
+      curlImportDialog.previewKey !== resolvedInput.value.previewKey ||
+      !hasCurrentPreviewForImport()
+    ) {
+      setCurlImportDialog('applyError', 'Run preview with the current inputs before applying.');
+      return;
+    }
+
+    if (curlImportDialog.previewDiagnosticsBlocked && !curlImportDialog.force) {
+      setCurlImportDialog(
+        'applyError',
+        'Preview contains error diagnostics. Enable force before applying.'
+      );
+      return;
+    }
+
+    setCurlImportDialog({
+      isApplying: true,
+      applyError: undefined,
+      applyResult: undefined
+    });
+
+    try {
+      const response = await importCurlApply(client, resolvedInput.value.applyRequest);
+      const normalized = normalizeCurlImportApplyOutcome(response);
+
+      if (normalized.kind === 'success') {
+        setCurlImportDialog({
+          previewKey: resolvedInput.value.previewKey,
+          previewSummary: normalized.data.result,
+          previewDiagnostics: normalized.data.diagnostics,
+          previewStats: normalized.data.stats,
+          previewDiagnosticsBlocked: false,
+          previewError: undefined,
+          applyResult: {
+            kind: 'success',
+            summary: normalized.data.result
+          },
+          applyError: undefined
+        });
+
+        await explorer.refresh();
+        const firstWritten = normalized.data.result.written[0];
+        if (firstWritten) {
+          handleSelectFile(firstWritten);
+        }
+        setCurlImportDialog('isOpen', false);
+        return;
+      }
+
+      if (normalized.kind === 'partial') {
+        setCurlImportDialog({
+          applyResult: {
+            kind: 'partial',
+            summary: normalized.data.partialResult
+          },
+          applyError: 'Import completed with partial failures. Review failed entries below.'
+        });
+        await explorer.refresh();
+        const firstWritten = normalized.data.partialResult.written[0];
+        if (firstWritten) {
+          handleSelectFile(firstWritten);
+        }
+        return;
+      }
+
+      if (normalized.kind === 'diagnostics') {
+        setCurlImportDialog({
+          previewKey: resolvedInput.value.previewKey,
+          previewSummary: undefined,
+          previewDiagnostics: normalized.data.diagnostics,
+          previewStats: normalized.data.stats,
+          previewDiagnosticsBlocked: true,
+          previewError: normalized.data.message,
+          applyError: normalized.data.message,
+          applyResult: undefined
+        });
+        return;
+      }
+
+      setCurlImportDialog({
+        applyError: normalized.message,
+        applyResult: undefined
+      });
+    } catch (error) {
+      setCurlImportDialog('applyError', `Failed to apply import: ${toErrorMessage(error)}`);
+    } finally {
+      setCurlImportDialog('isApplying', false);
     }
   };
 
@@ -417,6 +796,7 @@ export default function ExplorerScreen() {
       const next = !previous;
       if (next) {
         closeCreateDialog();
+        closeCurlImportDialog();
       }
       return next;
     });
@@ -500,6 +880,8 @@ export default function ExplorerScreen() {
 
   const refreshExplorer = () => void explorer.refresh();
   const submitCreateDialogRequest = () => void submitCreateDialog();
+  const previewCurlImportAction = () => void previewCurlImport();
+  const applyCurlImportAction = () => void applyCurlImport();
   const sendSelectedRequestAction = () => void sendSelectedRequest();
   const copyDraftBodyAction = () => void copyDraftBody();
   const saveRequestDetailsDraftAction = () => void saveRequestDetailsDraft();
@@ -512,9 +894,10 @@ export default function ExplorerScreen() {
       <Show when={!isSidebarCollapsed()}>
         <ExplorerSidebarPanel
           onCreate={openCreateDialog}
+          onImport={openCurlImportDialog}
           onRefresh={refreshExplorer}
           isRefreshing={explorer.isLoading()}
-          isMutating={isBusy()}
+          isMutating={isBusy() || isImportBusy()}
           workspaceRoot={explorer.workspaceRoot()}
           loadError={explorer.error()}
           mutationError={mutationError()}
@@ -537,6 +920,39 @@ export default function ExplorerScreen() {
         onNameChange={(value) => setCreateDialog('name', value)}
         onKindChange={(kind) => setCreateDialog('kind', kind)}
         onSubmit={submitCreateDialogRequest}
+      />
+
+      <CurlImportDialog
+        open={curlImportDialog.isOpen}
+        command={curlImportDialog.command}
+        outputDir={curlImportDialog.outputDir}
+        onConflict={curlImportDialog.onConflict}
+        fileName={curlImportDialog.fileName}
+        requestName={curlImportDialog.requestName}
+        mergeVariables={curlImportDialog.mergeVariables}
+        force={curlImportDialog.force}
+        advancedOpen={curlImportDialog.advancedOpen}
+        isPreviewing={curlImportDialog.isPreviewing}
+        isApplying={curlImportDialog.isApplying}
+        canApply={canApplyCurlImport()}
+        previewResult={curlImportDialog.previewSummary}
+        previewDiagnostics={curlImportDialog.previewDiagnostics}
+        previewStats={curlImportDialog.previewStats}
+        previewDiagnosticsBlocked={curlImportDialog.previewDiagnosticsBlocked}
+        previewError={curlImportDialog.previewError}
+        applyResult={curlImportDialog.applyResult}
+        applyError={curlImportDialog.applyError}
+        onClose={closeCurlImportDialog}
+        onCommandChange={handleCurlImportCommandChange}
+        onOutputDirChange={handleCurlImportOutputDirChange}
+        onConflictChange={handleCurlImportConflictChange}
+        onFileNameChange={handleCurlImportFileNameChange}
+        onRequestNameChange={handleCurlImportRequestNameChange}
+        onMergeVariablesChange={handleCurlImportMergeVariablesChange}
+        onForceChange={handleCurlImportForceChange}
+        onToggleAdvanced={() => setCurlImportDialog('advancedOpen', (value) => !value)}
+        onPreview={previewCurlImportAction}
+        onApply={applyCurlImportAction}
       />
 
       <RequestWorkspacePanel

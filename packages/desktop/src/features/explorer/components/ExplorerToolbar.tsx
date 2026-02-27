@@ -1,7 +1,8 @@
-import { PlusIcon, RefreshIcon } from './icons';
+import { ImportIcon, PlusIcon, RefreshIcon } from './icons';
 
 type ExplorerToolbarProps = {
   onCreate: () => void;
+  onImport: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   isMutating: boolean;
@@ -24,6 +25,16 @@ export function ExplorerToolbar(props: ExplorerToolbarProps) {
         >
           <PlusIcon class="size-3" />
           <span>New</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline btn-sm h-8 min-h-8 rounded-full border-base-300 px-3.5 font-mono text-[12px] normal-case tracking-[0.01em]"
+          onClick={props.onImport}
+          disabled={props.isMutating}
+          aria-label="Import curl command"
+        >
+          <ImportIcon class="size-3" />
+          <span>Import</span>
         </button>
         <button
           type="button"
