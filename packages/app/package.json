@@ -1,6 +1,6 @@
 {
   "name": "@t-req/app",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "description": "CLI for t-req - scaffold, execute, and serve HTTP request projects",
   "license": "MIT",
   "repository": {
