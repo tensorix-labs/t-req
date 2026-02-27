@@ -66,9 +66,9 @@ export function generateEmptyConfig(): string {
 }
 
 export function generateHelloRequest(): string {
-  return `GET {{baseUrl}}/users/1
+  return `# @assert status == 200
 
-# @assert status == 200
+GET {{baseUrl}}/users/1
 `;
 }
 
