@@ -180,14 +180,23 @@ describe('generated file contents', () => {
     expect(createPost).toContain('{{baseUrl}}/posts');
     expect(createPost).toContain('"title"');
     expect(createPost).toContain('# @assert status == 201');
+    expect(createPost.indexOf('# @assert status == 201')).toBeLessThan(
+      createPost.indexOf('POST {{baseUrl}}/posts')
+    );
     expect(createPost).not.toContain('{{email}}');
     expect(createPost).not.toContain('{{password}}');
 
     const listUsers = generateListUsersRequest();
     expect(listUsers).toContain('# @assert status == 200');
+    expect(listUsers.indexOf('# @assert status == 200')).toBeLessThan(
+      listUsers.indexOf('GET {{baseUrl}}/users')
+    );
 
     const getUser = generateGetUserRequest();
     expect(getUser).toContain('# @assert status == 200');
+    expect(getUser.indexOf('# @assert status == 200')).toBeLessThan(
+      getUser.indexOf('GET {{baseUrl}}/users/{{userId}}')
+    );
   });
 
   test('should generate run script that imports from client', () => {
@@ -514,6 +523,9 @@ describe('empty template', () => {
     const request = generateHelloRequest();
     expect(request).toContain('GET {{baseUrl}}/users/1');
     expect(request).toContain('# @assert status == 200');
+    expect(request.indexOf('# @assert status == 200')).toBeLessThan(
+      request.indexOf('GET {{baseUrl}}/users/1')
+    );
   });
 
   test('all empty template variables should be defined in config', () => {

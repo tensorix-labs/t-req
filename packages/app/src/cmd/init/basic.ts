@@ -175,11 +175,11 @@ describe('collection/users/list.http', () => {
 }
 
 export function generateCreatePostRequest(): string {
-  return `POST {{baseUrl}}/posts
+  return `# @assert status == 201
+
+POST {{baseUrl}}/posts
 Content-Type: application/json
 X-Request-ID: {{$uuid()}}
-
-# @assert status == 201
 
 {
   "title": "Hello from t-req",
@@ -190,16 +190,16 @@ X-Request-ID: {{$uuid()}}
 }
 
 export function generateListUsersRequest(): string {
-  return `GET {{baseUrl}}/users
-Accept: application/json
+  return `# @assert status == 200
 
-# @assert status == 200
+GET {{baseUrl}}/users
+Accept: application/json
 `;
 }
 
 export function generateGetUserRequest(): string {
-  return `GET {{baseUrl}}/users/{{userId}}
+  return `# @assert status == 200
 
-# @assert status == 200
+GET {{baseUrl}}/users/{{userId}}
 `;
 }
