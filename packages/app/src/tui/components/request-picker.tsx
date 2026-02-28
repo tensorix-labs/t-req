@@ -12,7 +12,7 @@ import {
   Show
 } from 'solid-js';
 import { useDialog } from '../context';
-import { usePickerNavigation } from '../hooks';
+import { usePickerNavigation, useScrollToIndex } from '../hooks';
 import { getMethodColor, rgba, theme } from '../theme';
 
 interface RequestItem {
@@ -37,7 +37,7 @@ const CONFIRM_TIMEOUT_MS = 2000;
 
 export function RequestPicker(props: RequestPickerProps): JSX.Element {
   const dialog = useDialog();
-  let scrollRef: ScrollBoxRenderable | undefined;
+  const [scrollRef, setScrollRef] = createSignal<ScrollBoxRenderable | undefined>(undefined);
 
   const [query, setQuery] = createSignal('');
   const [pendingSendId, setPendingSendId] = createSignal<string | undefined>(undefined);
@@ -107,6 +107,12 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
     }
   });
 
+  useScrollToIndex({
+    scrollRef,
+    selectedIndex: clampedIndex,
+    itemCount: () => filteredItems().length
+  });
+
   // Clear pending send when query or selection changes
   createEffect(() => {
     query();
@@ -121,23 +127,6 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
   onCleanup(() => {
     if (confirmTimeout) {
       clearTimeout(confirmTimeout);
-    }
-  });
-
-  // Keep selected row visible when navigating long lists
-  createEffect(() => {
-    const idx = clampedIndex();
-    const items = filteredItems();
-    if (!scrollRef || items.length === 0 || idx < 0) return;
-
-    const viewportHeight = scrollRef.height;
-    const scrollTop = scrollRef.scrollTop;
-    const scrollBottom = scrollTop + viewportHeight;
-
-    if (idx < scrollTop) {
-      scrollRef.scrollBy(idx - scrollTop);
-    } else if (idx + 1 > scrollBottom) {
-      scrollRef.scrollBy(idx + 1 - scrollBottom);
     }
   });
 
@@ -177,7 +166,7 @@ export function RequestPicker(props: RequestPickerProps): JSX.Element {
       {/* Request list */}
       <scrollbox
         ref={(r) => {
-          scrollRef = r;
+          setScrollRef(r);
         }}
         height={10}
       >

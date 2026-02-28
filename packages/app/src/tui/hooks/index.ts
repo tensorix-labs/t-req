@@ -18,6 +18,7 @@ export {
   type ScriptRunnerReturn,
   useScriptRunner
 } from './use-script-runner';
+export { type UseScrollToIndexOptions, useScrollToIndex } from './use-scroll-to-index';
 export {
   type TestRunnerOptions,
   type TestRunnerReturn,

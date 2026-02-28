@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable } from '@opentui/core';
-import { createEffect, For, Show } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
+import { useScrollToIndex } from '../hooks';
 import type { FlatNode } from '../store';
 import { rgba, theme } from '../theme';
 
@@ -11,26 +12,12 @@ export interface FileTreeProps {
 }
 
 export function FileTree(props: FileTreeProps) {
-  let scrollRef: ScrollBoxRenderable | undefined;
+  const [scrollRef, setScrollRef] = createSignal<ScrollBoxRenderable | undefined>(undefined);
 
-  // Scroll to selection when it changes
-  createEffect(() => {
-    const idx = props.selectedIndex;
-    if (!scrollRef || idx < 0) return;
-
-    // Each row is height=1, so index equals Y position in scroll content
-    const viewportHeight = scrollRef.height;
-    const scrollTop = scrollRef.scrollTop;
-    const scrollBottom = scrollTop + viewportHeight;
-
-    // Check if selected item is outside visible range
-    if (idx < scrollTop) {
-      // Item is above viewport - scroll up
-      scrollRef.scrollBy(idx - scrollTop);
-    } else if (idx + 1 > scrollBottom) {
-      // Item is below viewport - scroll down
-      scrollRef.scrollBy(idx + 1 - scrollBottom);
-    }
+  useScrollToIndex({
+    scrollRef,
+    selectedIndex: () => props.selectedIndex,
+    itemCount: () => props.nodes.length
   });
 
   return (
@@ -47,7 +34,7 @@ export function FileTree(props: FileTreeProps) {
       </box>
       <scrollbox
         ref={(r) => {
-          scrollRef = r;
+          setScrollRef(r);
         }}
         flexGrow={1}
         paddingLeft={1}
