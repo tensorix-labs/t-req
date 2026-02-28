@@ -1,3 +1,4 @@
+import type { ScrollBoxRenderable } from '@opentui/core';
 import type { WorkspaceRequest } from '@t-req/sdk/client';
 import fuzzysort from 'fuzzysort';
 import {
@@ -11,7 +12,7 @@ import {
   Show
 } from 'solid-js';
 import { useDialog, useStore } from '../context';
-import { usePickerNavigation } from '../hooks';
+import { usePickerNavigation, useScrollToIndex } from '../hooks';
 import { isHttpFile, isRunnableScript, isTestFile } from '../store';
 import { rgba, theme } from '../theme';
 import { RequestPicker } from './request-picker';
@@ -39,6 +40,7 @@ const CONFIRM_TIMEOUT_MS = 2000;
 export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
   const store = useStore();
   const dialog = useDialog();
+  const [scrollRef, setScrollRef] = createSignal<ScrollBoxRenderable | undefined>(undefined);
 
   const [query, setQuery] = createSignal('');
   const [pendingSendId, setPendingSendId] = createSignal<string | undefined>(undefined);
@@ -184,6 +186,12 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
     }
   });
 
+  useScrollToIndex({
+    scrollRef,
+    selectedIndex: clampedIndex,
+    itemCount: () => filteredItems().length
+  });
+
   // Clear pending send when query or selection changes
   createEffect(() => {
     query();
@@ -243,7 +251,12 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
       </box>
 
       {/* Items list */}
-      <box flexDirection="column" maxHeight={10}>
+      <scrollbox
+        ref={(r) => {
+          setScrollRef(r);
+        }}
+        height={10}
+      >
         <For each={filteredItems()}>
           {(item, idx) => {
             const isSelected = () => idx() === clampedIndex();
@@ -254,6 +267,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
             return (
               <box
                 height={1}
+                flexShrink={0}
                 paddingLeft={2}
                 paddingRight={2}
                 flexDirection="row"
@@ -288,7 +302,7 @@ export function FileRequestPicker(props: FileRequestPickerProps): JSX.Element {
             <text fg={rgba(theme.textMuted)}>No matches</text>
           </box>
         </Show>
-      </box>
+      </scrollbox>
 
       {/* Action bar */}
       <box height={1} paddingLeft={2} flexDirection="row" gap={2}>

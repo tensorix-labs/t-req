@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable } from '@opentui/core';
-import { createEffect, For, Show } from 'solid-js';
+import { createEffect, createSignal, For, Show } from 'solid-js';
+import { useScrollToIndex } from '../hooks';
 import type { ExecutionStatus, ExecutionSummary } from '../observer-store';
 import { getMethodColor, rgba, theme } from '../theme';
 import { formatDuration } from '../util/format';
@@ -28,33 +29,25 @@ function getStatusDisplay(status: ExecutionStatus): { icon: string; color: strin
 }
 
 export function ExecutionList(props: ExecutionListProps) {
-  let scrollRef: ScrollBoxRenderable | undefined;
+  const [scrollRef, setScrollRef] = createSignal<ScrollBoxRenderable | undefined>(undefined);
 
-  // Scroll to selected when it changes
-  createEffect(() => {
-    const id = props.selectedId;
-    if (!scrollRef || !id) return;
-
-    const index = props.executions.findIndex((e) => e.reqExecId === id);
-    if (index < 0) return;
-
-    const viewportHeight = scrollRef.height;
-    const scrollTop = scrollRef.scrollTop;
-    const scrollBottom = scrollTop + viewportHeight;
-
-    if (index < scrollTop) {
-      scrollRef.scrollBy(index - scrollTop);
-    } else if (index + 1 > scrollBottom) {
-      scrollRef.scrollBy(index + 1 - scrollBottom);
-    }
+  useScrollToIndex({
+    scrollRef,
+    selectedIndex: () => {
+      const id = props.selectedId;
+      if (!id) return -1;
+      return props.executions.findIndex((e) => e.reqExecId === id);
+    },
+    itemCount: () => props.executions.length
   });
 
   // Auto-scroll to bottom when new executions arrive (if running)
   createEffect(() => {
-    if (!scrollRef || !props.isRunning) return;
+    const ref = scrollRef();
+    if (!ref || !props.isRunning) return;
     const len = props.executions.length;
     if (len > 0) {
-      scrollRef.scrollTo(len - 1);
+      ref.scrollTo(len - 1);
     }
   });
 
@@ -81,7 +74,7 @@ export function ExecutionList(props: ExecutionListProps) {
       </box>
       <scrollbox
         ref={(r) => {
-          scrollRef = r;
+          setScrollRef(r);
         }}
         flexGrow={1}
         paddingLeft={1}
