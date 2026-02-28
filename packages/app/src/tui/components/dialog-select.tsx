@@ -1,6 +1,7 @@
+import type { ScrollBoxRenderable } from '@opentui/core';
 import { useKeyboard } from '@opentui/solid';
 import fuzzysort from 'fuzzysort';
-import { createMemo, createSignal, For, type JSX, onMount } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, type JSX, onMount } from 'solid-js';
 import type { DialogContextValue } from '../context/dialog';
 import { rgba, theme } from '../theme';
 import { normalizeKey } from '../util/normalize-key';
@@ -24,6 +25,7 @@ export type DialogSelectProps<T> = {
 export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
   const [query, setQuery] = createSignal('');
   const [selectedIndex, setSelectedIndex] = createSignal(0);
+  let scrollRef: ScrollBoxRenderable | undefined;
   let inputRef: { focus: () => void } | undefined;
 
   const filteredOptions = createMemo(() => {
@@ -87,6 +89,23 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
     setTimeout(() => inputRef?.focus(), 1);
   });
 
+  // Keep selected row visible when navigating long lists
+  createEffect(() => {
+    const idx = clampedIndex();
+    const opts = filteredOptions();
+    if (!scrollRef || opts.length === 0 || idx < 0) return;
+
+    const viewportHeight = scrollRef.height;
+    const scrollTop = scrollRef.scrollTop;
+    const scrollBottom = scrollTop + viewportHeight;
+
+    if (idx < scrollTop) {
+      scrollRef.scrollBy(idx - scrollTop);
+    } else if (idx + 1 > scrollBottom) {
+      scrollRef.scrollBy(idx + 1 - scrollBottom);
+    }
+  });
+
   return (
     <box flexDirection="column" gap={1} paddingBottom={1}>
       {/* Title bar with escape hint */}
@@ -121,13 +140,19 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
       </box>
 
       {/* Options list */}
-      <box flexDirection="column" maxHeight={10}>
+      <scrollbox
+        ref={(r) => {
+          scrollRef = r;
+        }}
+        height={10}
+      >
         <For each={filteredOptions()}>
           {(opt, idx) => {
             const isSelected = () => idx() === clampedIndex();
             return (
               <box
                 height={1}
+                flexShrink={0}
                 paddingLeft={2}
                 paddingRight={2}
                 flexDirection="row"
@@ -151,7 +176,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>): JSX.Element {
             <text fg={rgba(theme.textMuted)}>No matches</text>
           </box>
         )}
-      </box>
+      </scrollbox>
     </box>
   );
 }
