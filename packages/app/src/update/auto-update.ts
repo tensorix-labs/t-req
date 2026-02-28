@@ -17,6 +17,13 @@ interface AutoUpdateDependencies {
   stateStore?: AutoUpdateStateStore;
 }
 
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  pre?: string[];
+}
+
 function parseBooleanEnv(value: string | undefined): boolean | undefined {
   if (!value) return undefined;
   const normalized = value.trim().toLowerCase();
@@ -36,13 +43,76 @@ export function resolveAutoUpdateEnabled(
   return optionValue ?? true;
 }
 
+function parseVersion(version: string): ParsedVersion | undefined {
+  const normalized = version.trim().replace(/^v/, '');
+  const match = normalized.match(
+    /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-.]+)?$/
+  );
+  if (!match) return undefined;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (!Number.isFinite(major) || !Number.isFinite(minor) || !Number.isFinite(patch)) {
+    return undefined;
+  }
+
+  const pre = match[4]?.split('.');
+  return { major, minor, patch, pre };
+}
+
+function comparePrerelease(a: string[] | undefined, b: string[] | undefined): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (left === undefined) return -1;
+    if (right === undefined) return 1;
+    if (left === right) continue;
+
+    const leftNumeric = /^\d+$/.test(left);
+    const rightNumeric = /^\d+$/.test(right);
+    if (leftNumeric && rightNumeric) {
+      const leftNumber = Number(left);
+      const rightNumber = Number(right);
+      if (leftNumber > rightNumber) return 1;
+      if (leftNumber < rightNumber) return -1;
+      continue;
+    }
+    if (leftNumeric) return -1;
+    if (rightNumeric) return 1;
+    return left > right ? 1 : -1;
+  }
+
+  return 0;
+}
+
+function compareVersions(a: string, b: string): number | undefined {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  if (!left || !right) return undefined;
+
+  if (left.major !== right.major) return left.major > right.major ? 1 : -1;
+  if (left.minor !== right.minor) return left.minor > right.minor ? 1 : -1;
+  if (left.patch !== right.patch) return left.patch > right.patch ? 1 : -1;
+  return comparePrerelease(left.pre, right.pre);
+}
+
+function isStrictlyNewer(candidate: string, current: string): boolean {
+  return compareVersions(candidate, current) === 1;
+}
+
 export async function checkForAvailableUpdate(
   installation: InstallationLike = Installation
 ): Promise<UpdateInfo | undefined> {
   const method = await installation.method();
   const latest = await installation.latest(method).catch(() => undefined);
   if (!latest) return undefined;
-  if (installation.VERSION === latest) return undefined;
+  if (!isStrictlyNewer(latest, installation.VERSION)) return undefined;
 
   return {
     version: latest,
@@ -146,6 +216,15 @@ export async function runAutoUpdate(
       method,
       phase: 'check',
       error: 'Missing latest version'
+    };
+  }
+
+  if (!isStrictlyNewer(latestVersion, installation.VERSION)) {
+    return {
+      status: 'up_to_date',
+      currentVersion: installation.VERSION,
+      method,
+      checkedAt
     };
   }
 

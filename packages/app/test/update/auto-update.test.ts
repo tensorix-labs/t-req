@@ -5,6 +5,7 @@ import {
   AUTO_UPDATE_RETRY_BACKOFF_MS,
   type AutoUpdateStateStore,
   type AutoUpdateStateV1,
+  checkForAvailableUpdate,
   type InstallationLike,
   resolveAutoUpdateEnabled,
   runAutoUpdate
@@ -87,6 +88,17 @@ describe('resolveAutoUpdateEnabled', () => {
   test('env override wins over option value', () => {
     expect(resolveAutoUpdateEnabled(true, { TREQ_AUTO_UPDATE: '0' })).toBe(false);
     expect(resolveAutoUpdateEnabled(false, { TREQ_AUTO_UPDATE: 'true' })).toBe(true);
+  });
+});
+
+describe('checkForAvailableUpdate', () => {
+  test('returns undefined when latest is older than current', async () => {
+    const { installation } = createInstallationStub({
+      version: '1.2.0',
+      latest: '1.1.0'
+    });
+    const result = await checkForAvailableUpdate(installation);
+    expect(result).toBeUndefined();
   });
 });
 
@@ -186,6 +198,22 @@ describe('runAutoUpdate', () => {
       lastAttemptedAt: now,
       lastAttemptStatus: 'success'
     });
+  });
+
+  test('returns up_to_date and skips upgrade when latest is older than current', async () => {
+    const { installation, calls } = createInstallationStub({
+      version: '1.2.0',
+      latest: '1.1.0',
+      method: 'npm'
+    });
+
+    const result = await runAutoUpdate(
+      { enabled: true, interactive: true },
+      { installation, stateStore: createMemoryStateStore().store }
+    );
+
+    expect(result.status).toBe('up_to_date');
+    expect(calls.upgrade).toBe(0);
   });
 
   test('returns backoff_skipped after recent failure for same target', async () => {
