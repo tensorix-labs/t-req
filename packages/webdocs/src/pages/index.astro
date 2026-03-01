@@ -1,9 +1,22 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import CodeTabs from "../components/CodeTabs.astro";
+
+export const prerender = true;
+
+const title = "t-req | Programmable API Engine -- Open Source API Client";
+const description =
+  "An open-source, local-first programmable API engine built on standard .http files. Scriptable, programmable, and runnable from the CLI, IDE, or your own code.";
+const ogDescription =
+  "Make .http files programmable. Run API requests from the terminal, your editor, or your own code. Open source, local-first.";
 ---
 
-<Layout>
+<Layout
+  title={title}
+  description={description}
+  ogDescription={ogDescription}
+  ogImage="/logo.jpg"
+>
   <!-- Header -->
   <header
     class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between border-b border-treq-border-light"
@@ -315,7 +328,13 @@ treq open</code></pre>
     <footer
       class="max-w-5xl mx-auto px-6 py-12 text-center text-sm text-treq-text-muted"
     >
-      &copy; {new Date().getFullYear()} <a href="https://www.tensorixlabs.com/" target="_blank" rel="noopener noreferrer" class="hover:text-treq-text-strong transition-colors">tensorix-labs</a>
+      &copy; {new Date().getFullYear()}
+      <a
+        href="https://www.tensorixlabs.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="hover:text-treq-text-strong transition-colors">tensorix-labs</a
+      >
     </footer>
   </main>
 
