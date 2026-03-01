@@ -51,14 +51,6 @@ export function formatBodyContent(result: ExecutionResult): {
   };
 }
 
-export function bodyBadgeClass(contentType: string): string {
-  const type = contentType.toLowerCase();
-  if (type.includes('json')) return 'badge-json';
-  if (type.includes('html')) return 'badge-html';
-  if (type.includes('xml')) return 'badge-xml';
-  return 'badge-text';
-}
-
 export function statusClass(status: number): string {
   if (status >= 200 && status < 300) return 'status-success';
   if (status >= 300 && status < 400) return 'status-redirect';

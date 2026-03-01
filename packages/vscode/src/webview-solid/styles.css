@@ -112,34 +112,6 @@ body {
   display: block;
 }
 
-.badge {
-  display: inline-flex;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.badge-json {
-  background: color-mix(in srgb, #7c3aed 18%, transparent);
-  color: #7c3aed;
-}
-
-.badge-html {
-  background: color-mix(in srgb, #b42318 18%, transparent);
-  color: #b42318;
-}
-
-.badge-xml {
-  background: color-mix(in srgb, #1f7a39 18%, transparent);
-  color: #1f7a39;
-}
-
-.badge-text {
-  background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
-  color: var(--vscode-foreground);
-}
-
 pre {
   margin: 0;
   padding: 10px;
