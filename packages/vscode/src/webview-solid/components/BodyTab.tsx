@@ -1,6 +1,6 @@
 import { createMemo, Show } from 'solid-js';
 import type { ExecutionResult } from '../../execution/types';
-import { bodyBadgeClass, formatBodyContent } from '../../webview/utils/body';
+import { formatBodyContent } from '../../webview/utils/body';
 import { escapeHtml } from '../../webview/utils/format';
 
 type BodyTabProps = {
@@ -19,7 +19,6 @@ export function BodyTab(props: BodyTabProps) {
 
   return (
     <>
-      <span class={`badge ${bodyBadgeClass(bodyContent().badge)}`}>{bodyContent().badge}</span>
       <Show when={bodyContent().binary}>
         <div class="notice">Binary payload shown as base64.</div>
       </Show>

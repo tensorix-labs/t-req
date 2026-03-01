@@ -63,7 +63,6 @@ describe('webview body utils', () => {
     const output = formatBodyContent(makeResult());
     expect(output.highlighted).toBe(true);
     expect(output.content).toContain('json-key');
-    expect(output.badge).toBe('application/json');
   });
 
   test('marks base64 payload as binary', () => {
@@ -84,7 +83,6 @@ describe('webview body utils', () => {
 
     expect(output.binary).toBe(true);
     expect(output.highlighted).toBe(false);
-    expect(output.badge).toBe('application/octet-stream');
   });
 });
 

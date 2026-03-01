@@ -4,7 +4,6 @@ import { highlightJson } from './json-highlight';
 
 export function formatBodyContent(result: ExecutionResult): {
   content: string;
-  badge: string;
   binary: boolean;
   highlighted: boolean;
 } {
@@ -12,13 +11,12 @@ export function formatBodyContent(result: ExecutionResult): {
   const contentType = result.response.contentType ?? '';
 
   if (!body) {
-    return { content: '', badge: contentType || 'none', binary: false, highlighted: false };
+    return { content: '', binary: false, highlighted: false };
   }
 
   if (result.response.encoding === 'base64') {
     return {
       content: body,
-      badge: contentType || 'binary',
       binary: true,
       highlighted: false
     };
@@ -29,14 +27,12 @@ export function formatBodyContent(result: ExecutionResult): {
       const formatted = JSON.stringify(JSON.parse(body), null, 2);
       return {
         content: highlightJson(formatted),
-        badge: contentType || 'json',
         binary: false,
         highlighted: true
       };
     } catch {
       return {
         content: body,
-        badge: contentType || 'json',
         binary: false,
         highlighted: false
       };
@@ -45,18 +41,9 @@ export function formatBodyContent(result: ExecutionResult): {
 
   return {
     content: body,
-    badge: contentType || 'text/plain',
     binary: false,
     highlighted: false
   };
-}
-
-export function bodyBadgeClass(contentType: string): string {
-  const type = contentType.toLowerCase();
-  if (type.includes('json')) return 'badge-json';
-  if (type.includes('html')) return 'badge-html';
-  if (type.includes('xml')) return 'badge-xml';
-  return 'badge-text';
 }
 
 export function statusClass(status: number): string {
