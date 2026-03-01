@@ -58,6 +58,7 @@ treq open --port 8080
 | `--host, -H` | Host to bind to (default: 127.0.0.1) |
 | `--web` | Open the browser dashboard |
 | `--expose` | Allow non-loopback binding (disables cookie auth) |
+| `--auto-update` / `--no-auto-update` | Enable or disable startup auto-update checks (default: enabled) |
 
 Security: a random token is generated on every launch. `--web` and `--expose` cannot be combined (SSRF protection).
 
@@ -323,6 +324,7 @@ treq tui --server http://localhost:8080 --token my-token
 |--------|-------------|
 | `--server, -s` | Server URL to connect to (default: http://localhost:4097) |
 | `--token, -t` | Bearer token for authentication |
+| `--auto-update` / `--no-auto-update` | Enable or disable startup auto-update checks (default: enabled) |
 
 ### `treq upgrade` - Upgrade treq
 
@@ -335,6 +337,16 @@ treq upgrade
 # Upgrade to a specific version
 treq upgrade 0.3.0
 ```
+
+### Auto-update
+
+Interactive commands (`treq open`, `treq tui`, `treq web`) perform startup update checks and attempt auto-upgrade for known install methods.
+
+- Checks are cached for 24 hours in `~/.treq/auto-update.json`
+- Failed auto-upgrade attempts are backed off for 24 hours for the same target version
+- Successful installs apply on the next run (current process continues)
+- Use `--no-auto-update` to disable per command
+- Use `TREQ_AUTO_UPDATE=0` to disable via environment variable
 
 ### Help
 

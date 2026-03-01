@@ -1,19 +1,11 @@
-import { Installation } from '../installation';
+import { checkForAvailableUpdate } from '../update';
 
 export interface UpdateResult {
   version: string;
-  method: Installation.Method;
+  method: import('../installation').Installation.Method;
   command: string;
 }
 
 export async function checkForUpdate(): Promise<UpdateResult | undefined> {
-  const method = await Installation.method();
-  const latest = await Installation.latest(method).catch(() => undefined);
-  if (!latest) return undefined;
-  if (Installation.VERSION === latest) return undefined;
-  return {
-    version: latest,
-    method,
-    command: Installation.updateCommand(method, latest)
-  };
+  return checkForAvailableUpdate();
 }

@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { flushPendingCookieSaves } from '@t-req/core/cookies/persistence';
 import type { CommandModule } from 'yargs';
 import { createApp, type ServerConfig } from '../server/app';
+import { resolveAutoUpdateEnabled } from '../update';
 import {
   DEFAULT_HOST,
   DEFAULT_PORT,
@@ -19,6 +20,7 @@ interface OpenOptions {
   host: string;
   web?: boolean;
   expose?: boolean;
+  autoUpdate?: boolean;
 }
 
 export const openCommand: CommandModule<object, OpenOptions> = {
@@ -51,6 +53,11 @@ export const openCommand: CommandModule<object, OpenOptions> = {
         type: 'boolean',
         describe: 'Allow non-loopback binding (disables cookie auth for security)',
         default: false
+      })
+      .option('auto-update', {
+        type: 'boolean',
+        describe: 'Automatically check and apply updates on startup',
+        default: true
       }),
   handler: async (argv) => {
     await runOpen(argv);
@@ -150,7 +157,12 @@ async function runOpen(argv: OpenOptions): Promise<void> {
   // Import and start TUI
   const { startTui } = await import('../tui');
   try {
-    await startTui({ serverUrl, token, onExit: shutdown });
+    await startTui({
+      serverUrl,
+      token,
+      autoUpdate: resolveAutoUpdateEnabled(argv.autoUpdate),
+      onExit: shutdown
+    });
   } finally {
     // Cleanup on TUI exit
     await shutdown();

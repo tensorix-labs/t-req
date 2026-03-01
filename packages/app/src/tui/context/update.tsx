@@ -1,12 +1,9 @@
 import { createContext, createSignal, onMount, type ParentProps, useContext } from 'solid-js';
-import { Installation } from '../../installation';
+import type { UpdateInfo } from '../../update';
+import { runAutoUpdate } from '../../update';
 import { useToast } from '../components/toast';
 
-export interface UpdateInfo {
-  version: string;
-  method: Installation.Method;
-  command: string;
-}
+export type { UpdateInfo } from '../../update';
 
 export interface UpdateContextValue {
   updateInfo: () => UpdateInfo | null;
@@ -15,7 +12,11 @@ export interface UpdateContextValue {
 
 const UpdateContext = createContext<UpdateContextValue>();
 
-export function UpdateProvider(props: ParentProps) {
+export interface UpdateProviderProps extends ParentProps {
+  autoUpdateEnabled?: boolean;
+}
+
+export function UpdateProvider(props: UpdateProviderProps) {
   const toast = useToast();
   const [updateInfo, setUpdateInfo] = createSignal<UpdateInfo | null>(null);
   const updateAvailable = () => updateInfo() !== null;
@@ -25,23 +26,76 @@ export function UpdateProvider(props: ParentProps) {
   });
 
   async function checkForUpdate() {
-    try {
-      const method = await Installation.method();
-      const latestVersion = await Installation.latest(method);
-      if (!latestVersion) return;
-      if (Installation.VERSION === latestVersion) return;
+    const outcome = await runAutoUpdate({
+      enabled: props.autoUpdateEnabled ?? true,
+      interactive: process.stdout.isTTY === true
+    });
 
-      const command = Installation.updateCommand(method, latestVersion);
-      setUpdateInfo({ version: latestVersion, method, command });
+    switch (outcome.status) {
+      case 'available_manual': {
+        setUpdateInfo({
+          version: outcome.latestVersion,
+          method: outcome.method,
+          command: outcome.command
+        });
+        toast.show({
+          variant: 'info',
+          title: 'Update Available',
+          message: `v${outcome.currentVersion} -> v${outcome.latestVersion}\nRun: ${outcome.command}`,
+          duration: 3000
+        });
+        return;
+      }
 
-      toast.show({
-        variant: 'info',
-        title: 'Update Available',
-        message: `v${Installation.VERSION} -> v${latestVersion}\nRun: ${command}`,
-        duration: 3000
-      });
-    } catch {
-      // Silently fail - network errors, offline, etc.
+      case 'backoff_skipped': {
+        setUpdateInfo({
+          version: outcome.latestVersion,
+          method: outcome.method,
+          command: outcome.command
+        });
+        toast.show({
+          variant: 'warning',
+          title: 'Update Available',
+          message: `Auto-update paused after a recent failure.\nRun: ${outcome.command}`,
+          duration: 4000
+        });
+        return;
+      }
+
+      case 'updated': {
+        toast.show({
+          variant: 'success',
+          title: 'Updated',
+          message: `Installed v${outcome.latestVersion}. It will apply on your next run.`,
+          duration: 3500
+        });
+        return;
+      }
+
+      case 'failed': {
+        if (
+          outcome.phase === 'upgrade' &&
+          outcome.latestVersion &&
+          outcome.method &&
+          outcome.command
+        ) {
+          setUpdateInfo({
+            version: outcome.latestVersion,
+            method: outcome.method,
+            command: outcome.command
+          });
+          toast.show({
+            variant: 'warning',
+            title: 'Auto-update failed',
+            message: `Run manually: ${outcome.command}`,
+            duration: 4000
+          });
+        }
+        return;
+      }
+
+      default:
+        return;
     }
   }
 
