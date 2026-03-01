@@ -3,6 +3,7 @@ import {
   buildExplorerTree,
   createInitialExpandedDirs,
   type ExplorerExpandedState,
+  type ExplorerFileNodeComparator,
   type ExplorerFlatNode,
   type ExplorerNode,
   flattenExplorerTree
@@ -31,6 +32,23 @@ interface DeepState {
   fileContents: Record<string, FileContent>;
   unsavedChanges: Record<string, boolean>;
 }
+
+function isRequestFileName(name: string): boolean {
+  const lowerName = name.toLowerCase();
+  return lowerName.endsWith('.http') || lowerName.endsWith('.rest');
+}
+
+const compareRequestFilesFirst: ExplorerFileNodeComparator = (a, b) => {
+  const aIsRequestFile = isRequestFileName(a.name);
+  const bIsRequestFile = isRequestFileName(b.name);
+  if (aIsRequestFile && !bIsRequestFile) {
+    return -1;
+  }
+  if (!aIsRequestFile && bIsRequestFile) {
+    return 1;
+  }
+  return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+};
 
 export interface WorkspaceStoreDeps {
   connection: () => ConnectionState;
@@ -125,7 +143,11 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   });
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const tree = createMemo(() => buildExplorerTree(files()));
+  const tree = createMemo(() =>
+    buildExplorerTree(files(), {
+      compareFiles: compareRequestFilesFirst
+    })
+  );
   const flattenedVisible = createMemo(() => flattenExplorerTree(tree(), deep.expandedDirs));
 
   const selectedNode = createMemo(() => {
@@ -180,7 +202,14 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
       }
 
       // Auto-expand first level directories
-      setDeep('expandedDirs', createInitialExpandedDirs(buildExplorerTree(response.files)));
+      setDeep(
+        'expandedDirs',
+        createInitialExpandedDirs(
+          buildExplorerTree(response.files, {
+            compareFiles: compareRequestFilesFirst
+          })
+        )
+      );
     } catch (err) {
       setConnectionStatus('error');
       setError(err instanceof Error ? err.message : String(err));

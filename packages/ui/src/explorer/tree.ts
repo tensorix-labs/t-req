@@ -9,23 +9,42 @@ type MutableNode = ExplorerNode & {
   childMap?: Map<string, MutableNode>;
 };
 
+export type ExplorerFileNodeComparator = (a: ExplorerNode, b: ExplorerNode) => number;
+
+export type BuildExplorerTreeOptions = {
+  compareFiles?: ExplorerFileNodeComparator;
+};
+
 function normalizeRelativePath(path: string): string {
   return path.replaceAll('\\', '/').split('/').filter(Boolean).join('/');
 }
 
-function compareNodes(a: ExplorerNode, b: ExplorerNode): number {
+function compareNodes(
+  a: ExplorerNode,
+  b: ExplorerNode,
+  compareFiles?: ExplorerFileNodeComparator
+): number {
   if (a.isDir && !b.isDir) return -1;
   if (!a.isDir && b.isDir) return 1;
+  if (!a.isDir && !b.isDir && compareFiles) {
+    const result = compareFiles(a, b);
+    if (result !== 0) {
+      return result;
+    }
+  }
   return a.name.localeCompare(b.name, undefined, {
     sensitivity: 'base',
     numeric: true
   });
 }
 
-function toExplorerNodes(map: Map<string, MutableNode>): ExplorerNode[] {
+function toExplorerNodes(
+  map: Map<string, MutableNode>,
+  compareFiles?: ExplorerFileNodeComparator
+): ExplorerNode[] {
   return Array.from(map.values())
     .map((node): ExplorerNode => {
-      const children = node.childMap ? toExplorerNodes(node.childMap) : undefined;
+      const children = node.childMap ? toExplorerNodes(node.childMap, compareFiles) : undefined;
       return {
         name: node.name,
         path: node.path,
@@ -35,10 +54,14 @@ function toExplorerNodes(map: Map<string, MutableNode>): ExplorerNode[] {
         requestCount: node.requestCount
       };
     })
-    .sort(compareNodes);
+    .sort((a, b) => compareNodes(a, b, compareFiles));
 }
 
-export function buildExplorerTree(files: ExplorerFileEntry[]): ExplorerNode[] {
+export function buildExplorerTree(
+  files: ExplorerFileEntry[],
+  options?: BuildExplorerTreeOptions
+): ExplorerNode[] {
+  const compareFiles = options?.compareFiles;
   const rootMap = new Map<string, MutableNode>();
 
   for (const file of files) {
@@ -93,7 +116,7 @@ export function buildExplorerTree(files: ExplorerFileEntry[]): ExplorerNode[] {
     }
   }
 
-  return toExplorerNodes(rootMap);
+  return toExplorerNodes(rootMap, compareFiles);
 }
 
 export function flattenExplorerTree(

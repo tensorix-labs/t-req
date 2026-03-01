@@ -5,6 +5,7 @@ export {
   toRequestOption,
   toRequestOptionLabel
 } from './request-workspace.js';
+export type { BuildExplorerTreeOptions, ExplorerFileNodeComparator } from './tree.js';
 export {
   buildExplorerTree,
   createInitialExpandedDirs,

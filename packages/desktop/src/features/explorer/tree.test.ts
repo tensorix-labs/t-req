@@ -25,6 +25,38 @@ describe('buildExplorerTree', () => {
       'src/Beta.http'
     ]);
   });
+
+  it('supports custom file ordering for non-directory nodes', () => {
+    const tree = buildExplorerTree(
+      [
+        { path: 'src/request.ts' },
+        { path: 'src/api.http' },
+        { path: 'src/events.rest' },
+        { path: 'src/worker.ts' }
+      ],
+      {
+        compareFiles: (a, b) => {
+          const aIsRequestFile = a.name.endsWith('.http') || a.name.endsWith('.rest');
+          const bIsRequestFile = b.name.endsWith('.http') || b.name.endsWith('.rest');
+          if (aIsRequestFile && !bIsRequestFile) {
+            return -1;
+          }
+          if (!aIsRequestFile && bIsRequestFile) {
+            return 1;
+          }
+          return 0;
+        }
+      }
+    );
+
+    const srcNode = tree.find((node) => node.path === 'src');
+    expect(srcNode?.children?.map((node) => node.path)).toEqual([
+      'src/api.http',
+      'src/events.rest',
+      'src/request.ts',
+      'src/worker.ts'
+    ]);
+  });
 });
 
 describe('flattenExplorerTree', () => {
