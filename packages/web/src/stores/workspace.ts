@@ -1,4 +1,12 @@
 import { unwrap } from '@t-req/sdk/client';
+import {
+  buildExplorerTree,
+  createInitialExpandedDirs,
+  type ExplorerExpandedState,
+  type ExplorerFlatNode,
+  type ExplorerNode,
+  flattenExplorerTree
+} from '@t-req/ui/explorer';
 import { createMemo, createSignal } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import type { ConnectionState } from '../context/sdk';
@@ -6,19 +14,8 @@ import { createTreqWebClient, type WorkspaceFile, type WorkspaceRequest } from '
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-export interface TreeNode {
-  name: string;
-  path: string;
-  isDir: boolean;
-  children?: TreeNode[];
-  depth: number;
-  requestCount?: number;
-}
-
-export interface FlatNode {
-  node: TreeNode;
-  isExpanded: boolean;
-}
+export type TreeNode = ExplorerNode;
+export type FlatNode = ExplorerFlatNode;
 
 export interface FileContent {
   content: string;
@@ -29,7 +26,7 @@ export interface FileContent {
 }
 
 interface DeepState {
-  expandedDirs: Record<string, boolean>;
+  expandedDirs: ExplorerExpandedState;
   requestsByPath: Record<string, WorkspaceRequest[]>;
   fileContents: Record<string, FileContent>;
   unsavedChanges: Record<string, boolean>;
@@ -56,7 +53,7 @@ export interface WorkspaceStore {
   // Tree state
   tree: () => TreeNode[];
   flattenedVisible: () => FlatNode[];
-  expandedDirs: () => Record<string, boolean>;
+  expandedDirs: () => ExplorerExpandedState;
   toggleDir: (path: string) => void;
 
   // Selection state
@@ -100,115 +97,6 @@ export interface WorkspaceStore {
   hasUnsavedChanges: (path: string) => boolean;
 }
 
-function buildTree(files: WorkspaceFile[]): TreeNode[] {
-  const dirMaps = new Map<string, Map<string, TreeNode>>();
-  const root = new Map<string, TreeNode>();
-  dirMaps.set('', root);
-
-  for (const file of files) {
-    const parts = file.path.split('/').filter(Boolean);
-    let currentPath = '';
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!part) continue;
-
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      const isLast = i === parts.length - 1;
-
-      let parentMap = dirMaps.get(parentPath);
-      if (!parentMap) {
-        parentMap = new Map();
-        dirMaps.set(parentPath, parentMap);
-      }
-
-      let node = parentMap.get(part);
-
-      if (!node) {
-        node = {
-          name: part,
-          path: currentPath,
-          isDir: !isLast,
-          depth: i,
-          children: isLast ? undefined : [],
-          requestCount: isLast ? file.requestCount : undefined
-        };
-        parentMap.set(part, node);
-
-        if (!isLast) {
-          dirMaps.set(currentPath, new Map());
-        }
-      }
-
-      if (!isLast && node.children) {
-        const childMap = dirMaps.get(currentPath);
-        if (childMap) {
-          node.children = Array.from(childMap.values());
-        }
-      }
-    }
-  }
-
-  // Final pass: ensure all directory children arrays are populated
-  for (const [path, map] of dirMaps) {
-    if (path === '') continue;
-    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-    const name = path.includes('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
-    const parentMap = dirMaps.get(parentPath);
-    if (parentMap) {
-      const node = parentMap.get(name);
-      if (node?.isDir) {
-        node.children = Array.from(map.values());
-      }
-    }
-  }
-
-  return sortNodes(Array.from(root.values()));
-}
-
-function isHttpFile(name: string): boolean {
-  return name.endsWith('.http') || name.endsWith('.rest');
-}
-
-function sortNodes(nodes: TreeNode[]): TreeNode[] {
-  return nodes
-    .map((node) => ({
-      ...node,
-      children: node.children ? sortNodes(node.children) : undefined
-    }))
-    .sort((a, b) => {
-      if (a.isDir && !b.isDir) return -1;
-      if (!a.isDir && b.isDir) return 1;
-      const aIsHttp = isHttpFile(a.name);
-      const bIsHttp = isHttpFile(b.name);
-      if (aIsHttp && !bIsHttp) return -1;
-      if (!aIsHttp && bIsHttp) return 1;
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-    });
-}
-
-function flattenTree(nodes: TreeNode[], expandedDirs: Record<string, boolean>): FlatNode[] {
-  const result: FlatNode[] = [];
-
-  function traverse(node: TreeNode) {
-    const isExpanded = !!expandedDirs[node.path];
-    result.push({ node, isExpanded });
-
-    if (node.isDir && isExpanded && node.children) {
-      for (const child of node.children) {
-        traverse(child);
-      }
-    }
-  }
-
-  for (const node of nodes) {
-    traverse(node);
-  }
-
-  return result;
-}
-
 // ============================================================================
 // Store Factory
 // ============================================================================
@@ -237,8 +125,8 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
   });
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const tree = createMemo(() => buildTree(files()));
-  const flattenedVisible = createMemo(() => flattenTree(tree(), deep.expandedDirs));
+  const tree = createMemo(() => buildExplorerTree(files()));
+  const flattenedVisible = createMemo(() => flattenExplorerTree(tree(), deep.expandedDirs));
 
   const selectedNode = createMemo(() => {
     const path = selectedPath();
@@ -292,14 +180,7 @@ export function createWorkspaceStore(deps: WorkspaceStoreDeps): WorkspaceStore {
       }
 
       // Auto-expand first level directories
-      const firstLevelDirs = response.files
-        .map((f) => f.path.split('/')[0])
-        .filter((v, i, a) => a.indexOf(v) === i);
-      const expanded: Record<string, boolean> = {};
-      for (const dir of firstLevelDirs) {
-        expanded[dir] = true;
-      }
-      setDeep('expandedDirs', expanded);
+      setDeep('expandedDirs', createInitialExpandedDirs(buildExplorerTree(response.files)));
     } catch (err) {
       setConnectionStatus('error');
       setError(err instanceof Error ? err.message : String(err));

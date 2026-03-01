@@ -30,6 +30,10 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./explorer": {
+      "types": "./src/explorer/index.ts",
+      "import": "./src/explorer/index.ts"
+    },
     "./styles": {
       "types": "./src/styles/styles.d.ts",
       "default": "./src/styles/base.css"
