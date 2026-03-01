@@ -64,7 +64,7 @@ const ogDescription =
           height="400"
         />
       </div>
-      <div class="hero-content">
+      <div class="landing-hero-content">
         <span class="beta-badge">Beta</span>
         <h1 class="hero-title">
           Test APIs programmatically<br />without ever leaving your code.
@@ -359,13 +359,18 @@ treq open</code></pre>
       }
     }
 
-    .hero-content {
-      flex: 1;
+    .landing-hero-content {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
     }
 
     @media (min-width: 768px) {
-      .hero-content {
+      .landing-hero-content {
+        align-items: flex-start;
         text-align: left;
         order: 1;
       }
@@ -395,8 +400,9 @@ treq open</code></pre>
       letter-spacing: -0.04em;
       line-height: 1.1;
       color: #0f172a;
-      text-wrap: balance;
+      max-width: 20ch;
       margin-bottom: 1.5rem;
+      width: 100%;
     }
 
     @media (min-width: 640px) {
@@ -417,6 +423,7 @@ treq open</code></pre>
       color: #334155;
       max-width: 42rem;
       margin: 0 0 2rem;
+      width: 100%;
     }
 
     @media (max-width: 767px) {
