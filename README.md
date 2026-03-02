@@ -19,10 +19,6 @@ t-req keeps standard <code>.http</code> files as the source of truth and lets yo
   <b><a href="https://t-req.io">Docs</a></b> &middot; <b><a href="https://discord.gg/sKY4M3eS">Discord</a></b>
 </p>
 
-<p align="center">
-  <img src="./docs/assets/tui.gif" alt="t-req TUI">
-</p>
-
 ## Install
 
 ```bash
@@ -43,33 +39,101 @@ But a file format alone doesn't get you far. t-req is the engine that makes `.ht
 
 One source of truth, many surfaces. The same `.http` file runs from the terminal, a server, a test suite, or a TypeScript script.
 
-## Run from the Terminal
+## Run from CLI
+
+Use direct CLI commands in any terminal:
 
 ```bash
 treq init my-api && cd my-api
-treq open                           # interactive TUI
 treq run requests/users/list.http   # single request from CLI
 ```
 
-## Run from VS Code
+## Run from the terminal app 
 
-Install the [t-req extension](./packages/vscode) for syntax highlighting, inline execution, and assertion results (@t-req/plugins-assert) directly in the editor.
+Use the interactive terminal app to browse files, run requests, and inspect results:
 
-![VS Code assertions](./docs/assets/vscode-assertions.png)
+```bash
+treq open
+```
 
-## Run from TypeScript
+![t-req TUI demo](https://assets.t-req.ai/tui-demo.gif)
 
-`@t-req/core` is a standalone library. Parse, execute, and inspect requests from your own code.
+## Run from VS Code or Cursor
+
+Install the [t-req extension](./packages/vscode) in VS Code or Cursor for syntax highlighting, inline execution, and assertion results (`@t-req/plugin-assert`) directly in your editor.
+
+[![t-req init in VS Code or Cursor](https://assets.t-req.ai/treq-init-cursor.gif)](https://assets.t-req.ai/treq-demo-desktop.mp4)
+
+## Run from Web
+
+Start the web app directly from your workspace:
+
+```bash
+treq web
+```
+
+<p align="center">
+  <img src="./docs/assets/web.png" alt="t-req web dashboard">
+</p>
+
+## Embed in Scripts, Tests, or CI
+
+`@t-req/core` lets you execute the same `.http` files from scripts, test suites, and automation jobs.
+This is the core idea: one request collection, many execution surfaces.
 
 ```typescript
 import { createClient } from '@t-req/core';
 
 const client = createClient({
-  variables: { token: process.env.API_TOKEN },
+  variables: { baseUrl: 'https://dummyjson.com' }
 });
 
-const response = await client.run('./auth/login.http');
-const { user } = await response.json();
+// 1) Login from a .http file
+const loginRes = await client.run('./examples/core/e-commerce/auth/login.http', {
+  variables: { username: 'emilys', password: 'emilyspass' }
+});
+
+if (!loginRes.ok) throw new Error(`Login failed: ${loginRes.status}`);
+
+const login = await loginRes.json();
+client.setVariable('token', login.accessToken);
+client.setVariable('userId', login.id);
+
+// 2) Reuse variables in another .http file
+const profileRes = await client.run('./examples/core/e-commerce/users/profile.http');
+if (!profileRes.ok) throw new Error(`Profile lookup failed: ${profileRes.status}`);
+
+const profile = await profileRes.json();
+console.log(`${profile.firstName} <${profile.email}>`);
+```
+
+For a larger end-to-end example, see [`examples/core/e-commerce/checkout-flow.ts`](./examples/core/e-commerce/checkout-flow.ts).
+
+## Test with Any Framework
+
+t-req works with your existing runner (`bun:test`, Vitest, Jest, or `node:test`) because tests call `client.run(...)` the same way.
+
+```typescript
+import { describe, expect, test } from 'vitest';
+import { createClient } from '@t-req/core';
+
+const client = createClient({
+  variables: { baseUrl: 'https://jsonplaceholder.typicode.com' }
+});
+
+describe('collection/users/list.http', () => {
+  test('returns a list of users', async () => {
+    const response = await client.run('./collection/users/list.http');
+
+    expect(response.status).toBe(200);
+  });
+});
+```
+
+```bash
+# run with your existing test command
+npm test
+# or: pnpm test / bun test / vitest / jest / node --test
 ```
 
 ## Plugin Pipeline
@@ -138,12 +202,8 @@ curl -X POST http://localhost:4097/execute \
 - **Command resolvers** — `{{$timestamp()}}`, `{{$uuid()}}`, or your own custom functions
 - **Cookie management** — automatic jar with RFC 6265 compliance
 - **SSE streaming** — `@sse` directive for Server-Sent Events
-- **Web dashboard** — `treq open --web` for a browser-based UI
+- **Web dashboard** — run with `treq web`
 - **TypeScript-first** — full type definitions, async/await, `AsyncDisposable` support
-
-<p align="center">
-  <img src="./docs/assets/web.png" alt="t-req web dashboard">
-</p>
 
 > **Open source. MIT licensed. No cloud account required.**
 
@@ -157,7 +217,7 @@ curl -X POST http://localhost:4097/execute \
 | [@t-req/sdk](./packages/sdk/js) | TypeScript SDK for the server |
 | [@t-req/plugin-base](./packages/plugins/base) | Built-in resolvers (uuid, timestamp, base64, etc.) |
 | [@t-req/plugin-assert](./packages/plugins/assert) | Assertion directives for `.http` files |
-| [t-req for VS Code](./packages/vscode) | VS Code extension with inline execution and assertions |
+| [t-req for VS Code/Cursor](./packages/vscode) | VS Code-compatible extension with inline execution and assertions |
 
 ## Contributing
 
