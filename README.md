@@ -12,12 +12,10 @@ t-req keeps standard <code>.http</code> files as the source of truth and lets yo
 <p align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml"><img src="https://github.com/tensorix-labs/t-req/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://discord.gg/sKY4M3eS"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  
 </p>
 
-<p align="center">
-  <b><a href="https://t-req.io">Docs</a></b> &middot; <b><a href="https://discord.gg/sKY4M3eS">Discord</a></b>
-</p>
+
 
 ## Install
 
@@ -48,7 +46,7 @@ treq init my-api && cd my-api
 treq run requests/users/list.http   # single request from CLI
 ```
 
-## Run from the terminal app 
+## Run from the terminal 
 
 Use the interactive terminal app to browse files, run requests, and inspect results:
 
@@ -56,13 +54,13 @@ Use the interactive terminal app to browse files, run requests, and inspect resu
 treq open
 ```
 
-![t-req TUI demo](https://assets.t-req.ai/tui-demo.gif)
+![t-req TUI demo](./docs/assets/tui-demo.gif)
 
 ## Run from VS Code or Cursor
 
 Install the [t-req extension](./packages/vscode) in VS Code or Cursor for syntax highlighting, inline execution, and assertion results (`@t-req/plugin-assert`) directly in your editor.
 
-[![t-req init in VS Code or Cursor](https://assets.t-req.ai/treq-init-cursor.gif)](https://assets.t-req.ai/treq-demo-desktop.mp4)
+[Watch VS Code/Cursor demo (MP4)](./docs/assets/treq-init-cursor.mp4)
 
 ## Run from Web
 
