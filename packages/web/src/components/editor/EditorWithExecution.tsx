@@ -21,7 +21,8 @@ import { ExecutionDetail } from '../execution/ExecutionDetail';
 import {
   DEFAULT_REQUEST_WORKSPACE_TAB,
   type RequestWorkspaceTabId,
-  RequestWorkspaceTabs
+  RequestWorkspaceTabs,
+  useRequestParseDetails
 } from '../request-workspace';
 import { ScriptPanel } from '../script';
 import { CodeEditor } from './CodeEditor';
@@ -67,6 +68,11 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
       return undefined;
     }
     return allRequests[selectedRequestIndex()];
+  });
+  const requestParseDetails = useRequestParseDetails({
+    client: () => connection.client,
+    path: () => props.path,
+    requestIndex: () => selectedRequest()?.index
   });
 
   const saveCollapsedState = (collapsed: boolean) => {
@@ -207,6 +213,10 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     onTabChange={setActiveRequestTab}
                     selectedRequest={selectedRequest()}
                     requestCount={requests().length}
+                    requestHeaders={requestParseDetails.headers()}
+                    requestBodySummary={requestParseDetails.bodySummary()}
+                    requestDetailsLoading={requestParseDetails.loading()}
+                    requestDetailsError={requestParseDetails.error()}
                   />
                   <div class="flex-1 min-h-0">
                     <HttpEditor path={props.path} onExecute={handleHttpExecute} />

@@ -1,5 +1,7 @@
-import { For, Match, Show, Switch } from 'solid-js';
+import { createMemo, For, Match, Show, Switch } from 'solid-js';
 import type { WorkspaceRequest } from '../../sdk';
+import type { RequestBodySummary, RequestDetailsRow } from '../../utils/request-details';
+import { toRequestParams } from '../../utils/request-details';
 import { REQUEST_WORKSPACE_TABS, type RequestWorkspaceTabId } from './model';
 
 interface RequestWorkspaceTabsProps {
@@ -7,6 +9,10 @@ interface RequestWorkspaceTabsProps {
   onTabChange: (tab: RequestWorkspaceTabId) => void;
   selectedRequest?: WorkspaceRequest;
   requestCount: number;
+  requestHeaders: RequestDetailsRow[];
+  requestBodySummary: RequestBodySummary;
+  requestDetailsLoading: boolean;
+  requestDetailsError?: string;
 }
 
 const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
@@ -16,6 +22,14 @@ const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
 };
 
 export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
+  const requestParams = createMemo(() => {
+    const request = props.selectedRequest;
+    if (!request) {
+      return [];
+    }
+    return toRequestParams(request.url);
+  });
+
   return (
     <section
       class="border-b border-treq-border-light dark:border-treq-dark-border-light bg-base-100/80"
@@ -56,15 +70,162 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
             {(request) => (
               <Switch>
                 <Match when={props.activeTab === 'params'}>
-                  <p>Params editor wiring is next for {request().method.toUpperCase()} requests.</p>
+                  <Show
+                    when={requestParams().length > 0}
+                    fallback={
+                      <p>No query params in URL for {request().method.toUpperCase()} requests.</p>
+                    }
+                  >
+                    <div class="overflow-auto rounded-box border border-base-300 bg-base-100/80">
+                      <table class="table table-xs">
+                        <thead>
+                          <tr>
+                            <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Name</th>
+                            <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <For each={requestParams()}>
+                            {(param) => (
+                              <tr>
+                                <td class="font-mono text-xs text-base-content">{param.key}</td>
+                                <td class="font-mono text-xs text-base-content/80">
+                                  {param.value}
+                                </td>
+                              </tr>
+                            )}
+                          </For>
+                        </tbody>
+                      </table>
+                    </div>
+                  </Show>
                 </Match>
                 <Match when={props.activeTab === 'headers'}>
-                  <p>
-                    Headers editor wiring is next for {request().method.toUpperCase()} requests.
-                  </p>
+                  <Show
+                    when={!props.requestDetailsLoading}
+                    fallback={<p>Loading request headers…</p>}
+                  >
+                    <Show
+                      when={!props.requestDetailsError}
+                      fallback={<p>{props.requestDetailsError}</p>}
+                    >
+                      <Show
+                        when={props.requestHeaders.length > 0}
+                        fallback={<p>No headers were parsed for this request.</p>}
+                      >
+                        <div class="overflow-auto rounded-box border border-base-300 bg-base-100/80">
+                          <table class="table table-xs">
+                            <thead>
+                              <tr>
+                                <th class="font-mono uppercase tracking-[0.06em] text-[11px]">
+                                  Name
+                                </th>
+                                <th class="font-mono uppercase tracking-[0.06em] text-[11px]">
+                                  Value
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <For each={props.requestHeaders}>
+                                {(header) => (
+                                  <tr>
+                                    <td class="font-mono text-xs text-base-content">
+                                      {header.key}
+                                    </td>
+                                    <td class="font-mono text-xs text-base-content/80">
+                                      {header.value}
+                                    </td>
+                                  </tr>
+                                )}
+                              </For>
+                            </tbody>
+                          </table>
+                        </div>
+                      </Show>
+                    </Show>
+                  </Show>
                 </Match>
                 <Match when={props.activeTab === 'body'}>
-                  <p>Body editor wiring is next for {request().method.toUpperCase()} requests.</p>
+                  <Show when={!props.requestDetailsLoading} fallback={<p>Loading request body…</p>}>
+                    <Show
+                      when={!props.requestDetailsError}
+                      fallback={<p>{props.requestDetailsError}</p>}
+                    >
+                      <div class="space-y-2">
+                        <p>{props.requestBodySummary.description}</p>
+
+                        <Switch>
+                          <Match
+                            when={
+                              props.requestBodySummary.kind === 'inline' &&
+                              props.requestBodySummary.text !== undefined
+                            }
+                          >
+                            <pre class="max-h-52 overflow-auto rounded-box border border-base-300 bg-base-100/80 p-2 font-mono text-xs text-base-content">
+                              {props.requestBodySummary.text}
+                            </pre>
+                          </Match>
+
+                          <Match when={props.requestBodySummary.kind === 'form-data'}>
+                            <Show
+                              when={(props.requestBodySummary.fields?.length ?? 0) > 0}
+                              fallback={<p>No form-data fields were parsed.</p>}
+                            >
+                              <div class="overflow-auto rounded-box border border-base-300 bg-base-100/80">
+                                <table class="table table-xs">
+                                  <thead>
+                                    <tr>
+                                      <th class="font-mono uppercase tracking-[0.06em] text-[11px]">
+                                        Name
+                                      </th>
+                                      <th class="font-mono uppercase tracking-[0.06em] text-[11px]">
+                                        Type
+                                      </th>
+                                      <th class="font-mono uppercase tracking-[0.06em] text-[11px]">
+                                        Value
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <For each={props.requestBodySummary.fields}>
+                                      {(field) => (
+                                        <tr>
+                                          <td class="font-mono text-xs text-base-content">
+                                            {field.name}
+                                          </td>
+                                          <td class="font-mono text-xs text-base-content/80">
+                                            {field.isFile ? 'file' : 'text'}
+                                          </td>
+                                          <td class="font-mono text-xs text-base-content/80">
+                                            {field.isFile
+                                              ? (field.path ?? field.filename ?? field.value)
+                                              : field.value}
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </For>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </Show>
+                          </Match>
+
+                          <Match when={props.requestBodySummary.kind === 'file'}>
+                            <Show
+                              when={props.requestBodySummary.filePath}
+                              fallback={<p>No request body file path was parsed.</p>}
+                            >
+                              {(filePath) => (
+                                <div class="rounded-box border border-base-300 bg-base-100/80 p-2">
+                                  <p class="font-mono text-xs text-base-content/80">{filePath()}</p>
+                                </div>
+                              )}
+                            </Show>
+                          </Match>
+                        </Switch>
+                      </div>
+                    </Show>
+                  </Show>
                 </Match>
               </Switch>
             )}
