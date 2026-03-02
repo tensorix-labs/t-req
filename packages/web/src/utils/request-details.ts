@@ -107,13 +107,15 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
   }
 
   if (parsedBody?.kind === 'form-data') {
+    const hasFormDataFields = parsedBody.fields.length > 0;
     return {
       kind: 'form-data',
       hasBody,
       hasFormData: true,
       hasBodyFile,
-      description:
-        hasBodyFile || parsedBody.fields.some((field) => field.isFile)
+      description: !hasFormDataFields
+        ? 'No form-data fields were parsed for this request.'
+        : hasBodyFile || parsedBody.fields.some((field) => field.isFile)
           ? 'Request includes form data fields and file references.'
           : 'Request includes form data fields.',
       fields: parsedBody.fields.map((field) => ({
@@ -157,7 +159,7 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
       hasBody,
       hasFormData,
       hasBodyFile,
-      description: 'Request includes form data fields.'
+      description: 'No form-data fields were parsed for this request.'
     };
   }
 
@@ -177,7 +179,7 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
       hasBody,
       hasFormData,
       hasBodyFile,
-      description: 'Request includes an inline body payload.',
+      description: 'Request body content is unavailable for this request.',
       ...(request?.spans !== undefined ? { spans: request.spans } : {})
     };
   }

@@ -2,7 +2,6 @@ import { type PostParseResponses, type TreqClient, unwrap } from '@t-req/sdk/cli
 import { createMemo, createResource } from 'solid-js';
 import {
   findRequestBlock,
-  type ParseRequestBlock,
   type RequestBodySummary,
   type RequestDetailsRow,
   toRequestBodySummary,
@@ -14,12 +13,6 @@ type ParseRequestDetailsResponse = PostParseResponses[200];
 interface ParseRequestDetailsSource {
   client: TreqClient;
   path: string;
-  requestIndex: number;
-}
-
-interface ParseRequestDetailsResult {
-  source: ParseRequestDetailsSource;
-  response: ParseRequestDetailsResponse;
 }
 
 interface UseRequestParseDetailsOptions {
@@ -29,12 +22,10 @@ interface UseRequestParseDetailsOptions {
 }
 
 interface UseRequestParseDetailsReturn {
-  requestBlock: () => ParseRequestBlock | undefined;
   headers: () => RequestDetailsRow[];
   bodySummary: () => RequestBodySummary;
   loading: () => boolean;
   error: () => string | undefined;
-  refetch: () => void;
 }
 
 const DEFAULT_PARSE_ERROR = 'Unable to load request details.';
@@ -45,21 +36,19 @@ export function useRequestParseDetails(
   const source = createMemo<ParseRequestDetailsSource | null>(() => {
     const client = options.client();
     const path = options.path();
-    const requestIndex = options.requestIndex();
-    if (!client || !path || requestIndex === undefined) {
+    if (!client || !path) {
       return null;
     }
     return {
       client,
-      path,
-      requestIndex
+      path
     };
   });
 
-  const [parseResult, { refetch }] = createResource(
+  const [parseResult] = createResource(
     source,
-    async (current): Promise<ParseRequestDetailsResult> => {
-      const response = await unwrap(
+    async (current): Promise<ParseRequestDetailsResponse> => {
+      return await unwrap(
         current.client.postParse({
           body: {
             path: current.path,
@@ -68,20 +57,16 @@ export function useRequestParseDetails(
           }
         })
       );
-
-      return {
-        source: current,
-        response
-      };
     }
   );
 
   const requestBlock = createMemo(() => {
-    const result = parseResult();
-    if (!result) {
+    const parsedRequestFile = parseResult();
+    const requestIndex = options.requestIndex();
+    if (!parsedRequestFile || requestIndex === undefined) {
       return undefined;
     }
-    return findRequestBlock(result.response.requests, result.source.requestIndex);
+    return findRequestBlock(parsedRequestFile.requests, requestIndex);
   });
 
   const headers = createMemo(() => {
@@ -106,11 +91,9 @@ export function useRequestParseDetails(
   });
 
   return {
-    requestBlock,
     headers,
     bodySummary,
     loading: () => parseResult.loading,
-    error,
-    refetch
+    error
   };
 }

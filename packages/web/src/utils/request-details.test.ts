@@ -170,6 +170,27 @@ describe('toRequestBodySummary', () => {
     });
   });
 
+  test('returns empty form-data description when parsed form-data has no fields', () => {
+    expect(
+      toRequestBodySummary(
+        createParsedRequest(0, {
+          hasFormData: true,
+          body: {
+            kind: 'form-data',
+            fields: []
+          }
+        })
+      )
+    ).toEqual({
+      kind: 'form-data',
+      hasBody: false,
+      hasFormData: true,
+      hasBodyFile: false,
+      description: 'No form-data fields were parsed for this request.',
+      fields: []
+    });
+  });
+
   test('returns file summary when request body is loaded from a file', () => {
     expect(
       toRequestBodySummary(
@@ -190,6 +211,22 @@ describe('toRequestBodySummary', () => {
       description: 'Request body is loaded from a file reference.',
       filePath: './payload.json',
       contentType: 'application/json'
+    });
+  });
+
+  test('returns unavailable description when hasBody is true without parsed inline text', () => {
+    expect(
+      toRequestBodySummary(
+        createParsedRequest(0, {
+          hasBody: true
+        })
+      )
+    ).toEqual({
+      kind: 'inline',
+      hasBody: true,
+      hasFormData: false,
+      hasBodyFile: false,
+      description: 'Request body content is unavailable for this request.'
     });
   });
 });
