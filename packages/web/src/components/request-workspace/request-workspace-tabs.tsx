@@ -37,6 +37,7 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
               type="button"
               role="tab"
               class="tab tab-sm"
+              aria-selected={props.activeTab === tab}
               classList={{ 'tab-active': props.activeTab === tab }}
               onClick={() => props.onTabChange(tab)}
             >
