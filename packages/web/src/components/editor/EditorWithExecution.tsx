@@ -18,6 +18,11 @@ import {
 import type { WorkspaceRequest } from '../../sdk';
 import { type FileType, getFileType } from '../../utils/fileType';
 import { ExecutionDetail } from '../execution/ExecutionDetail';
+import {
+  DEFAULT_REQUEST_WORKSPACE_TAB,
+  type RequestWorkspaceTabId,
+  RequestWorkspaceTabs
+} from '../request-workspace';
 import { ScriptPanel } from '../script';
 import { CodeEditor } from './CodeEditor';
 import { HttpEditor } from './HttpEditor';
@@ -46,12 +51,22 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
   };
 
   const [selectedRequestIndex, setSelectedRequestIndex] = createSignal(0);
+  const [activeRequestTab, setActiveRequestTab] = createSignal<RequestWorkspaceTabId>(
+    DEFAULT_REQUEST_WORKSPACE_TAB
+  );
   const [resultsPanelCollapsed, setResultsPanelCollapsed] = createSignal(loadCollapsedState());
   const requests = createMemo<WorkspaceRequest[]>(() => {
     if (fileType() !== 'http') {
       return [];
     }
     return workspace.requestsByPath()[props.path] ?? [];
+  });
+  const selectedRequest = createMemo<WorkspaceRequest | undefined>(() => {
+    const allRequests = requests();
+    if (allRequests.length === 0) {
+      return undefined;
+    }
+    return allRequests[selectedRequestIndex()];
   });
 
   const saveCollapsedState = (collapsed: boolean) => {
@@ -74,6 +89,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
         // Clear previous execution results when switching files
         observer.clearExecutions();
         setSelectedRequestIndex(0);
+        setActiveRequestTab(DEFAULT_REQUEST_WORKSPACE_TAB);
 
         if (!path) {
           observer.clearScriptOutput();
@@ -184,7 +200,19 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
 
           <div class="flex-1 min-h-0">
             <ResizableSplitPane
-              left={<HttpEditor path={props.path} onExecute={handleHttpExecute} />}
+              left={
+                <div class="flex h-full min-h-0 flex-col">
+                  <RequestWorkspaceTabs
+                    activeTab={activeRequestTab()}
+                    onTabChange={setActiveRequestTab}
+                    selectedRequest={selectedRequest()}
+                    requestCount={requests().length}
+                  />
+                  <div class="flex-1 min-h-0">
+                    <HttpEditor path={props.path} onExecute={handleHttpExecute} />
+                  </div>
+                </div>
+              }
               right={
                 <div class="h-full bg-treq-bg dark:bg-treq-dark-bg overflow-hidden">
                   <Show
