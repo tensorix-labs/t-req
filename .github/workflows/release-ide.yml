@@ -1,0 +1,131 @@
+name: Release IDE Extensions
+
+on:
+  push:
+    tags:
+      - "ide-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Dry run (don't actually publish)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    name: Build and Publish IDE Extensions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Extract version from tag (ide-v1.2.3 -> 1.2.3)
+            VERSION="${GITHUB_REF#refs/tags/ide-v}"
+          else
+            # For manual trigger, read from package.json
+            VERSION=$(jq -r .version packages/vscode/package.json)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Verify tag version matches package.json
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          PKG_VERSION=$(jq -r .version packages/vscode/package.json)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$PKG_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            echo "The tag must match the committed version. Ensure you've merged the Version Packages PR first."
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      - name: Log manual run version source
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          VERSION=$(jq -r .version packages/vscode/package.json)
+          echo "Manual run uses package.json version: $VERSION"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build VS Code extension
+        run: bunx turbo run build --filter=t-req-vscode...
+
+      - name: Run VS Code unit tests
+        run: bun run --cwd packages/vscode test:unit
+
+      - name: Run VS Code integration tests
+        run: xvfb-run -a bun run --cwd packages/vscode test:integration
+
+      - name: Package VSIX
+        id: package
+        working-directory: packages/vscode
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VSIX_NAME="t-req-vscode-${VERSION}.vsix"
+          bunx @vscode/vsce package --no-dependencies --out "$VSIX_NAME"
+          SHA256=$(sha256sum "$VSIX_NAME" | awk '{print $1}')
+          echo "vsix_name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "Created $VSIX_NAME"
+          echo "SHA256: $SHA256"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: t-req-ide-vsix
+          path: packages/vscode/${{ steps.package.outputs.vsix_name }}
+
+      - name: Publish to VS Code Marketplace
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        working-directory: packages/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [[ -z "$VSCE_PAT" ]]; then
+            echo "Missing VSCE_PAT secret"
+            exit 1
+          fi
+          bunx @vscode/vsce publish --packagePath "${{ steps.package.outputs.vsix_name }}" --pat "$VSCE_PAT"
+
+      - name: Publish to Cursor (OpenVSX)
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        working-directory: packages/vscode
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+        run: |
+          if [[ -z "$OVSX_TOKEN" ]]; then
+            echo "Missing OVSX_TOKEN secret"
+            exit 1
+          fi
+          bunx ovsx publish "${{ steps.package.outputs.vsix_name }}" -p "$OVSX_TOKEN"
+
+      - name: Dry run summary
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          echo "=== DRY RUN SUMMARY ==="
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "VSIX: packages/vscode/${{ steps.package.outputs.vsix_name }}"
+          echo "SHA256: ${{ steps.package.outputs.sha256 }}"
+          echo ""
+          echo "[dry-run] Would publish to VS Code Marketplace"
+          echo "[dry-run] Would publish to Cursor (OpenVSX)"
