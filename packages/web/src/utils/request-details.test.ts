@@ -191,6 +191,24 @@ describe('toRequestBodySummary', () => {
     });
   });
 
+  test('returns empty form-data description for defensive hasFormData + hasBodyFile fallback', () => {
+    expect(
+      toRequestBodySummary(
+        createParsedRequest(0, {
+          hasFormData: true,
+          hasBodyFile: true
+        })
+      )
+    ).toEqual({
+      kind: 'form-data',
+      hasBody: false,
+      hasFormData: true,
+      hasBodyFile: true,
+      fields: [],
+      description: 'No form-data fields were parsed for this request.'
+    });
+  });
+
   test('returns file summary when request body is loaded from a file', () => {
     expect(
       toRequestBodySummary(

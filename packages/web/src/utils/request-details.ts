@@ -149,7 +149,8 @@ export function toRequestBodySummary(request: ParsedRequest | undefined): Reques
       hasBody,
       hasFormData,
       hasBodyFile,
-      description: 'Request includes form data fields and file references.'
+      fields: [],
+      description: 'No form-data fields were parsed for this request.'
     };
   }
 
