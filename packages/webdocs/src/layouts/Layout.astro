@@ -1,12 +1,37 @@
 ---
-import '@t-req/ui/fonts';
-import '../styles/global.css';
+import "@t-req/ui/fonts";
+import "../styles/global.css";
 
 interface Props {
   title?: string;
+  description?: string;
+  ogDescription?: string;
+  twitterDescription?: string;
+  ogImage?: string;
+  canonicalUrl?: string;
 }
 
-const { title = 't-req' } = Astro.props;
+const {
+  title = "t-req",
+  description = "t-req is a utility-first API client with .http files that integrate with Vitest, Jest, and Bun.",
+  ogDescription,
+  twitterDescription,
+  ogImage = "/logo.jpg",
+  canonicalUrl,
+} = Astro.props;
+
+const canonicalHref =
+  canonicalUrl ??
+  (Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined);
+const socialDescription = ogDescription ?? description;
+const twitterSocialDescription = twitterDescription ?? socialDescription;
+
+const ogImageUrl = (() => {
+  if (!ogImage) return undefined;
+  if (ogImage.startsWith("http://") || ogImage.startsWith("https://"))
+    return ogImage;
+  return Astro.site ? new URL(ogImage, Astro.site).href : ogImage;
+})();
 ---
 
 <!doctype html>
@@ -14,7 +39,18 @@ const { title = 't-req' } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="HTTP request parsing, execution, and testing" />
+    <meta name="description" content={description} />
+    {canonicalHref && <link rel="canonical" href={canonicalHref} />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={socialDescription} />
+    <meta property="og:type" content="website" />
+    {canonicalHref && <meta property="og:url" content={canonicalHref} />}
+    {ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+    <meta property="og:site_name" content="t-req" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={twitterSocialDescription} />
+    {ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <title>{title}</title>

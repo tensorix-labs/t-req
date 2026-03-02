@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
+  site: 'https://t-req.io',
   output: 'server',
   adapter: cloudflare(),
   redirects: {
@@ -12,11 +13,23 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 't-req',
+      description:
+        't-req is a utility-first HTTP client with .http files that integrate with Vitest, Jest, and Bun.',
       logo: {
         src: './src/assets/logo.jpg',
         replacesTitle: true
       },
       favicon: '/favicon.png',
+      head: [
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image', content: 'https://t-req.io/logo.jpg' }
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:image', content: 'https://t-req.io/logo.jpg' }
+        }
+      ],
       customCss: ['./src/styles/starlight.css'],
       sidebar: [
         { label: 'Getting Started', slug: 'docs/getting-started' },
