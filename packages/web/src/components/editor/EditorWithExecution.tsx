@@ -5,6 +5,7 @@ import {
   createSignal,
   Match,
   on,
+  onCleanup,
   Show,
   Switch
 } from 'solid-js';
@@ -28,7 +29,6 @@ import {
 } from '../request-workspace';
 import { ScriptPanel } from '../script';
 import { CodeEditor } from './CodeEditor';
-import { HttpEditor } from './HttpEditor';
 import { RequestSelectorBar } from './RequestSelectorBar';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -212,10 +212,60 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
 
   const selectedExecution = () => observer.selectedExecution();
 
+  const handleHttpSave = async () => {
+    if (activeRequestTab() === 'headers' && requestHeaderDraft.isDirty()) {
+      await requestHeaderDraft.onSave();
+      return;
+    }
+
+    if (activeRequestTab() === 'body' && requestBodyDraft.isDirty()) {
+      await requestBodyDraft.onSave();
+      return;
+    }
+
+    if (workspace.hasUnsavedChanges(props.path)) {
+      await workspace.saveFile(props.path);
+      await workspace.loadRequests(props.path);
+    }
+  };
+
+  createEffect(() => {
+    if (fileType() !== 'http' || typeof window === 'undefined') {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void handleHttpExecute();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleHttpSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => {
+      window.removeEventListener('keydown', handleKeyDown);
+    });
+  });
+
   return (
     <div class="flex flex-col h-full">
       <Switch>
-        {/* HTTP files: use HTTP editor with request selector */}
+        {/* HTTP files: request workspace + execution panel */}
         <Match when={fileType() === 'http'}>
           <RequestSelectorBar
             requests={requests()}
@@ -231,7 +281,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
           <div class="flex-1 min-h-0">
             <ResizableSplitPane
               left={
-                <div class="flex h-full min-h-0 flex-col">
+                <div class="h-full min-h-0 overflow-auto">
                   <RequestWorkspaceTabs
                     activeTab={activeRequestTab()}
                     onTabChange={setActiveRequestTab}
@@ -272,9 +322,6 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     onSaveBody={requestBodyDraft.onSave}
                     onDiscardBody={requestBodyDraft.onDiscard}
                   />
-                  <div class="flex-1 min-h-0">
-                    <HttpEditor path={props.path} onExecute={handleHttpExecute} />
-                  </div>
                 </div>
               }
               right={
