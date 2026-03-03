@@ -31,7 +31,7 @@ These variables are injected automatically when running from the TUI:
 
 | Variable | Description |
 |----------|-------------|
-| `TREQ_SERVER` | Base URL of the t-req server (e.g., `http://localhost:4096`) |
+| `TREQ_SERVER` | Base URL of the t-req server (e.g., `http://localhost:4097`) |
 | `TREQ_FLOW_ID` | Flow ID that groups related executions together |
 | `TREQ_SESSION_ID` | Pre-created session ID (skips session creation) |
 | `TREQ_TOKEN` | Scoped token for authentication |

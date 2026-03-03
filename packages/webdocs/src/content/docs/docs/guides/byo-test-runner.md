@@ -147,7 +147,7 @@ Python tests use the t-req server API directly via HTTP:
 import requests
 import pytest
 
-TREQ_SERVER = "http://localhost:4096"
+TREQ_SERVER = "http://localhost:4097"
 
 @pytest.fixture(scope="session")
 def session_id():
@@ -181,7 +181,7 @@ When running tests from the TUI, t-req automatically detects the right test fram
 
 | Framework | Detection |
 |-----------|-----------|
-| bun test  | `bun.lockb` present or `bun` in path |
+| bun test  | `bun.lockb` or `bun.lock` present, or `bun` in path |
 | vitest    | `vitest` in `devDependencies` |
 | jest      | `jest` in `devDependencies` |
 | pytest    | `pytest` or `.py` test files |

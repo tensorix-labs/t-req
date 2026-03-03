@@ -73,13 +73,13 @@ Connect to a running t-req server instead of executing locally:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `server` | `string` | Server URL (e.g., `http://localhost:4096`) |
+| `server` | `string` | Server URL (e.g., `http://localhost:4097`) |
 | `serverToken` | `string` | Bearer token for authentication |
 | `profile` | `string` | Server-side config profile to use |
 
 ```typescript
 const client = createClient({
-  server: 'http://localhost:4096',
+  server: 'http://localhost:4097',
   serverToken: process.env.TREQ_TOKEN,
   profile: 'staging',
 });
@@ -173,7 +173,7 @@ For server-mode clients, this finishes the current flow.
 With TypeScript 5.2+, use `await using` for automatic cleanup:
 
 ```typescript
-await using client = createClient({ server: 'http://localhost:4096' });
+await using client = createClient({ server: 'http://localhost:4097' });
 const res = await client.run('./auth/login.http');
 // client.close() called automatically when scope exits
 ```

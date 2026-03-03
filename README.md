@@ -169,16 +169,6 @@ export default definePlugin({
 
 Write plugins in any language using the subprocess protocol — see `examples/plugins/` for Python and Ruby examples.
 
-## Observer Mode
-
-Run scripts from the TUI and watch every HTTP request appear in real time — without changing a line of code.
-
-```bash
-treq open              # start the TUI
-# select a script → run it → see every request as it happens
-```
-
-`createClient()` auto-detects the TUI server and routes requests through it. Your scripts, tests, and CI jobs get full observability for free.
 
 ## Run from Any Language
 
@@ -196,7 +186,6 @@ curl -X POST http://localhost:4097/execute \
 
 ## Features
 
-- **Variable interpolation** with profiles and nested access (`{{user.email}}`)
 - **Command resolvers** — `{{$timestamp()}}`, `{{$uuid()}}`, or your own custom functions
 - **Cookie management** — automatic jar with RFC 6265 compliance
 - **SSE streaming** — `@sse` directive for Server-Sent Events

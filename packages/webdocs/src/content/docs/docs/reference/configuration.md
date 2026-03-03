@@ -207,10 +207,117 @@ Or select one in the TUI.
 
 Profile values are merged on top of the root configuration. Only the fields you specify in a profile are overridden.
 
+## Plugins
+
+Plugins extend t-req with custom hooks for request/response processing, authentication, assertions, and more. The `plugins` key is a top-level array of plugin references.
+
+```jsonc
+{
+  "plugins": [
+    "@t-req/plugin-assert",
+    ["@t-req/plugin-oauth2", { "provider": "github" }],
+    "file://./plugins/custom.ts",
+    {
+      "command": ["node", "./plugins/external.js"],
+      "timeoutMs": 5000
+    }
+  ]
+}
+```
+
+### Plugin source types
+
+| Source | Format | Example |
+|--------|--------|---------|
+| npm package | `"package-name"` | `"@t-req/plugin-assert"` |
+| npm package with options | `["package-name", { options }]` | `["@t-req/plugin-oauth2", { "provider": "github" }]` |
+| Local file | `"file://./path"` | `"file://./plugins/custom.ts"` |
+| Subprocess | `{ "command": [...] }` | `{ "command": ["node", "./plugin.js"] }` |
+
+### npm package
+
+A string referencing an installed npm package. The package must export a valid t-req plugin.
+
+### npm package with options
+
+A `[packageName, options]` tuple. The options object is passed to the plugin's factory function.
+
+### Local file
+
+A `file://` URL pointing to a local `.ts` or `.js` file that exports a plugin. Relative paths resolve from the project root. By default, the file must be within the project root — see [`security.allowPluginsOutsideProject`](#security) to allow external paths.
+
+### Subprocess plugin
+
+An object with a `command` array and optional configuration:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `command` | `string[]` | — | Command to spawn (e.g., `["node", "./plugin.js"]`) |
+| `config` | `object` | — | Plugin-specific config sent during initialization |
+| `timeoutMs` | `number` | — | Per-request timeout in milliseconds |
+| `startupTimeoutMs` | `number` | — | Initialization timeout in milliseconds |
+| `maxRestarts` | `number` | — | Auto-restart limit |
+| `gracePeriodMs` | `number` | — | Shutdown grace period in milliseconds |
+| `env` | `object` | — | Additional environment variables |
+
+### Profile-level plugins
+
+Plugins can also be specified per profile. Profile plugins are appended to the base plugin list:
+
+```jsonc
+{
+  "plugins": ["@t-req/plugin-assert"],
+  "profiles": {
+    "production": {
+      "plugins": ["@t-req/plugin-logging"]
+    }
+  }
+}
+```
+
+If a profile plugin has the same name and instance ID as a base plugin, the profile version overrides it.
+
 ## Security
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `allowExternalFiles` | boolean | false | Allow `{file:path}` to reference files outside the workspace |
+| `allowExternalFiles` | boolean | `false` | Allow `{file:path}` to reference files outside the workspace |
+| `allowPluginsOutsideProject` | boolean | `false` | Allow `file://` plugins to load from paths outside the project root |
+| `pluginPermissions` | object | — | Permission overrides for plugins (see below) |
 
 By default, `{file:path}` substitutions are restricted to files within the workspace root. Set `allowExternalFiles: true` to allow references to files anywhere on the filesystem.
+
+### allowPluginsOutsideProject
+
+When `false` (the default), `file://` plugin paths must resolve to a location within the project root (symlinks are resolved before checking). Set to `true` to load plugins from anywhere on the filesystem.
+
+### pluginPermissions
+
+Controls which capabilities plugins receive. Plugins declare the permissions they need; this setting restricts or overrides those declarations.
+
+Available permissions:
+
+| Permission | Grants |
+|------------|--------|
+| `secrets` | Access to resolvers that read secrets (Vault, SSM, env vars) |
+| `network` | Outbound HTTP requests (OAuth refresh, telemetry) |
+| `filesystem` | Read/write files outside the project root |
+| `env` | Read `process.env` |
+| `subprocess` | Spawn child processes |
+| `enterprise` | Access enterprise context (org, user, session data) |
+
+Use `default` to set a baseline for all plugins, and per-plugin keys to override:
+
+```jsonc
+{
+  "security": {
+    "pluginPermissions": {
+      "default": ["network"],
+      "@t-req/plugin-oauth2": ["secrets", "network", "env"],
+      "my-local-plugin": ["filesystem", "subprocess"]
+    }
+  }
+}
+```
+
+If no `pluginPermissions` config is present, plugins receive all the permissions they declare.
