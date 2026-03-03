@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.5
+
+### Features
+
+- **Enhanced marketplace visibility and SEO**: Optimized extension metadata and README for better discoverability in VS Code Marketplace and OpenVSX (Cursor).
+  - Updated displayName to include "HTTP Client & API Testing"
+  - Expanded keywords from 6 to 21 terms including competitors (Postman, Thunder Client, Insomnia, Bruno, curl, httpie)
+  - Added "Debuggers" and "Other" categories for increased browse visibility
+  - Rewrote README with SEO-optimized intro, badges, and structured feature sections
+  - Positioned as file-based alternative to popular API testing tools
+
+### Fixes
+
+- **Remove duplicate headers in response panel**: Fixed an issue where response headers were being displayed twice. This was caused by redundant header processing in the body formatting utilities.
+  - Cleaned up unused CSS styles (28 lines removed)
+  - Simplified body formatting logic (15 lines removed)
+  - Updated tests to reflect cleaner implementation
+
 ## 0.1.4
 
 ### Patch Changes
