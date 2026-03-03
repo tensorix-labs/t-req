@@ -2,7 +2,7 @@
   <a href="https://t-req.io"><img src="./docs/assets/logo.jpg" alt="t-req logo" height="170"></a>
 </p>
 
-<h3 align="center">API testing that lives in your code</h3>
+<h3 align="center">Programmable API testing built on .http files</h3>
 
 <p align="center">
 Tired of API tools that lock your requests in proprietary formats and GUI-only workflows?<br/>
@@ -15,7 +15,13 @@ t-req keeps standard <code>.http</code> files as the source of truth and lets yo
   
 </p>
 
+## Why t-req?
 
+`.http` is the only request format supported by multiple independent editors — VS Code REST Client, JetBrains HTTP Client, and others. It's just raw HTTP: no DSL, no vendor syntax. Your files work without t-req.
+
+But a file format alone doesn't get you far. t-req is the engine that makes `.http` files composable: hook into the request lifecycle with plugins, expose your collection as an API with `treq serve`, embed execution in your own code with `@t-req/core`, observe traffic in real time from the TUI.
+
+One source of truth, many surfaces. The same `.http` file runs from the terminal, a server, a test suite, or a TypeScript script.
 
 ## Install
 
@@ -29,13 +35,32 @@ Or as a library:
 npm install @t-req/core
 ```
 
-## Why t-req?
+## Test with Any Framework
 
-`.http` is the only request format supported by multiple independent editors — VS Code REST Client, JetBrains HTTP Client, and others. It's just raw HTTP: no DSL, no vendor syntax. Your files work without t-req.
+t-req works with your existing runner (`bun:test`, Vitest, Jest, or `node:test`) because tests call `client.run(...)` the same way.
 
-But a file format alone doesn't get you far. t-req is the engine that makes `.http` files composable: hook into the request lifecycle with plugins, expose your collection as an API with `treq serve`, embed execution in your own code with `@t-req/core`, observe traffic in real time from the TUI.
+```typescript
+import { describe, expect, test } from 'vitest';
+import { createClient } from '@t-req/core';
 
-One source of truth, many surfaces. The same `.http` file runs from the terminal, a server, a test suite, or a TypeScript script.
+const client = createClient({
+  variables: { baseUrl: 'https://jsonplaceholder.typicode.com' }
+});
+
+describe('collection/users/list.http', () => {
+  test('returns a list of users', async () => {
+    const response = await client.run('./collection/users/list.http');
+
+    expect(response.status).toBe(200);
+  });
+});
+```
+
+```bash
+# run with your existing test command
+npm test
+# or: pnpm test / bun test / vitest / jest / node --test
+```
 
 ## Run from CLI
 
@@ -61,18 +86,6 @@ treq open
 Install the [t-req extension](./packages/vscode) in VS Code or Cursor for syntax highlighting, inline execution, and assertion results (`@t-req/plugin-assert`) directly in your editor.
 
 [Watch VS Code/Cursor demo (MP4)](./docs/assets/treq-init-cursor.mp4)
-
-## Run from Web
-
-Start the web app directly from your workspace:
-
-```bash
-treq web
-```
-
-<p align="center">
-  <img src="./docs/assets/web.png" alt="t-req web dashboard">
-</p>
 
 ## Embed in Scripts, Tests, or CI
 
@@ -107,32 +120,21 @@ console.log(`${profile.firstName} <${profile.email}>`);
 
 For a larger end-to-end example, see [`examples/core/e-commerce/checkout-flow.ts`](./examples/core/e-commerce/checkout-flow.ts).
 
-## Test with Any Framework
+## Run from Web
 
-t-req works with your existing runner (`bun:test`, Vitest, Jest, or `node:test`) because tests call `client.run(...)` the same way.
-
-```typescript
-import { describe, expect, test } from 'vitest';
-import { createClient } from '@t-req/core';
-
-const client = createClient({
-  variables: { baseUrl: 'https://jsonplaceholder.typicode.com' }
-});
-
-describe('collection/users/list.http', () => {
-  test('returns a list of users', async () => {
-    const response = await client.run('./collection/users/list.http');
-
-    expect(response.status).toBe(200);
-  });
-});
-```
+Start the web app directly from your workspace:
 
 ```bash
-# run with your existing test command
-npm test
-# or: pnpm test / bun test / vitest / jest / node --test
+treq web
 ```
+
+<p align="center">
+  <img src="./docs/assets/web.png" alt="t-req web dashboard">
+</p>
+
+
+
+
 
 ## Plugin Pipeline
 
@@ -204,7 +206,7 @@ curl -X POST http://localhost:4097/execute \
 | [@t-req/sdk](./packages/sdk/js) | TypeScript SDK for the server |
 | [@t-req/plugin-base](./packages/plugins/base) | Built-in resolvers (uuid, timestamp, base64, etc.) |
 | [@t-req/plugin-assert](./packages/plugins/assert) | Assertion directives for `.http` files |
-| [t-req for VS Code/Cursor](./packages/vscode) | VS Code-compatible extension with inline execution and assertions |
+| [t-req for IDE](./packages/vscode) | VS Code and Cursor compatible extension with inline execution and assertions |
 
 ## Contributing
 
