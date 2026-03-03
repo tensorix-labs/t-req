@@ -5,6 +5,7 @@ import {
   createSignal,
   Match,
   on,
+  onCleanup,
   Show,
   Switch
 } from 'solid-js';
@@ -211,10 +212,60 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
 
   const selectedExecution = () => observer.selectedExecution();
 
+  const handleHttpSave = async () => {
+    if (activeRequestTab() === 'headers' && requestHeaderDraft.isDirty()) {
+      await requestHeaderDraft.onSave();
+      return;
+    }
+
+    if (activeRequestTab() === 'body' && requestBodyDraft.isDirty()) {
+      await requestBodyDraft.onSave();
+      return;
+    }
+
+    if (workspace.hasUnsavedChanges(props.path)) {
+      await workspace.saveFile(props.path);
+      await workspace.loadRequests(props.path);
+    }
+  };
+
+  createEffect(() => {
+    if (fileType() !== 'http' || typeof window === 'undefined') {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void handleHttpExecute();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleHttpSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => {
+      window.removeEventListener('keydown', handleKeyDown);
+    });
+  });
+
   return (
     <div class="flex flex-col h-full">
       <Switch>
-        {/* HTTP files: use HTTP editor with request selector */}
+        {/* HTTP files: request workspace + execution panel */}
         <Match when={fileType() === 'http'}>
           <RequestSelectorBar
             requests={requests()}
