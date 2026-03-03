@@ -16,6 +16,7 @@ interface RequestWorkspaceTabsProps {
   requestCount: number;
   requestHeaders: RequestDetailsRow[];
   requestBodySummary: RequestBodySummary;
+  requestBodyDraft: string;
   requestDetailsLoading: boolean;
   requestDetailsError?: string;
   headerDraftDirty: boolean;
@@ -26,6 +27,18 @@ interface RequestWorkspaceTabsProps {
   onRemoveHeader: (index: number) => void;
   onSaveHeaders: () => void;
   onDiscardHeaders: () => void;
+  bodyDraftDirty: boolean;
+  bodyDraftSaving: boolean;
+  bodyDraftSaveError?: string;
+  bodyDraftValidationError?: string;
+  bodyDraftIsJsonEditable: boolean;
+  bodyDraftTemplateWarnings: string[];
+  onBodyChange: (value: string) => void;
+  onBodyPrettify: () => void;
+  onBodyMinify: () => void;
+  onBodyCopy: () => void;
+  onSaveBody: () => void;
+  onDiscardBody: () => void;
 }
 
 const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
@@ -118,7 +131,23 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
                       when={!props.requestDetailsError}
                       fallback={<p>{props.requestDetailsError}</p>}
                     >
-                      <RequestWorkspaceBodyPanel requestBodySummary={props.requestBodySummary} />
+                      <RequestWorkspaceBodyPanel
+                        hasRequest={Boolean(props.selectedRequest)}
+                        requestBodySummary={props.requestBodySummary}
+                        requestBodyDraft={props.requestBodyDraft}
+                        bodyDraftDirty={props.bodyDraftDirty}
+                        bodyDraftSaving={props.bodyDraftSaving}
+                        bodyDraftSaveError={props.bodyDraftSaveError}
+                        bodyDraftValidationError={props.bodyDraftValidationError}
+                        bodyDraftIsJsonEditable={props.bodyDraftIsJsonEditable}
+                        bodyDraftTemplateWarnings={props.bodyDraftTemplateWarnings}
+                        onBodyChange={props.onBodyChange}
+                        onBodyPrettify={props.onBodyPrettify}
+                        onBodyMinify={props.onBodyMinify}
+                        onBodyCopy={props.onBodyCopy}
+                        onSaveBody={props.onSaveBody}
+                        onDiscardBody={props.onDiscardBody}
+                      />
                     </Show>
                   </Show>
                 </Match>

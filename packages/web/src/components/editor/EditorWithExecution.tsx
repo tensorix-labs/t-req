@@ -22,6 +22,7 @@ import {
   DEFAULT_REQUEST_WORKSPACE_TAB,
   type RequestWorkspaceTabId,
   RequestWorkspaceTabs,
+  useRequestBodyDraftController,
   useRequestHeaderDraftController,
   useRequestParseDetails
 } from '../request-workspace';
@@ -80,6 +81,17 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
     selectedRequest,
     sourceHeaders: requestParseDetails.headers,
     sourceUrl: () => selectedRequest()?.url,
+    getFileContent: () => workspace.fileContents()[props.path]?.content,
+    setFileContent: (content) => workspace.updateFileContent(props.path, content),
+    saveFile: (path) => workspace.saveFile(path),
+    reloadRequests: (path) => workspace.loadRequests(path),
+    refetchRequestDetails: requestParseDetails.refetch
+  });
+  const requestBodyDraft = useRequestBodyDraftController({
+    path: () => props.path,
+    selectedRequest,
+    sourceBody: requestParseDetails.bodySummary,
+    requestDiagnostics: requestParseDetails.diagnostics,
     getFileContent: () => workspace.fileContents()[props.path]?.content,
     setFileContent: (content) => workspace.updateFileContent(props.path, content),
     saveFile: (path) => workspace.saveFile(path),
@@ -227,6 +239,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     requestCount={requests().length}
                     requestHeaders={requestHeaderDraft.draftHeaders()}
                     requestBodySummary={requestParseDetails.bodySummary()}
+                    requestBodyDraft={requestBodyDraft.draftBody()}
                     requestDetailsLoading={requestParseDetails.loading()}
                     requestDetailsError={requestParseDetails.error()}
                     headerDraftDirty={requestHeaderDraft.isDirty()}
@@ -237,6 +250,18 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     onRemoveHeader={requestHeaderDraft.onRemoveHeader}
                     onSaveHeaders={requestHeaderDraft.onSave}
                     onDiscardHeaders={requestHeaderDraft.onDiscard}
+                    bodyDraftDirty={requestBodyDraft.isDirty()}
+                    bodyDraftSaving={requestBodyDraft.isSaving()}
+                    bodyDraftSaveError={requestBodyDraft.saveError()}
+                    bodyDraftValidationError={requestBodyDraft.validationError()}
+                    bodyDraftIsJsonEditable={requestBodyDraft.isJsonBody()}
+                    bodyDraftTemplateWarnings={requestBodyDraft.templateWarnings()}
+                    onBodyChange={requestBodyDraft.onBodyChange}
+                    onBodyPrettify={requestBodyDraft.onBodyPrettify}
+                    onBodyMinify={requestBodyDraft.onBodyMinify}
+                    onBodyCopy={() => void requestBodyDraft.onBodyCopy()}
+                    onSaveBody={requestBodyDraft.onSave}
+                    onDiscardBody={requestBodyDraft.onDiscard}
                   />
                   <div class="flex-1 min-h-0">
                     <HttpEditor path={props.path} onExecute={handleHttpExecute} />

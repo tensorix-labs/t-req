@@ -2,6 +2,7 @@ import { type PostParseResponses, type TreqClient, unwrap } from '@t-req/sdk/cli
 import { createMemo, createResource } from 'solid-js';
 import {
   findRequestBlock,
+  type ParseDiagnostic,
   type RequestBodySummary,
   type RequestDetailsRow,
   toRequestBodySummary,
@@ -24,6 +25,7 @@ interface UseRequestParseDetailsOptions {
 interface UseRequestParseDetailsReturn {
   headers: () => RequestDetailsRow[];
   bodySummary: () => RequestBodySummary;
+  diagnostics: () => ParseDiagnostic[];
   loading: () => boolean;
   error: () => string | undefined;
   refetch: (info?: unknown) => unknown;
@@ -79,6 +81,7 @@ export function useRequestParseDetails(
   });
 
   const bodySummary = createMemo(() => toRequestBodySummary(requestBlock()?.request));
+  const diagnostics = createMemo(() => requestBlock()?.diagnostics ?? []);
 
   const error = createMemo(() => {
     const fetchError = parseResult.error;
@@ -94,6 +97,7 @@ export function useRequestParseDetails(
   return {
     headers,
     bodySummary,
+    diagnostics,
     loading: () => parseResult.loading,
     error,
     refetch

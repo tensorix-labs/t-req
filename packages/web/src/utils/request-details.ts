@@ -2,6 +2,7 @@ import type { PostParseResponses } from '@t-req/sdk/client';
 
 type ParseResponse = PostParseResponses[200];
 
+export type ParseDiagnostic = ParseResponse['diagnostics'][number];
 export type ParseRequestBlock = ParseResponse['requests'][number];
 export type ParsedRequest = NonNullable<ParseRequestBlock['request']>;
 export type ParsedRequestSpans = ParsedRequest['spans'];

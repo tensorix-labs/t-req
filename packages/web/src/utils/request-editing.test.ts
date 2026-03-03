@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   applyRequestEditsToContent,
+  applySpanEditToContent,
   areRequestRowsEqual,
   cloneRequestRows
 } from './request-editing';
@@ -264,6 +265,37 @@ describe('applyRequestEditsToContent', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toContain('could not be located');
+    }
+  });
+});
+
+describe('applySpanEditToContent', () => {
+  test('rewrites content inside the provided span', () => {
+    const content = ['GET https://api.example.com/users', '', '{"name":"old"}'].join('\n');
+    const startOffset = content.indexOf('{"name":"old"}');
+    const endOffset = startOffset + '{"name":"old"}'.length;
+
+    const result = applySpanEditToContent(content, { startOffset, endOffset }, '{"name":"new"}');
+
+    expect(result).toEqual({
+      ok: true,
+      content: ['GET https://api.example.com/users', '', '{"name":"new"}'].join('\n')
+    });
+  });
+
+  test('returns an error when span bounds are invalid', () => {
+    const result = applySpanEditToContent(
+      'GET https://api.example.com/users',
+      {
+        startOffset: 5,
+        endOffset: 999
+      },
+      'replacement'
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('out of bounds');
     }
   });
 });
