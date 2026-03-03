@@ -28,7 +28,6 @@ import {
 } from '../request-workspace';
 import { ScriptPanel } from '../script';
 import { CodeEditor } from './CodeEditor';
-import { HttpEditor } from './HttpEditor';
 import { RequestSelectorBar } from './RequestSelectorBar';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -231,7 +230,7 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
           <div class="flex-1 min-h-0">
             <ResizableSplitPane
               left={
-                <div class="flex h-full min-h-0 flex-col">
+                <div class="h-full min-h-0 overflow-auto">
                   <RequestWorkspaceTabs
                     activeTab={activeRequestTab()}
                     onTabChange={setActiveRequestTab}
@@ -272,9 +271,6 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     onSaveBody={requestBodyDraft.onSave}
                     onDiscardBody={requestBodyDraft.onDiscard}
                   />
-                  <div class="flex-1 min-h-0">
-                    <HttpEditor path={props.path} onExecute={handleHttpExecute} />
-                  </div>
                 </div>
               }
               right={
