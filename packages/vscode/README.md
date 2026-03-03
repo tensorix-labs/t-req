@@ -1,20 +1,28 @@
-# t-req 
+# t-req — HTTP Client & API Testing Extension
 
-Run and manage HTTP requests directly from `.http` files - powered by the [t-req](https://t-req.io) engine.
+A lightweight HTTP/REST client for testing APIs directly from `.http` files. Write requests in plain text with full syntax highlighting, run them with a click, and view formatted responses — all without leaving your editor. A file-based alternative to Postman, Thunder Client, Insomnia, and Bruno.
 
+[![Version](https://img.shields.io/visual-studio-marketplace/v/tensorix-labs.t-req-vscode)](https://marketplace.visualstudio.com/items?itemName=tensorix-labs.t-req-vscode)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/tensorix-labs.t-req-vscode)](https://marketplace.visualstudio.com/items?itemName=tensorix-labs.t-req-vscode)
 
 ## Features
 
-- **Syntax highlighting** for `.http` files with embedded JSON support
-- **Run requests** with a single click or keyboard shortcut
-- **Run all requests** in a file sequentially
-- **Local and server execution** — run requests locally (bundled engine) or against a remote t-req server
-- **Profile support** — switch between environments (dev, staging, prod)
-- **Response panel** — view status, headers, and body with syntax highlighting
-- **Plugin support** — run plugins with hook timing, assert reports, and a dedicated Plugins tab in the response panel
+### HTTP & REST Client
+- **File-based workflow**: Write requests in `.http`files with full syntax highlighting
+- **One-click execution**: Run individual requests or all requests in a file
+- **Response viewer**: View status, headers, and body with JSON/XML/HTML formatting
+- **Variables**: Use dynamic values with `$variable` syntax for environment switching
 
-![Plugins](https://raw.githubusercontent.com/tensorix-labs/t-req/main/packages/vscode/images/plugins.png)
-- **Diagnostics** — inline warnings and errors from static analysis and plugins
+### API Testing & Development
+- **Environment profiles**: Switch between dev, staging, and production configurations
+- **Sequential execution**: Run entire test suites from a single file
+- **Plugin system**: Extensible with assert directives, custom resolvers, and hooks
+- **Diagnostics**: Inline warnings and errors from static analysis
+
+### Execution Modes
+- **Local mode**: Bundled engine runs entirely within the extension (no CLI install)
+- **Server mode**: Connect to remote t-req servers for shared environments
+- **Secure token storage**: Server authentication via editor SecretStorage (never in settings files)
 
 ![Run Request](https://raw.githubusercontent.com/tensorix-labs/t-req/main/packages/vscode/images/run-request.png)
 
@@ -26,7 +34,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 |---------|-------------|
 | `t-req: Run Request` | Execute the request under the cursor |
 | `t-req: Run All Requests` | Execute all requests in the current file |
-| `t-req: Select Profile` | Choose the active profile |
+| `t-req: Select Profile` | Choose the active environment profile |
 | `t-req: Cancel Request` | Cancel a running request |
 | `t-req: Set Server Token` | Store a bearer token for server mode (saved in SecretStorage) |
 | `t-req: Clear Server Token` | Remove the stored server token |
@@ -49,12 +57,12 @@ Configure via `Settings > Extensions > t-req` or in `settings.json`:
 When using **server mode**, authenticate with a bearer token:
 
 1. Run `t-req: Set Server Token` from the Command Palette
-2. Enter your token — it is stored securely in VS Code's SecretStorage (never in settings files)
+2. Enter your token — it is stored securely in the editor's SecretStorage (never in settings files)
 3. To remove it, run `t-req: Clear Server Token`
 
 ## Requirements
 
-- VS Code ^1.96.0
+- VS Code ^1.96.0 or compatible editors (Cursor, VSCodium, etc.)
 - No external CLI install needed — the t-req core engine is bundled in the extension
 
 ## Links
