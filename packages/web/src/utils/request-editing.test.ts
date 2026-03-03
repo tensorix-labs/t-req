@@ -143,6 +143,68 @@ describe('applyRequestEditsToContent', () => {
     });
   });
 
+  test('ignores non-HTTP body lines when locating request segments', () => {
+    const content = [
+      'GET https://api.example.com/one',
+      'Accept: application/json',
+      '',
+      'token abc',
+      '',
+      'POST https://api.example.com/two',
+      'Content-Type: application/json',
+      '',
+      '{"email":"person@example.com"}'
+    ].join('\n');
+
+    const result = applyRequestEditsToContent(content, 1, 'https://api.example.com/two-updated', [
+      { key: 'X-Trace-Id', value: 'trace-123' }
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      content: [
+        'GET https://api.example.com/one',
+        'Accept: application/json',
+        '',
+        'token abc',
+        '',
+        'POST https://api.example.com/two-updated',
+        'X-Trace-Id: trace-123',
+        '',
+        '{"email":"person@example.com"}'
+      ].join('\n')
+    });
+  });
+
+  test('removes URL continuation lines before rebuilding headers', () => {
+    const content = [
+      'GET https://api.example.com/search',
+      '  ?q=old',
+      '  &page=1',
+      'Accept: application/json',
+      'X-Trace-Id: old',
+      '',
+      '{"keep":true}'
+    ].join('\n');
+
+    const result = applyRequestEditsToContent(
+      content,
+      0,
+      'https://api.example.com/search?q=new&page=2',
+      [{ key: 'Authorization', value: 'Bearer token' }]
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      content: [
+        'GET https://api.example.com/search?q=new&page=2',
+        'Authorization: Bearer token',
+        '',
+        '{"keep":true}'
+      ].join('\n')
+    });
+  });
+
   test('returns an error when the request index does not exist', () => {
     const result = applyRequestEditsToContent(
       'GET https://api.example.com/health',

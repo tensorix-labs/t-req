@@ -28,8 +28,10 @@ type RequestSegmentResult =
       error: string;
     };
 
-const REQUEST_LINE_PATTERN = /^([A-Za-z]+)\s+(\S+)(?:\s+HTTP\/\d+(?:\.\d+)?)?\s*$/;
-const REQUEST_LINE_PARTS_PATTERN = /^(\s*)([A-Za-z]+)\s+(\S+)(\s+HTTP\/\d+(?:\.\d+)?)?(\s*)$/;
+const REQUEST_LINE_PATTERN =
+  /^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+(\S+)(?:\s+HTTP\/\d+(?:\.\d+)?)?\s*$/i;
+const REQUEST_LINE_PARTS_PATTERN =
+  /^(\s*)(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+(\S+)(\s+HTTP\/\d+(?:\.\d+)?)?(\s*)$/i;
 const HEADER_LINE_PATTERN = /^\s*[^:\s][^:]*:.*$/;
 
 function splitLines(content: string): LineRecord[] {
@@ -84,6 +86,11 @@ function isHeaderSectionLine(line: string): boolean {
   return isHeaderLine(line) || isCommentLine(line);
 }
 
+function isUrlContinuationLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('?') || trimmed.startsWith('&');
+}
+
 function preferredLineEnding(lines: LineRecord[]): string {
   return lines.find((line) => line.ending.length > 0)?.ending ?? '\n';
 }
@@ -127,18 +134,29 @@ function rewriteRequestSegment(
   const rebuiltRequestLine = `${indent}${method} ${nextUrl}${suffix}${trailing}`;
   const restLines = lines.slice(1);
 
+  // URL continuation lines immediately after the request line are folded by parser.
+  // Drop them from the rewritten segment to avoid duplicate/malformed URLs.
+  let continuationEndIndex = 0;
+  while (
+    continuationEndIndex < restLines.length &&
+    isUrlContinuationLine(restLines[continuationEndIndex]?.text ?? '')
+  ) {
+    continuationEndIndex += 1;
+  }
+
+  const requestDetailLines = restLines.slice(continuationEndIndex);
   let headerEndIndex = 0;
   while (
-    headerEndIndex < restLines.length &&
-    isHeaderSectionLine(restLines[headerEndIndex]?.text ?? '')
+    headerEndIndex < requestDetailLines.length &&
+    isHeaderSectionLine(requestDetailLines[headerEndIndex]?.text ?? '')
   ) {
     headerEndIndex += 1;
   }
 
-  const preservedCommentLines = restLines.filter((line, index) => {
+  const preservedCommentLines = requestDetailLines.filter((line, index) => {
     return index < headerEndIndex && isCommentLine(line.text);
   });
-  const remainingLines = restLines.slice(headerEndIndex);
+  const remainingLines = requestDetailLines.slice(headerEndIndex);
   const normalizedHeaders = serializeRows(nextHeaders);
   const lineEnding = preferredLineEnding(lines);
   const requestLineEnding =
@@ -164,7 +182,7 @@ function rewriteRequestSegment(
       ? remainingLines.length > 0
         ? lineEnding
         : headerEndIndex > 0
-          ? (restLines[headerEndIndex - 1]?.ending ?? '')
+          ? (requestDetailLines[headerEndIndex - 1]?.ending ?? '')
           : ''
       : lineEnding;
 
