@@ -97,12 +97,54 @@ function preferredLineEnding(lines: LineRecord[]): string {
 
 function normalizeRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
   return rows
-    .map((row) => ({ key: row.key.trim(), value: row.value }))
+    .map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
     .filter((row) => row.key.length > 0);
 }
 
 function serializeRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
   return normalizeRows(rows);
+}
+
+function toHeaderLineText(header: RequestDetailsRow): string {
+  return `${header.key}${header.value.length > 0 ? `: ${header.value}` : ':'}`;
+}
+
+function buildRewrittenHeaderLines(
+  headerSectionLines: LineRecord[],
+  normalizedHeaders: RequestDetailsRow[]
+): Array<{ text: string }> {
+  const rewrittenLines: Array<{ text: string }> = [];
+  let headerIndex = 0;
+
+  for (const line of headerSectionLines) {
+    if (isCommentLine(line.text)) {
+      rewrittenLines.push({ text: line.text });
+      continue;
+    }
+
+    if (!isHeaderLine(line.text)) {
+      continue;
+    }
+
+    const nextHeader = normalizedHeaders[headerIndex];
+    if (!nextHeader) {
+      continue;
+    }
+
+    rewrittenLines.push({ text: toHeaderLineText(nextHeader) });
+    headerIndex += 1;
+  }
+
+  while (headerIndex < normalizedHeaders.length) {
+    const nextHeader = normalizedHeaders[headerIndex];
+    if (!nextHeader) {
+      break;
+    }
+    rewrittenLines.push({ text: toHeaderLineText(nextHeader) });
+    headerIndex += 1;
+  }
+
+  return rewrittenLines;
 }
 
 function rewriteRequestSegment(
@@ -150,9 +192,7 @@ function rewriteRequestSegment(
     headerEndIndex += 1;
   }
 
-  const preservedCommentLines = requestDetailLines.filter((line, index) => {
-    return index < headerEndIndex && isCommentLine(line.text);
-  });
+  const headerSectionLines = requestDetailLines.slice(0, headerEndIndex);
   const remainingLines = requestDetailLines.slice(headerEndIndex);
   const normalizedHeaders = serializeRows(nextHeaders);
   const lineEnding = preferredLineEnding(lines);
@@ -161,12 +201,7 @@ function rewriteRequestSegment(
     (normalizedHeaders.length > 0 || remainingLines.length > 0 ? lineEnding : '');
 
   let updatedSegment = `${rebuiltRequestLine}${requestLineEnding}`;
-  const combinedHeaderLines = [
-    ...normalizedHeaders.map((header) => ({
-      text: `${header.key}${header.value.length > 0 ? `: ${header.value}` : ':'}`
-    })),
-    ...preservedCommentLines.map((line) => ({ text: line.text }))
-  ];
+  const combinedHeaderLines = buildRewrittenHeaderLines(headerSectionLines, normalizedHeaders);
 
   for (let index = 0; index < combinedHeaderLines.length; index += 1) {
     const line = combinedHeaderLines[index];

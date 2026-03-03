@@ -143,6 +143,54 @@ describe('applyRequestEditsToContent', () => {
     });
   });
 
+  test('preserves inline comment position when rebuilding headers', () => {
+    const content = [
+      'GET https://api.example.com/health',
+      'Accept: application/json',
+      '# auth token',
+      'Authorization: Bearer old-token',
+      '',
+      '{"ok":true}'
+    ].join('\n');
+
+    const result = applyRequestEditsToContent(content, 0, 'https://api.example.com/health', [
+      { key: 'Accept', value: 'text/plain' },
+      { key: 'Authorization', value: 'Bearer new-token' }
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      content: [
+        'GET https://api.example.com/health',
+        'Accept: text/plain',
+        '# auth token',
+        'Authorization: Bearer new-token',
+        '',
+        '{"ok":true}'
+      ].join('\n')
+    });
+  });
+
+  test('trims header values when normalizing edited rows', () => {
+    const content = ['GET https://api.example.com/health', 'Accept: old', '', '{"ok":true}'].join(
+      '\n'
+    );
+
+    const result = applyRequestEditsToContent(content, 0, 'https://api.example.com/health', [
+      { key: 'Accept', value: ' application/json ' }
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      content: [
+        'GET https://api.example.com/health',
+        'Accept: application/json',
+        '',
+        '{"ok":true}'
+      ].join('\n')
+    });
+  });
+
   test('ignores non-HTTP body lines when locating request segments', () => {
     const content = [
       'GET https://api.example.com/one',

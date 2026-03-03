@@ -104,7 +104,6 @@ export function useRequestHeaderDraftController(
 
   const onAddHeader = () => {
     setDraftHeaders((rows) => [...rows, { key: '', value: '' }]);
-    markDirty();
   };
 
   const onRemoveHeader = (index: number) => {

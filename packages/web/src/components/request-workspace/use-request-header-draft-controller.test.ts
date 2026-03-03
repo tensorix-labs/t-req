@@ -4,6 +4,45 @@ import type { WorkspaceRequest } from '../../sdk';
 import { useRequestHeaderDraftController } from './use-request-header-draft-controller';
 
 describe('useRequestHeaderDraftController', () => {
+  test('does not mark dirty when adding an empty header row', () => {
+    createRoot((dispose) => {
+      const [path] = createSignal('requests.http');
+      const [selectedRequest] = createSignal<WorkspaceRequest | undefined>({
+        index: 0,
+        method: 'GET',
+        url: 'https://api.example.com/users'
+      });
+      const [sourceHeaders] = createSignal([{ key: 'Accept', value: 'application/json' }]);
+      const [fileContent] = createSignal(
+        ['GET https://api.example.com/users', 'Accept: application/json', '', '{"ok":true}'].join(
+          '\n'
+        )
+      );
+
+      const controller = useRequestHeaderDraftController({
+        path,
+        selectedRequest,
+        sourceHeaders,
+        sourceUrl: () => selectedRequest()?.url,
+        getFileContent: fileContent,
+        setFileContent: () => {},
+        saveFile: async () => {},
+        reloadRequests: async () => {},
+        refetchRequestDetails: async () => {}
+      });
+
+      expect(controller.isDirty()).toBe(false);
+      controller.onAddHeader();
+      expect(controller.isDirty()).toBe(false);
+      expect(controller.draftHeaders()).toEqual([
+        { key: 'Accept', value: 'application/json' },
+        { key: '', value: '' }
+      ]);
+
+      dispose();
+    });
+  });
+
   test('tracks header row mutations and dirty state', () => {
     createRoot((dispose) => {
       const [path] = createSignal('requests.http');
