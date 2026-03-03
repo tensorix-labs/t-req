@@ -119,6 +119,10 @@ export function useRequestHeaderDraftController(
   };
 
   const onSave = async () => {
+    if (isSaving()) {
+      return;
+    }
+
     const request = input.selectedRequest();
     const currentPath = input.path();
     const currentContent = input.getFileContent();
@@ -156,9 +160,9 @@ export function useRequestHeaderDraftController(
 
     try {
       await input.saveFile(currentPath);
+      setIsDirty(false);
       await input.reloadRequests(currentPath);
       await input.refetchRequestDetails();
-      setIsDirty(false);
     } catch (error) {
       setSaveError(toErrorMessage(error));
     } finally {

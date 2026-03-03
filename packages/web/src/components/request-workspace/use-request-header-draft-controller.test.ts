@@ -120,4 +120,116 @@ describe('useRequestHeaderDraftController', () => {
       dispose();
     });
   });
+
+  test('clears dirty state after successful disk save even when reload fails', async () => {
+    const saveCalls: string[] = [];
+    const reloadCalls: string[] = [];
+    let refetchCalls = 0;
+
+    await createRoot(async (dispose) => {
+      const [path] = createSignal('requests.http');
+      const [selectedRequest] = createSignal<WorkspaceRequest | undefined>({
+        index: 0,
+        method: 'GET',
+        url: 'https://api.example.com/users'
+      });
+      const [sourceHeaders] = createSignal([{ key: 'Accept', value: 'application/json' }]);
+      const [fileContent, setFileContentSignal] = createSignal(
+        ['GET https://api.example.com/users', 'Accept: application/json', '', '{"ok":true}'].join(
+          '\n'
+        )
+      );
+
+      const controller = useRequestHeaderDraftController({
+        path,
+        selectedRequest,
+        sourceHeaders,
+        sourceUrl: () => selectedRequest()?.url,
+        getFileContent: fileContent,
+        setFileContent: (content) => {
+          setFileContentSignal(content);
+        },
+        saveFile: async (nextPath) => {
+          saveCalls.push(nextPath);
+        },
+        reloadRequests: async (nextPath) => {
+          reloadCalls.push(nextPath);
+          throw new Error('reload failed');
+        },
+        refetchRequestDetails: async () => {
+          refetchCalls += 1;
+        }
+      });
+
+      controller.onHeaderChange(0, 'value', 'text/plain');
+      expect(controller.isDirty()).toBe(true);
+
+      await controller.onSave();
+
+      expect(controller.isDirty()).toBe(false);
+      expect(controller.isSaving()).toBe(false);
+      expect(controller.saveError()).toBe('reload failed');
+      expect(saveCalls).toEqual(['requests.http']);
+      expect(reloadCalls).toEqual(['requests.http']);
+      expect(refetchCalls).toBe(0);
+
+      dispose();
+    });
+  });
+
+  test('ignores additional save requests while one save is in flight', async () => {
+    const saveCalls: string[] = [];
+    let resolveSave: (() => void) | undefined;
+
+    await createRoot(async (dispose) => {
+      const [path] = createSignal('requests.http');
+      const [selectedRequest] = createSignal<WorkspaceRequest | undefined>({
+        index: 0,
+        method: 'GET',
+        url: 'https://api.example.com/users'
+      });
+      const [sourceHeaders] = createSignal([{ key: 'Accept', value: 'application/json' }]);
+      const [fileContent, setFileContentSignal] = createSignal(
+        ['GET https://api.example.com/users', 'Accept: application/json', '', '{"ok":true}'].join(
+          '\n'
+        )
+      );
+
+      const controller = useRequestHeaderDraftController({
+        path,
+        selectedRequest,
+        sourceHeaders,
+        sourceUrl: () => selectedRequest()?.url,
+        getFileContent: fileContent,
+        setFileContent: (content) => {
+          setFileContentSignal(content);
+        },
+        saveFile: async (nextPath) => {
+          saveCalls.push(nextPath);
+          await new Promise<void>((resolve) => {
+            resolveSave = resolve;
+          });
+        },
+        reloadRequests: async () => {},
+        refetchRequestDetails: async () => {}
+      });
+
+      controller.onHeaderChange(0, 'value', 'text/plain');
+
+      const firstSave = controller.onSave();
+      const secondSave = controller.onSave();
+
+      expect(controller.isSaving()).toBe(true);
+      expect(saveCalls).toEqual(['requests.http']);
+
+      resolveSave?.();
+      await firstSave;
+      await secondSave;
+
+      expect(controller.isSaving()).toBe(false);
+      expect(saveCalls).toEqual(['requests.http']);
+
+      dispose();
+    });
+  });
 });

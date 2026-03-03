@@ -102,10 +102,7 @@ function normalizeRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
 }
 
 function serializeRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
-  return normalizeRows(rows).map((row) => ({
-    key: row.key,
-    value: row.value
-  }));
+  return normalizeRows(rows);
 }
 
 function rewriteRequestSegment(
