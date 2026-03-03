@@ -251,6 +251,13 @@ describe('service.execute', () => {
   let restoreFetch: () => void;
   let fetchCalls: Array<{ url: string; init?: RequestInit }>;
 
+  const getCookieHeader = (init?: RequestInit): string | null => {
+    if (!init?.headers) {
+      return null;
+    }
+    return new Headers(init.headers).get('cookie');
+  };
+
   beforeEach(async () => {
     tmp = await tmpdir();
     fetchCalls = [];
@@ -293,6 +300,212 @@ describe('service.execute', () => {
         ].join('\n')
       })
     ).rejects.toBeInstanceOf(ExecuteError);
+  });
+
+  test('should not persist stateless cookies when cookie mode is disabled', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: false
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    fetchCalls = [];
+    let callCount = 0;
+    restoreFetch();
+    restoreFetch = installFetchMock(async (url, init) => {
+      fetchCalls.push({ url: url.toString(), init });
+      callCount++;
+
+      if (callCount === 1) {
+        return mockResponse({ ok: true }, { setCookies: ['session=disabled-mode; Path=/'] });
+      }
+
+      return mockResponse({ ok: true });
+    });
+
+    await service.execute({ content: 'GET https://example.com/login\n' });
+    await service.execute({ content: 'GET https://example.com/me\n' });
+
+    expect(fetchCalls).toHaveLength(2);
+    expect(getCookieHeader(fetchCalls[1]?.init)).toBeNull();
+  });
+
+  test('should not persist stateless cookies in memory mode', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: true
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    fetchCalls = [];
+    let callCount = 0;
+    restoreFetch();
+    restoreFetch = installFetchMock(async (url, init) => {
+      fetchCalls.push({ url: url.toString(), init });
+      callCount++;
+
+      if (callCount === 1) {
+        return mockResponse({ ok: true }, { setCookies: ['session=memory-mode; Path=/'] });
+      }
+
+      return mockResponse({ ok: true });
+    });
+
+    await service.execute({ content: 'GET https://example.com/login\n' });
+    await service.execute({ content: 'GET https://example.com/me\n' });
+
+    expect(fetchCalls).toHaveLength(2);
+    expect(getCookieHeader(fetchCalls[1]?.init)).toBeNull();
+  });
+
+  test('should persist stateless cookies in persistent mode', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: true,
+            jarPath: '.treq/cookies.json'
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    fetchCalls = [];
+    let callCount = 0;
+    restoreFetch();
+    restoreFetch = installFetchMock(async (url, init) => {
+      fetchCalls.push({ url: url.toString(), init });
+      callCount++;
+
+      if (callCount === 1) {
+        return mockResponse({ ok: true }, { setCookies: ['session=persistent-mode; Path=/'] });
+      }
+
+      return mockResponse({ ok: true });
+    });
+
+    await service.execute({ content: 'GET https://example.com/login\n' });
+    await service.execute({ content: 'GET https://example.com/me\n' });
+
+    expect(fetchCalls).toHaveLength(2);
+    expect(getCookieHeader(fetchCalls[1]?.init)).toContain('session=persistent-mode');
+  });
+
+  test('should wrap disabled stateless execution errors with ExecuteError', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: false
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    restoreFetch();
+    restoreFetch = installFetchMock(async () => {
+      throw new Error('disabled mode failure');
+    });
+
+    let thrown: unknown;
+    try {
+      await service.execute({ content: 'GET https://example.com/fail\n' });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ExecuteError);
+    if (thrown instanceof Error) {
+      expect(thrown.message).toContain('Execution failed:');
+      expect(thrown.message).toContain('disabled mode failure');
+    }
+  });
+
+  test('should wrap memory stateless execution errors with ExecuteError', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: true
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    restoreFetch();
+    restoreFetch = installFetchMock(async () => {
+      throw new Error('memory mode failure');
+    });
+
+    let thrown: unknown;
+    try {
+      await service.execute({ content: 'GET https://example.com/fail\n' });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ExecuteError);
+    if (thrown instanceof Error) {
+      expect(thrown.message).toContain('Execution failed:');
+      expect(thrown.message).toContain('memory mode failure');
+    }
+  });
+
+  test('should wrap persistent stateless execution errors with ExecuteError', async () => {
+    await tmp.writeFile(
+      'treq.jsonc',
+      JSON.stringify(
+        {
+          cookies: {
+            enabled: true,
+            jarPath: '.treq/cookies.json'
+          }
+        },
+        null,
+        2
+      )
+    );
+
+    restoreFetch();
+    restoreFetch = installFetchMock(async () => {
+      throw new Error('persistent mode failure');
+    });
+
+    let thrown: unknown;
+    try {
+      await service.execute({ content: 'GET https://example.com/fail\n' });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ExecuteError);
+    if (thrown instanceof Error) {
+      expect(thrown.message).toContain('Execution failed:');
+      expect(thrown.message).toContain('persistent mode failure');
+    }
   });
 
   test('should execute request from file path', async () => {
