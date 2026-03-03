@@ -99,7 +99,7 @@ export function createExecutionEngine(
       const runEngine = async (options: {
         onEvent: (event: { type: string } & Record<string, unknown>) => void;
         cookieStore?: CookieStore;
-        afterSuccess?: () => void;
+        afterSuccess?: () => void | Promise<void>;
       }): Promise<Response> => {
         const { engineOptions, requestDefaults } = buildEngineOptions({
           config: projectConfig,
@@ -118,7 +118,7 @@ export function createExecutionEngine(
             followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
             validateSSL: request.validateSSL ?? requestDefaults.validateSSL
           });
-          options.afterSuccess?.();
+          await options.afterSuccess?.();
           return response;
         } catch (err) {
           throw new ExecuteError(
