@@ -26,6 +26,7 @@ interface UseRequestParseDetailsReturn {
   bodySummary: () => RequestBodySummary;
   loading: () => boolean;
   error: () => string | undefined;
+  refetch: (info?: unknown) => unknown;
 }
 
 const DEFAULT_PARSE_ERROR = 'Unable to load request details.';
@@ -45,7 +46,7 @@ export function useRequestParseDetails(
     };
   });
 
-  const [parseResult] = createResource(
+  const [parseResult, { refetch }] = createResource(
     source,
     async (current): Promise<ParseRequestDetailsResponse> => {
       return await unwrap(
@@ -94,6 +95,7 @@ export function useRequestParseDetails(
     headers,
     bodySummary,
     loading: () => parseResult.loading,
-    error
+    error,
+    refetch
   };
 }

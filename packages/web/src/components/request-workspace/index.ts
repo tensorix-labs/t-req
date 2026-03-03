@@ -5,4 +5,5 @@ export {
   type RequestWorkspaceTabId
 } from './model';
 export { RequestWorkspaceTabs } from './request-workspace-tabs';
+export { useRequestHeaderDraftController } from './use-request-header-draft-controller';
 export { useRequestParseDetails } from './use-request-parse-details';

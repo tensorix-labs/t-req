@@ -22,6 +22,7 @@ import {
   DEFAULT_REQUEST_WORKSPACE_TAB,
   type RequestWorkspaceTabId,
   RequestWorkspaceTabs,
+  useRequestHeaderDraftController,
   useRequestParseDetails
 } from '../request-workspace';
 import { ScriptPanel } from '../script';
@@ -73,6 +74,17 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
     client: () => connection.client,
     path: () => props.path,
     requestIndex: () => selectedRequest()?.index
+  });
+  const requestHeaderDraft = useRequestHeaderDraftController({
+    path: () => props.path,
+    selectedRequest,
+    sourceHeaders: requestParseDetails.headers,
+    sourceUrl: () => selectedRequest()?.url,
+    getFileContent: () => workspace.fileContents()[props.path]?.content,
+    setFileContent: (content) => workspace.updateFileContent(props.path, content),
+    saveFile: (path) => workspace.saveFile(path),
+    reloadRequests: (path) => workspace.loadRequests(path),
+    refetchRequestDetails: requestParseDetails.refetch
   });
 
   const saveCollapsedState = (collapsed: boolean) => {
@@ -213,10 +225,18 @@ export const EditorWithExecution: Component<EditorWithExecutionProps> = (props) 
                     onTabChange={setActiveRequestTab}
                     selectedRequest={selectedRequest()}
                     requestCount={requests().length}
-                    requestHeaders={requestParseDetails.headers()}
+                    requestHeaders={requestHeaderDraft.draftHeaders()}
                     requestBodySummary={requestParseDetails.bodySummary()}
                     requestDetailsLoading={requestParseDetails.loading()}
                     requestDetailsError={requestParseDetails.error()}
+                    headerDraftDirty={requestHeaderDraft.isDirty()}
+                    headerDraftSaving={requestHeaderDraft.isSaving()}
+                    headerDraftSaveError={requestHeaderDraft.saveError()}
+                    onHeaderChange={requestHeaderDraft.onHeaderChange}
+                    onAddHeader={requestHeaderDraft.onAddHeader}
+                    onRemoveHeader={requestHeaderDraft.onRemoveHeader}
+                    onSaveHeaders={requestHeaderDraft.onSave}
+                    onDiscardHeaders={requestHeaderDraft.onDiscard}
                   />
                   <div class="flex-1 min-h-0">
                     <HttpEditor path={props.path} onExecute={handleHttpExecute} />
