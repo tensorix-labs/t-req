@@ -96,6 +96,37 @@ export function createExecutionEngine(
     const pluginManager = projectConfig.pluginManager;
 
     try {
+      const runEngine = async (options: {
+        onEvent: (event: { type: string } & Record<string, unknown>) => void;
+        cookieStore?: CookieStore;
+        afterSuccess?: () => void;
+      }): Promise<Response> => {
+        const { engineOptions, requestDefaults } = buildEngineOptions({
+          config: projectConfig,
+          cookieStore: options.cookieStore,
+          onEvent: options.onEvent,
+          executionContext: pluginExecutionContext
+        });
+
+        const engine = createEngine(engineOptions);
+
+        try {
+          const response = await engine.runString(selectedRequest.raw, {
+            variables: effectiveVariables,
+            basePath,
+            timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
+            followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
+            validateSSL: request.validateSSL ?? requestDefaults.validateSSL
+          });
+          options.afterSuccess?.();
+          return response;
+        } catch (err) {
+          throw new ExecuteError(
+            `Execution failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      };
+
       // Build execution source info
       const executionSource: ExecutionSource | undefined = request.path
         ? {
@@ -131,28 +162,8 @@ export function createExecutionEngine(
         const eventHandler = tracker.createEventHandler(undefined);
 
         if (!projectConfig.cookies.enabled) {
-          const { engineOptions, requestDefaults } = buildEngineOptions({
-            config: projectConfig,
-            onEvent: eventHandler,
-            executionContext: pluginExecutionContext
-          });
-
-          const engine = createEngine(engineOptions);
-
-          try {
-            const response = await engine.runString(selectedRequest.raw, {
-              variables: effectiveVariables,
-              basePath,
-              timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-              followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-              validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-            });
-            return { response, session: undefined, cookiesChanged: false };
-          } catch (err) {
-            throw new ExecuteError(
-              `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-            );
-          }
+          const response = await runEngine({ onEvent: eventHandler });
+          return { response, session: undefined, cookiesChanged: false };
         }
 
         // Cookies enabled: persistent
@@ -165,62 +176,25 @@ export function createExecutionEngine(
             restoreCookieJarFromData(cookieJar, manager.load());
 
             const cookieStore = createCookieStoreFromJar(cookieJar);
-
-            const { engineOptions, requestDefaults } = buildEngineOptions({
-              config: projectConfig,
-              cookieStore,
+            const response = await runEngine({
               onEvent: eventHandler,
-              executionContext: pluginExecutionContext
+              cookieStore,
+              afterSuccess: () => {
+                manager.save(cookieJar);
+              }
             });
-
-            const engine = createEngine(engineOptions);
-
-            try {
-              const response = await engine.runString(selectedRequest.raw, {
-                variables: effectiveVariables,
-                basePath,
-                timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-                followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-                validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-              });
-
-              manager.save(cookieJar);
-              return { response, session: undefined, cookiesChanged: false };
-            } catch (err) {
-              throw new ExecuteError(
-                `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-              );
-            }
+            return { response, session: undefined, cookiesChanged: false };
           });
         }
 
         // Memory mode
         const cookieJar = createCookieJar();
         const cookieStore = createCookieStoreFromJar(cookieJar);
-
-        const { engineOptions, requestDefaults } = buildEngineOptions({
-          config: projectConfig,
-          cookieStore,
+        const response = await runEngine({
           onEvent: eventHandler,
-          executionContext: pluginExecutionContext
+          cookieStore
         });
-
-        const engine = createEngine(engineOptions);
-
-        try {
-          const response = await engine.runString(selectedRequest.raw, {
-            variables: effectiveVariables,
-            basePath,
-            timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-            followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-            validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-          });
-          return { response, session: undefined, cookiesChanged: false };
-        } catch (err) {
-          throw new ExecuteError(
-            `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-          );
-        }
+        return { response, session: undefined, cookiesChanged: false };
       };
 
       const runInSession = async (
@@ -268,29 +242,10 @@ export function createExecutionEngine(
         };
 
         const sessionEventHandler = tracker.createEventHandler(session.id);
-        const { engineOptions, requestDefaults } = buildEngineOptions({
-          config: projectConfig,
-          cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined,
+        const response = await runEngine({
           onEvent: sessionEventHandler,
-          executionContext: pluginExecutionContext
+          cookieStore: projectConfig.cookies.enabled ? cookieStore : undefined
         });
-
-        const engine = createEngine(engineOptions);
-
-        let response: Response;
-        try {
-          response = await engine.runString(selectedRequest.raw, {
-            variables: effectiveVariables,
-            basePath,
-            timeoutMs: request.timeoutMs ?? requestDefaults.timeoutMs,
-            followRedirects: request.followRedirects ?? requestDefaults.followRedirects,
-            validateSSL: request.validateSSL ?? requestDefaults.validateSSL
-          });
-        } catch (err) {
-          throw new ExecuteError(
-            `Execution failed: ${err instanceof Error ? err.message : String(err)}`
-          );
-        }
 
         return { response, session, cookiesChanged };
       };
