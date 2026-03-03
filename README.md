@@ -85,7 +85,7 @@ treq open
 
 Install the [t-req extension](./packages/vscode) in VS Code or Cursor for syntax highlighting, inline execution, and assertion results (`@t-req/plugin-assert`) directly in your editor.
 
-[Watch VS Code/Cursor demo (MP4)](./docs/assets/treq-init-cursor.mp4)
+![VS Code/Cursor demo](./docs/assets/treq-init-cursor.gif)
 
 ## Embed in Scripts, Tests, or CI
 
