@@ -1,6 +1,10 @@
 import { createMemo, For, Match, Show, Switch } from 'solid-js';
 import type { WorkspaceRequest } from '../../sdk';
-import type { RequestBodySummary, RequestDetailsRow } from '../../utils/request-details';
+import type {
+  RequestBodyField,
+  RequestBodySummary,
+  RequestDetailsRow
+} from '../../utils/request-details';
 import { toRequestParams } from '../../utils/request-details';
 import { REQUEST_WORKSPACE_TABS, type RequestWorkspaceTabId } from './model';
 import {
@@ -17,6 +21,8 @@ interface RequestWorkspaceTabsProps {
   requestHeaders: RequestDetailsRow[];
   requestBodySummary: RequestBodySummary;
   requestBodyDraft: string;
+  requestBodyFormDataDraft: RequestBodyField[];
+  requestBodyFilePathDraft: string;
   requestDetailsLoading: boolean;
   requestDetailsError?: string;
   headerDraftDirty: boolean;
@@ -34,6 +40,13 @@ interface RequestWorkspaceTabsProps {
   bodyDraftIsJsonEditable: boolean;
   bodyDraftTemplateWarnings: string[];
   onBodyChange: (value: string) => void;
+  onBodyFilePathChange: (value: string) => void;
+  onBodyFormDataNameChange: (index: number, value: string) => void;
+  onBodyFormDataTypeChange: (index: number, isFile: boolean) => void;
+  onBodyFormDataValueChange: (index: number, value: string) => void;
+  onBodyFormDataFilenameChange: (index: number, value: string) => void;
+  onBodyFormDataAddField: () => void;
+  onBodyFormDataRemoveField: (index: number) => void;
   onBodyPrettify: () => void;
   onBodyMinify: () => void;
   onBodyCopy: () => void;
@@ -135,6 +148,8 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
                         hasRequest={Boolean(props.selectedRequest)}
                         requestBodySummary={props.requestBodySummary}
                         requestBodyDraft={props.requestBodyDraft}
+                        requestBodyFormDataDraft={props.requestBodyFormDataDraft}
+                        requestBodyFilePathDraft={props.requestBodyFilePathDraft}
                         bodyDraftDirty={props.bodyDraftDirty}
                         bodyDraftSaving={props.bodyDraftSaving}
                         bodyDraftSaveError={props.bodyDraftSaveError}
@@ -142,6 +157,13 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
                         bodyDraftIsJsonEditable={props.bodyDraftIsJsonEditable}
                         bodyDraftTemplateWarnings={props.bodyDraftTemplateWarnings}
                         onBodyChange={props.onBodyChange}
+                        onBodyFilePathChange={props.onBodyFilePathChange}
+                        onBodyFormDataNameChange={props.onBodyFormDataNameChange}
+                        onBodyFormDataTypeChange={props.onBodyFormDataTypeChange}
+                        onBodyFormDataValueChange={props.onBodyFormDataValueChange}
+                        onBodyFormDataFilenameChange={props.onBodyFormDataFilenameChange}
+                        onBodyFormDataAddField={props.onBodyFormDataAddField}
+                        onBodyFormDataRemoveField={props.onBodyFormDataRemoveField}
                         onBodyPrettify={props.onBodyPrettify}
                         onBodyMinify={props.onBodyMinify}
                         onBodyCopy={props.onBodyCopy}

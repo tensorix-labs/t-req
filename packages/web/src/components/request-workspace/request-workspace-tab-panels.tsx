@@ -1,5 +1,9 @@
 import { For, Index, Match, Show, Switch } from 'solid-js';
-import type { RequestBodySummary, RequestDetailsRow } from '../../utils/request-details';
+import type {
+  RequestBodyField,
+  RequestBodySummary,
+  RequestDetailsRow
+} from '../../utils/request-details';
 
 interface RequestWorkspaceParamsPanelProps {
   requestMethod: string;
@@ -23,6 +27,8 @@ interface RequestWorkspaceBodyPanelProps {
   hasRequest: boolean;
   requestBodySummary: RequestBodySummary;
   requestBodyDraft: string;
+  requestBodyFormDataDraft: RequestBodyField[];
+  requestBodyFilePathDraft: string;
   bodyDraftDirty: boolean;
   bodyDraftSaving: boolean;
   bodyDraftSaveError?: string;
@@ -30,6 +36,13 @@ interface RequestWorkspaceBodyPanelProps {
   bodyDraftIsJsonEditable: boolean;
   bodyDraftTemplateWarnings: string[];
   onBodyChange: (value: string) => void;
+  onBodyFilePathChange: (value: string) => void;
+  onBodyFormDataNameChange: (index: number, value: string) => void;
+  onBodyFormDataTypeChange: (index: number, isFile: boolean) => void;
+  onBodyFormDataValueChange: (index: number, value: string) => void;
+  onBodyFormDataFilenameChange: (index: number, value: string) => void;
+  onBodyFormDataAddField: () => void;
+  onBodyFormDataRemoveField: (index: number) => void;
   onBodyPrettify: () => void;
   onBodyMinify: () => void;
   onBodyCopy: () => void;
@@ -301,10 +314,40 @@ export function RequestWorkspaceBodyPanel(props: RequestWorkspaceBodyPanelProps)
         </Match>
 
         <Match when={props.requestBodySummary.kind === 'form-data'}>
-          <Show
-            when={(props.requestBodySummary.fields?.length ?? 0) > 0}
-            fallback={<p>No form-data fields were parsed.</p>}
-          >
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs font-mono"
+                onClick={props.onBodyFormDataAddField}
+                disabled={!props.hasRequest || props.bodyDraftSaving}
+              >
+                Add Field
+              </button>
+
+              <div class="flex items-center gap-2">
+                <Show when={props.bodyDraftDirty && !props.bodyDraftSaving}>
+                  <span class="badge badge-sm badge-warning font-mono">Unsaved</span>
+                </Show>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs font-mono"
+                  onClick={props.onDiscardBody}
+                  disabled={!props.hasRequest || !props.bodyDraftDirty || props.bodyDraftSaving}
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-xs font-mono"
+                  onClick={props.onSaveBody}
+                  disabled={!props.hasRequest || !props.bodyDraftDirty || props.bodyDraftSaving}
+                >
+                  {props.bodyDraftSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+
             <div class="overflow-auto rounded-box border border-base-300 bg-base-100/80">
               <table class="table table-xs">
                 <thead>
@@ -312,41 +355,155 @@ export function RequestWorkspaceBodyPanel(props: RequestWorkspaceBodyPanelProps)
                     <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Name</th>
                     <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Type</th>
                     <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Value</th>
+                    <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Filename</th>
+                    <th class="font-mono uppercase tracking-[0.06em] text-[11px] text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={props.requestBodySummary.fields}>
-                    {(field) => (
+                  <Show
+                    when={props.requestBodyFormDataDraft.length > 0}
+                    fallback={
                       <tr>
-                        <td class="font-mono text-xs text-base-content">{field.name}</td>
-                        <td class="font-mono text-xs text-base-content/80">
-                          {field.isFile ? 'file' : 'text'}
-                        </td>
-                        <td class="font-mono text-xs text-base-content/80">
-                          {field.isFile
-                            ? (field.path ?? field.filename ?? field.value)
-                            : field.value}
+                        <td
+                          colSpan={5}
+                          class="font-mono text-xs text-base-content/70 text-center py-3"
+                        >
+                          No form-data fields configured.
                         </td>
                       </tr>
-                    )}
-                  </For>
+                    }
+                  >
+                    <Index each={props.requestBodyFormDataDraft}>
+                      {(field, index) => (
+                        <tr>
+                          <td>
+                            <input
+                              type="text"
+                              class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                              value={field().name}
+                              onInput={(event) =>
+                                props.onBodyFormDataNameChange(index, event.currentTarget.value)
+                              }
+                              disabled={!props.hasRequest || props.bodyDraftSaving}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              class="select select-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                              value={field().isFile ? 'file' : 'text'}
+                              onChange={(event) =>
+                                props.onBodyFormDataTypeChange(
+                                  index,
+                                  event.currentTarget.value === 'file'
+                                )
+                              }
+                              disabled={!props.hasRequest || props.bodyDraftSaving}
+                            >
+                              <option value="text">text</option>
+                              <option value="file">file</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                              value={field().isFile ? (field().path ?? '') : field().value}
+                              onInput={(event) =>
+                                props.onBodyFormDataValueChange(index, event.currentTarget.value)
+                              }
+                              placeholder={field().isFile ? './path/to/file' : 'value'}
+                              disabled={!props.hasRequest || props.bodyDraftSaving}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                              value={field().filename ?? ''}
+                              onInput={(event) =>
+                                props.onBodyFormDataFilenameChange(index, event.currentTarget.value)
+                              }
+                              placeholder="optional"
+                              disabled={
+                                !props.hasRequest || props.bodyDraftSaving || !field().isFile
+                              }
+                            />
+                          </td>
+                          <td class="text-right">
+                            <button
+                              type="button"
+                              class="btn btn-ghost btn-xs text-error"
+                              onClick={() => props.onBodyFormDataRemoveField(index)}
+                              disabled={!props.hasRequest || props.bodyDraftSaving}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                    </Index>
+                  </Show>
                 </tbody>
               </table>
             </div>
-          </Show>
+          </div>
         </Match>
 
         <Match when={props.requestBodySummary.kind === 'file'}>
-          <Show
-            when={props.requestBodySummary.filePath}
-            fallback={<p>No request body file path was parsed.</p>}
-          >
-            {(filePath) => (
-              <div class="rounded-box border border-base-300 bg-base-100/80 p-2">
-                <p class="font-mono text-xs text-base-content/80">{filePath()}</p>
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs font-mono"
+                onClick={props.onBodyCopy}
+                disabled={!props.hasRequest}
+              >
+                Copy
+              </button>
+
+              <div class="flex items-center gap-2">
+                <Show when={props.bodyDraftDirty && !props.bodyDraftSaving}>
+                  <span class="badge badge-sm badge-warning font-mono">Unsaved</span>
+                </Show>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs font-mono"
+                  onClick={props.onDiscardBody}
+                  disabled={!props.hasRequest || !props.bodyDraftDirty || props.bodyDraftSaving}
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-xs font-mono"
+                  onClick={props.onSaveBody}
+                  disabled={!props.hasRequest || !props.bodyDraftDirty || props.bodyDraftSaving}
+                >
+                  {props.bodyDraftSaving ? 'Saving…' : 'Save'}
+                </button>
               </div>
-            )}
-          </Show>
+            </div>
+
+            <div class="rounded-box border border-base-300 bg-base-100/80 p-2">
+              <label
+                for="request-workspace-body-file-path"
+                class="mb-1 block font-mono text-[11px] uppercase tracking-[0.06em] text-base-content/70"
+              >
+                File Path
+              </label>
+              <input
+                id="request-workspace-body-file-path"
+                type="text"
+                class="input input-sm w-full border-base-300 bg-base-100 font-mono text-xs"
+                value={props.requestBodyFilePathDraft}
+                onInput={(event) => props.onBodyFilePathChange(event.currentTarget.value)}
+                disabled={!props.hasRequest || props.bodyDraftSaving}
+                placeholder="./payload.json"
+              />
+            </div>
+          </div>
         </Match>
       </Switch>
     </div>
