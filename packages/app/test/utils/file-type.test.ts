@@ -19,8 +19,9 @@ describe('file-type utilities', () => {
     expect(getFileType('scripts/api.py')).toBe('script');
   });
 
-  test('classifies _test suffix files', () => {
+  test('classifies _test and _spec suffix files', () => {
     expect(getFileType('src/auth_test.ts')).toBe('test');
+    expect(getFileType('src/auth_spec.ts')).toBe('test');
   });
 
   test('classifies runnable scripts', () => {

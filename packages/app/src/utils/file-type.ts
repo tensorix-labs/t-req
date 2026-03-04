@@ -18,7 +18,8 @@ export function isTestFile(path: string): boolean {
 }
 
 export function getFileType(path: string): FileType {
-  const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+  const dotIndex = path.lastIndexOf('.');
+  const ext = dotIndex !== -1 ? path.substring(dotIndex).toLowerCase() : '';
   if (HTTP_EXTENSIONS.has(ext)) return 'http';
   if (isTestFile(path)) return 'test';
   if (SCRIPT_EXTENSIONS.has(ext)) return 'script';
