@@ -35,30 +35,6 @@ Or as a library:
 npm install @t-req/core
 ```
 
-## Quick Start with Templates
-
-**[templates/ship-types](./templates/ship-types)** — Production-ready starter with Zod schemas. Type-safe API testing out of the box.
-
-```bash
-npx degit tensorix-labs/t-req/templates/ship-types my-api
-cd my-api && bun install && bun test
-```
-
-Or start from scratch:
-
-```bash
-treq init my-api && cd my-api
-treq run requests/users/list.http   # single request from CLI
-```
-
-## Browse Real Examples
-
-**[examples/core/](./examples/core/)** — `.http` files and TypeScript patterns for auth, file uploads, variables, and e-commerce flows.
-
-**[examples/app/](./examples/app/)** — Python, Go, and TypeScript clients for `treq serve`.
-
-**[examples/plugins/](./examples/plugins/)** — Plugin examples in Python and TypeScript.
-
 ## Test with Any Framework
 
 t-req works with your existing runner (`bun:test`, Vitest, Jest, or `node:test`) because tests call `client.run(...)` the same way.
@@ -208,6 +184,29 @@ curl -X POST http://localhost:4097/execute \
   -d '{"content": "GET https://api.example.com/users\nAuthorization: Bearer {{token}}"}'
 ```
 
+## Quick Start with Templates
+
+**[templates/ship-types](./templates/ship-types)** — Production-ready starter with Zod schemas. Type-safe API testing out of the box.
+
+```bash
+npx degit tensorix-labs/t-req/templates/ship-types my-api
+cd my-api && bun install && bun test
+```
+
+Or start from scratch:
+
+```bash
+treq init my-api && cd my-api
+treq run requests/users/list.http   # single request from CLI
+```
+
+## Browse Real Examples
+
+**[examples/core/](./examples/core/)** — `.http` files and TypeScript patterns for auth, file uploads, variables, and e-commerce flows.
+
+**[examples/app/](./examples/app/)** — Python, Go, and TypeScript clients for `treq serve`.
+
+**[examples/plugins/](./examples/plugins/)** — Plugin examples in Python and TypeScript.
 
 
 ## Features
