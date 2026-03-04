@@ -142,7 +142,25 @@ export function findVariableAtPosition(
 
 export function isResolverCall(expression: string): boolean {
   const trimmed = expression.trim();
-  return trimmed.startsWith('$') && trimmed.includes('(') && trimmed.endsWith(')');
+  if (!trimmed.startsWith('$')) {
+    return false;
+  }
+
+  if (!trimmed.endsWith(')')) {
+    return false;
+  }
+
+  const openIndex = trimmed.indexOf('(');
+  if (openIndex === -1) {
+    return false;
+  }
+
+  const name = trimmed.slice(1, openIndex).trim();
+  if (!name) {
+    return false;
+  }
+
+  return /^[A-Za-z0-9_]+$/.test(name);
 }
 
 export function lookupVariable(variables: Record<string, unknown>, variablePath: string): unknown {

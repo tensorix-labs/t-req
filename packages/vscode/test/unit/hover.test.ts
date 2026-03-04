@@ -69,6 +69,8 @@ describe('hover helpers', () => {
       expect(isResolverCall('$env')).toBe(false);
       expect(isResolverCall('not-a-resolver')).toBe(false);
       expect(isResolverCall('$env(KEY')).toBe(false);
+      expect(isResolverCall('$foo-bar()')).toBe(false);
+      expect(isResolverCall('$foo.bar()')).toBe(false);
     });
   });
 
