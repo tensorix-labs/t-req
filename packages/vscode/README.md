@@ -21,10 +21,27 @@ A lightweight HTTP/REST client for testing APIs directly from `.http` files. Wri
 
 ### Execution Modes
 - **Local mode**: Bundled engine runs entirely within the extension (no CLI install)
-- **Server mode**: Connect to remote t-req servers for shared environments
+- **Server mode**: Connect to remote t-req servers (powered by [@t-req/app](https://www.npmjs.com/package/@t-req/app)) for shared environments
 - **Secure token storage**: Server authentication via editor SecretStorage (never in settings files)
 
 ![Run Request](https://raw.githubusercontent.com/tensorix-labs/t-req/main/packages/vscode/images/run-request.png)
+
+## Power up with the CLI
+
+While the extension works standalone, installing the **`t-req` CLI** ([@t-req/app](https://www.npmjs.com/package/@t-req/app)) unlocks the full potential of the ecosystem:
+
+- **TUI & Web Dashboard**: Interactive terminal and browser-based exploration.
+- **CI/CD Integration**: Execute `.http` files headlessly in automated pipelines.
+- **Advanced Scripting**: Write TypeScript/Bun tests that report results back to the UI with "Observer Mode".
+- **WebSocket Testing**: Dedicated tools for testing real-time APIs.
+
+```bash
+# Install via npm
+npm install -g @t-req/app
+
+# Or via curl
+curl -fsSL https://t-req.io/install | bash
+```
 
 ## Commands
 
@@ -64,9 +81,11 @@ When using **server mode**, authenticate with a bearer token:
 
 - VS Code ^1.96.0 or compatible editors (Cursor, VSCodium, etc.)
 - No external CLI install needed — the t-req core engine is bundled in the extension
+- **Recommended**: Install [@t-req/app](https://www.npmjs.com/package/@t-req/app) for Server Mode, TUI, and CI/CD features
 
 ## Links
 
 - [Documentation](https://t-req.io)
 - [GitHub Repository](https://github.com/tensorix-labs/t-req)
+- [CLI Package (@t-req/app)](https://www.npmjs.com/package/@t-req/app)
 - [Report Issues](https://github.com/tensorix-labs/t-req/issues)
