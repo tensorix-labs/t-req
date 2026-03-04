@@ -8,7 +8,7 @@ const TEST_FILE_PATTERNS = [
   /\.spec\.[jt]sx?$/,
   /_test\.[jt]sx?$/,
   /_spec\.[jt]sx?$/,
-  /test_.*\.py$/,
+  /^test_.*\.py$/,
   /.*_test\.py$/
 ];
 

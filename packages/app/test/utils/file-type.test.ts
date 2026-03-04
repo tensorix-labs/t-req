@@ -14,6 +14,15 @@ describe('file-type utilities', () => {
     expect(isTestFile('tests/users/get.test.ts')).toBe(true);
   });
 
+  test('does not classify non-test python files as test', () => {
+    expect(isTestFile('context_test_helper.py')).toBe(false);
+    expect(getFileType('scripts/api.py')).toBe('script');
+  });
+
+  test('classifies _test suffix files', () => {
+    expect(getFileType('src/auth_test.ts')).toBe('test');
+  });
+
   test('classifies runnable scripts', () => {
     expect(getFileType('scripts/run.ts')).toBe('script');
     expect(getFileType('scripts/run.py')).toBe('script');
@@ -22,6 +31,7 @@ describe('file-type utilities', () => {
 
   test('classifies unsupported files as other', () => {
     expect(getFileType('README.md')).toBe('other');
+    expect(getFileType('Makefile')).toBe('other');
     expect(isHttpFile('README.md')).toBe(false);
     expect(isRunnableScript('README.md')).toBe(false);
   });
