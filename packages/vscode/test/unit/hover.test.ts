@@ -4,7 +4,8 @@ import {
   formatHoverContent,
   isResolverCall,
   lookupVariable,
-  resolveVariablesWithSource
+  resolveVariablesWithSource,
+  stringifyHoverValue
 } from '../../src/providers/hover-helpers';
 
 describe('hover helpers', () => {
@@ -36,6 +37,15 @@ describe('hover helpers', () => {
       expect(match?.expression).toBe('$hmac(["{{body}}"])');
       expect(match?.start).toBe(line.indexOf('{{$hmac'));
       expect(match?.end).toBe(line.length);
+    });
+
+    test('continues scanning after unmatched opener', () => {
+      const line = '{{ {{host}}/path';
+      const position = line.indexOf('host') + 1;
+      const match = findVariableAtPosition(line, position);
+
+      expect(match?.expression).toBe('host');
+      expect(match?.rawExpression).toBe('host');
     });
 
     test('handles adjacent variables and edge positions', () => {
@@ -71,6 +81,7 @@ describe('hover helpers', () => {
       expect(isResolverCall('$env(KEY')).toBe(false);
       expect(isResolverCall('$foo-bar()')).toBe(false);
       expect(isResolverCall('$foo.bar()')).toBe(false);
+      expect(isResolverCall('$foo(a)(b)')).toBe(false);
     });
   });
 
@@ -189,6 +200,13 @@ describe('hover helpers', () => {
         value: '{\n  "nested": true\n}',
         sourceLabel: 'Profile dev'
       });
+    });
+  });
+
+  describe('stringifyHoverValue', () => {
+    test('formats symbols and functions explicitly', () => {
+      expect(stringifyHoverValue(Symbol.for('token'))).toBe('Symbol(token)');
+      expect(stringifyHoverValue(() => true)).toBe('[function]');
     });
   });
 });

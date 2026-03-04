@@ -56,6 +56,11 @@ type SubstitutionContext = {
   workspaceRoot: string;
 };
 
+type WorkspaceBounds = {
+  startDir: string;
+  stopDir: string;
+};
+
 export type HoverProviderDependencies = {
   parseDocument: typeof parseDocument;
   loadConfig: typeof loadConfig;
@@ -226,8 +231,12 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
       }
 
       const scopeContext = this.resolveScopeContext(document.uri);
+      const workspaceBounds = this.dependencies.getWorkspaceBounds(document.uri);
       const fileVariables = this.readFileVariables(document, scopeContext);
-      const cachedConfigVariables = await this.getCachedConfigVariables(document.uri, scopeContext);
+      const cachedConfigVariables = await this.getCachedConfigVariables(
+        scopeContext,
+        workspaceBounds
+      );
       const variablesWithSource = resolveVariablesWithSource({ fileVariables });
 
       for (const [key, entry] of Object.entries(cachedConfigVariables.variablesWithSource)) {
@@ -273,16 +282,18 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
   }
 
   private async getCachedConfigVariables(
-    documentUri: vscode.Uri,
-    scopeContext: HoverScopeContext
+    scopeContext: HoverScopeContext,
+    workspaceBounds: WorkspaceBounds
   ): Promise<CachedConfigVariables> {
-    const key = this.buildCacheKey(documentUri, scopeContext);
+    const key = this.buildCacheKey(workspaceBounds, scopeContext);
     const cached = this.cache.get(key);
     if (cached) {
+      this.cache.delete(key);
+      this.cache.set(key, cached);
       return cached;
     }
 
-    const resolved = await this.resolveConfigVariables(documentUri, scopeContext);
+    const resolved = await this.resolveConfigVariables(scopeContext, workspaceBounds);
     this.cache.set(key, resolved);
 
     if (this.cache.size > MAX_CACHE_ENTRIES) {
@@ -295,10 +306,10 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
     return resolved;
   }
 
-  private buildCacheKey(documentUri: vscode.Uri, scopeContext: HoverScopeContext): string {
+  private buildCacheKey(workspaceBounds: WorkspaceBounds, scopeContext: HoverScopeContext): string {
     const trustState = vscode.workspace.isTrusted ? 'trusted' : 'untrusted';
     return [
-      documentUri.toString(),
+      workspaceBounds.startDir,
       scopeContext.profile ?? '',
       scopeContext.settings.executionMode,
       trustState
@@ -310,8 +321,8 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
   }
 
   private async resolveConfigVariables(
-    documentUri: vscode.Uri,
-    scopeContext: HoverScopeContext
+    scopeContext: HoverScopeContext,
+    workspaceBounds: WorkspaceBounds
   ): Promise<CachedConfigVariables> {
     if (scopeContext.settings.executionMode !== 'local' || !vscode.workspace.isTrusted) {
       return {
@@ -320,7 +331,7 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
       };
     }
 
-    const loaded = await this.loadConfigWithFallback(documentUri, scopeContext);
+    const loaded = await this.loadConfigWithFallback(workspaceBounds, scopeContext);
     if (!loaded) {
       return {
         variablesWithSource: {},
@@ -330,26 +341,22 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
 
     const baseConfig = loaded.config;
     const profileResult = this.applyProfileWithFallback(baseConfig, scopeContext.profile);
-    const substitutionContext = this.buildSubstitutionContext(documentUri, loaded);
-
-    const substitutedBaseConfig = this.applySubstitutionsWithFallback(
-      baseConfig,
-      substitutionContext,
-      `base config (${scopeContext.profile ?? 'no-profile'})`
-    );
-    const substitutedMergedConfig = this.applySubstitutionsWithFallback(
-      profileResult.mergedConfig,
-      substitutionContext,
-      profileResult.profileApplied
-        ? `profile ${profileResult.profileName}`
-        : `merged config (${scopeContext.profile ?? 'no-profile'})`
-    );
-
-    const baseConfigVariables = toVariablesRecord(substitutedBaseConfig.variables);
-    const finalVariables = toVariablesRecord(substitutedMergedConfig.variables);
+    const substitutionContext = this.buildSubstitutionContext(workspaceBounds, loaded);
     const effectiveConfigVariables = profileResult.profileApplied
-      ? finalVariables
-      : baseConfigVariables;
+      ? toVariablesRecord(
+          this.applySubstitutionsWithFallback(
+            profileResult.mergedConfig,
+            substitutionContext,
+            `profile ${profileResult.profileName}`
+          ).variables
+        )
+      : toVariablesRecord(
+          this.applySubstitutionsWithFallback(
+            baseConfig,
+            substitutionContext,
+            `base config (${scopeContext.profile ?? 'no-profile'})`
+          ).variables
+        );
     const variablesWithSource = resolveVariablesWithSource({
       configVariables: effectiveConfigVariables
     });
@@ -358,16 +365,12 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
       const profileSource = `profile:${profileResult.profileName}` as const;
       for (const key of profileResult.profileVariableKeys) {
         const existingVariable = variablesWithSource[key];
-        if (existingVariable) {
-          variablesWithSource[key] = {
-            value: existingVariable.value,
-            source: profileSource
-          };
+        if (!existingVariable) {
           continue;
         }
 
         variablesWithSource[key] = {
-          value: finalVariables[key],
+          value: existingVariable.value,
           source: profileSource
         };
       }
@@ -395,10 +398,10 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
   }
 
   private async loadConfigWithFallback(
-    documentUri: vscode.Uri,
+    workspaceBounds: WorkspaceBounds,
     scopeContext: HoverScopeContext
   ): Promise<LoadedConfig | undefined> {
-    const { startDir, stopDir } = this.dependencies.getWorkspaceBounds(documentUri);
+    const { startDir, stopDir } = workspaceBounds;
 
     try {
       return await this.dependencies.loadConfig({ startDir, stopDir });
@@ -412,10 +415,10 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
   }
 
   private buildSubstitutionContext(
-    documentUri: vscode.Uri,
+    workspaceBounds: WorkspaceBounds,
     loaded: LoadedConfig
   ): SubstitutionContext {
-    const { startDir, stopDir } = this.dependencies.getWorkspaceBounds(documentUri);
+    const { startDir, stopDir } = workspaceBounds;
     const projectRoot = loaded.path ? path.dirname(loaded.path) : (stopDir ?? startDir);
     const workspaceRoot = stopDir ? path.resolve(stopDir) : projectRoot;
     const configDir = loaded.path ? path.dirname(loaded.path) : projectRoot;

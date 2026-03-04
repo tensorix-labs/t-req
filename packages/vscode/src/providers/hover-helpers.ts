@@ -118,7 +118,8 @@ export function findVariableAtPosition(
     }
 
     if (depth !== 0) {
-      return undefined;
+      index = start + 2;
+      continue;
     }
 
     const end = index;
@@ -146,10 +147,6 @@ export function isResolverCall(expression: string): boolean {
     return false;
   }
 
-  if (!trimmed.endsWith(')')) {
-    return false;
-  }
-
   const openIndex = trimmed.indexOf('(');
   if (openIndex === -1) {
     return false;
@@ -160,7 +157,33 @@ export function isResolverCall(expression: string): boolean {
     return false;
   }
 
-  return /^[A-Za-z0-9_]+$/.test(name);
+  if (!/^[A-Za-z0-9_]+$/.test(name)) {
+    return false;
+  }
+
+  let depth = 0;
+  for (let index = openIndex; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === '(') {
+      depth += 1;
+      continue;
+    }
+
+    if (char !== ')') {
+      continue;
+    }
+
+    depth -= 1;
+    if (depth < 0) {
+      return false;
+    }
+
+    if (depth === 0) {
+      return index === trimmed.length - 1;
+    }
+  }
+
+  return false;
 }
 
 export function lookupVariable(variables: Record<string, unknown>, variablePath: string): unknown {
@@ -238,6 +261,14 @@ export function stringifyHoverValue(value: unknown): string {
     value === null
   ) {
     return String(value);
+  }
+
+  if (typeof value === 'symbol') {
+    return value.toString();
+  }
+
+  if (typeof value === 'function') {
+    return '[function]';
   }
 
   if (typeof value === 'object') {
