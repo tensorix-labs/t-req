@@ -1,7 +1,7 @@
 {
   "name": "@t-req/app",
   "version": "0.3.14",
-  "description": "CLI for t-req - scaffold, execute, and serve HTTP request projects",
+  "description": "API testing CLI for .http files - run requests, automate checks, and serve test workflows",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,11 +18,17 @@
     "testing",
     "requests",
     "cli",
+    "command-line",
+    "terminal",
     "scaffold",
     "http-client",
+    "api-client",
     "api-testing",
+    "http-testing",
     "http-file",
     "rest-client",
+    "postman-alternative",
+    "insomnia-alternative",
     "http-server",
     "language-agnostic"
   ],

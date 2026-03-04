@@ -1,6 +1,6 @@
-# @t-req/app
+# @t-req/app (t-req CLI)
 
-CLI for t-req -- scaffold, execute, and serve HTTP request projects. Includes a terminal UI (TUI) and web dashboard for interactive exploration.
+t-req is an API testing CLI and HTTP client for `.http` files. Run requests, automate checks, and inspect responses from the command line, interactive TUI, or web dashboard.
 
 ## Developer Workflow
 
