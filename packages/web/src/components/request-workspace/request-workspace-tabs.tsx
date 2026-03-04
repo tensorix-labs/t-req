@@ -1,7 +1,7 @@
 import { createMemo, For, Match, Show, Switch } from 'solid-js';
+import { useHttpRequestEditor } from '../../context';
 import type { WorkspaceRequest } from '../../sdk';
 import { toRequestParams } from '../../utils/request-details';
-import { useHttpRequestEditor } from '../editor/HttpRequestEditorContext';
 import { REQUEST_WORKSPACE_TABS, type RequestWorkspaceTabId } from './model';
 import {
   RequestWorkspaceBodyPanel,
@@ -31,7 +31,9 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
     return toRequestParams(request.url);
   });
 
-  const selectedRequest = (): WorkspaceRequest | undefined => httpWorkspace.selection.selected();
+  const selectedRequest = createMemo((): WorkspaceRequest | undefined =>
+    httpWorkspace.selection.selected()
+  );
   const requestCount = (): number => httpWorkspace.requests.count();
 
   return (

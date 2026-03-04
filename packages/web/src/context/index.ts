@@ -1,3 +1,4 @@
+export { HttpRequestEditorProvider, useHttpRequestEditor } from './httpRequestEditor';
 export { ObserverProvider, useObserver } from './observer';
 export { ScriptRunnerProvider, useScriptRunner } from './scriptRunner';
 export type { ConnectionState } from './sdk';

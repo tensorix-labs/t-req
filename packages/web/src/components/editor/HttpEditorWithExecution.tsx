@@ -1,5 +1,5 @@
 import { type Component, createEffect, createSignal, on, onCleanup, Show } from 'solid-js';
-import { useConnection, useObserver, useWorkspace } from '../../context';
+import { HttpRequestEditorProvider, useConnection, useObserver, useWorkspace } from '../../context';
 import { useEditorPanelState } from '../../hooks/useEditorPanelState';
 import { useHttpRequestWorkspace } from '../../hooks/useHttpRequestWorkspace';
 import { ExecutionDetail } from '../execution/ExecutionDetail';
@@ -8,7 +8,6 @@ import {
   type RequestWorkspaceTabId,
   RequestWorkspaceTabs
 } from '../request-workspace';
-import { HttpRequestEditorProvider } from './HttpRequestEditorContext';
 import { RequestSelectorBar } from './RequestSelectorBar';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
