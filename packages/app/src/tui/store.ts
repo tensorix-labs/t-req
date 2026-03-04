@@ -1,13 +1,15 @@
 import type { WorkspaceFile, WorkspaceRequest } from '@t-req/sdk/client';
 import { createEffect, createMemo, createSignal, on } from 'solid-js';
+import { type FileType, getFileType } from '../utils/file-type';
+
+export type { FileType } from '../utils/file-type';
+export { getFileType, isHttpFile, isRunnableScript, isTestFile } from '../utils/file-type';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'error';
-
-export type FileType = 'http' | 'script' | 'test' | 'other';
 
 export interface TreeNode {
   name: string;
@@ -17,53 +19,6 @@ export interface TreeNode {
   depth: number;
   requestCount?: number; // For files, show badge
   fileType?: FileType; // File type for non-directories
-}
-
-// Script file extensions
-const SCRIPT_EXTENSIONS = new Set(['.ts', '.js', '.mts', '.mjs', '.py']);
-const HTTP_EXTENSIONS = new Set(['.http']);
-
-// Test file patterns (common naming conventions)
-const TEST_FILE_PATTERNS = [
-  /\.test\.[jt]sx?$/,
-  /\.spec\.[jt]sx?$/,
-  /_test\.[jt]sx?$/,
-  /_spec\.[jt]sx?$/,
-  /test_.*\.py$/,
-  /.*_test\.py$/
-];
-
-/**
- * Determine the file type from a file path.
- */
-export function getFileType(path: string): FileType {
-  const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
-  if (HTTP_EXTENSIONS.has(ext)) return 'http';
-  if (isTestFile(path)) return 'test';
-  if (SCRIPT_EXTENSIONS.has(ext)) return 'script';
-  return 'other';
-}
-
-/**
- * Check if a file path is a runnable script.
- */
-export function isRunnableScript(path: string): boolean {
-  return getFileType(path) === 'script';
-}
-
-/**
- * Check if a file path is an HTTP file.
- */
-export function isHttpFile(path: string): boolean {
-  return getFileType(path) === 'http';
-}
-
-/**
- * Check if a file path is a test file based on common naming conventions.
- */
-export function isTestFile(path: string): boolean {
-  const fileName = path.split('/').pop() ?? path;
-  return TEST_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
 }
 
 export interface FlatNode {

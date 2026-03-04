@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { parse } from '@t-req/core';
-import { getFileType } from '../../tui/store';
 import { dirname, isPathSafe, resolve } from '../../utils';
+import { getFileType } from '../../utils/file-type';
 import {
   FileNotFoundError,
   ParseError,
