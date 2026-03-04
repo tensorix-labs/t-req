@@ -46,7 +46,7 @@ type HoverScopeContext = {
   profile: string | undefined;
 };
 
-type CachedVariables = {
+type CachedConfigVariables = {
   variablesWithSource: VariablesWithSource;
   configLabel: string | undefined;
 };
@@ -144,7 +144,7 @@ function toMarkdownString(content: FormattedHoverContent): vscode.MarkdownString
 
 export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
-  private readonly cache = new Map<string, CachedVariables>();
+  private readonly cache = new Map<string, CachedConfigVariables>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -201,44 +201,59 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
     document: vscode.TextDocument,
     position: vscode.Position
   ): Promise<vscode.Hover | undefined> {
-    if (document.languageId !== 'http') {
+    try {
+      if (document.languageId !== 'http') {
+        return undefined;
+      }
+
+      const lineText = document.lineAt(position.line).text;
+      const match = findVariableAtPosition(lineText, position.character);
+      if (!match) {
+        return undefined;
+      }
+
+      const range = new vscode.Range(position.line, match.start, position.line, match.end);
+      if (isResolverCall(match.expression)) {
+        return new vscode.Hover(
+          toMarkdownString(
+            formatHoverContent({
+              variableName: match.expression,
+              isResolver: true
+            })
+          ),
+          range
+        );
+      }
+
+      const scopeContext = this.resolveScopeContext(document.uri);
+      const fileVariables = this.readFileVariables(document, scopeContext);
+      const cachedConfigVariables = await this.getCachedConfigVariables(document.uri, scopeContext);
+      const variablesWithSource = resolveVariablesWithSource({ fileVariables });
+
+      for (const [key, entry] of Object.entries(cachedConfigVariables.variablesWithSource)) {
+        variablesWithSource[key] = {
+          value: entry.value,
+          source: entry.source
+        };
+      }
+
+      const value = lookupVariable(toValueMap(variablesWithSource), match.expression);
+      const topLevelKey = findTopLevelVariableKey(match.expression);
+      const source = topLevelKey ? variablesWithSource[topLevelKey]?.source : undefined;
+
+      const content = formatHoverContent({
+        variableName: match.expression,
+        isResolver: false,
+        value,
+        source,
+        configLabel: cachedConfigVariables.configLabel
+      });
+
+      return new vscode.Hover(toMarkdownString(content), range);
+    } catch (error) {
+      this.output.appendLine(`[hover] unexpected error: ${toErrorMessage(error)}`);
       return undefined;
     }
-
-    const lineText = document.lineAt(position.line).text;
-    const match = findVariableAtPosition(lineText, position.character);
-    if (!match) {
-      return undefined;
-    }
-
-    const range = new vscode.Range(position.line, match.start, position.line, match.end);
-    if (isResolverCall(match.expression)) {
-      return new vscode.Hover(
-        toMarkdownString(
-          formatHoverContent({
-            variableName: match.expression,
-            isResolver: true
-          })
-        ),
-        range
-      );
-    }
-
-    const scopeContext = this.resolveScopeContext(document.uri);
-    const resolved = await this.getCachedVariables(document, scopeContext);
-    const value = lookupVariable(toValueMap(resolved.variablesWithSource), match.expression);
-    const topLevelKey = findTopLevelVariableKey(match.expression);
-    const source = topLevelKey ? resolved.variablesWithSource[topLevelKey]?.source : undefined;
-
-    const content = formatHoverContent({
-      variableName: match.expression,
-      isResolver: false,
-      value,
-      source,
-      configLabel: resolved.configLabel
-    });
-
-    return new vscode.Hover(toMarkdownString(content), range);
   }
 
   private resolveScopeContext(documentUri: vscode.Uri): HoverScopeContext {
@@ -257,17 +272,17 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
     };
   }
 
-  private async getCachedVariables(
-    document: vscode.TextDocument,
+  private async getCachedConfigVariables(
+    documentUri: vscode.Uri,
     scopeContext: HoverScopeContext
-  ): Promise<CachedVariables> {
-    const key = this.buildCacheKey(document, scopeContext);
+  ): Promise<CachedConfigVariables> {
+    const key = this.buildCacheKey(documentUri, scopeContext);
     const cached = this.cache.get(key);
     if (cached) {
       return cached;
     }
 
-    const resolved = await this.resolveVariables(document, scopeContext);
+    const resolved = await this.resolveConfigVariables(documentUri, scopeContext);
     this.cache.set(key, resolved);
 
     if (this.cache.size > MAX_CACHE_ENTRIES) {
@@ -280,11 +295,10 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
     return resolved;
   }
 
-  private buildCacheKey(document: vscode.TextDocument, scopeContext: HoverScopeContext): string {
+  private buildCacheKey(documentUri: vscode.Uri, scopeContext: HoverScopeContext): string {
     const trustState = vscode.workspace.isTrusted ? 'trusted' : 'untrusted';
     return [
-      document.uri.toString(),
-      String(document.version),
+      documentUri.toString(),
       scopeContext.profile ?? '',
       scopeContext.settings.executionMode,
       trustState
@@ -295,30 +309,28 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
     this.cache.clear();
   }
 
-  private async resolveVariables(
-    document: vscode.TextDocument,
+  private async resolveConfigVariables(
+    documentUri: vscode.Uri,
     scopeContext: HoverScopeContext
-  ): Promise<CachedVariables> {
-    const fileVariables = this.readFileVariables(document, scopeContext);
-
+  ): Promise<CachedConfigVariables> {
     if (scopeContext.settings.executionMode !== 'local' || !vscode.workspace.isTrusted) {
       return {
-        variablesWithSource: resolveVariablesWithSource({ fileVariables }),
+        variablesWithSource: {},
         configLabel: undefined
       };
     }
 
-    const loaded = await this.loadConfigWithFallback(document.uri, scopeContext);
+    const loaded = await this.loadConfigWithFallback(documentUri, scopeContext);
     if (!loaded) {
       return {
-        variablesWithSource: resolveVariablesWithSource({ fileVariables }),
+        variablesWithSource: {},
         configLabel: undefined
       };
     }
 
     const baseConfig = loaded.config;
     const profileResult = this.applyProfileWithFallback(baseConfig, scopeContext.profile);
-    const substitutionContext = this.buildSubstitutionContext(document.uri, loaded);
+    const substitutionContext = this.buildSubstitutionContext(documentUri, loaded);
 
     const substitutedBaseConfig = this.applySubstitutionsWithFallback(
       baseConfig,
@@ -335,16 +347,28 @@ export class TreqHoverProvider implements vscode.HoverProvider, vscode.Disposabl
 
     const baseConfigVariables = toVariablesRecord(substitutedBaseConfig.variables);
     const finalVariables = toVariablesRecord(substitutedMergedConfig.variables);
+    const effectiveConfigVariables = profileResult.profileApplied
+      ? finalVariables
+      : baseConfigVariables;
     const variablesWithSource = resolveVariablesWithSource({
-      fileVariables,
-      configVariables: baseConfigVariables
+      configVariables: effectiveConfigVariables
     });
 
     if (profileResult.profileApplied && profileResult.profileName) {
+      const profileSource = `profile:${profileResult.profileName}` as const;
       for (const key of profileResult.profileVariableKeys) {
+        const existingVariable = variablesWithSource[key];
+        if (existingVariable) {
+          variablesWithSource[key] = {
+            value: existingVariable.value,
+            source: profileSource
+          };
+          continue;
+        }
+
         variablesWithSource[key] = {
           value: finalVariables[key],
-          source: `profile:${profileResult.profileName}`
+          source: profileSource
         };
       }
     }
