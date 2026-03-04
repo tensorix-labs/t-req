@@ -7,7 +7,6 @@ import {
 } from '../components/request-workspace';
 import type { WorkspaceRequest } from '../sdk';
 import type { WorkspaceStore } from '../stores/workspace';
-import { getFileType } from '../utils/fileType';
 
 interface UseHttpRequestWorkspaceInput {
   path: Accessor<string>;
@@ -39,7 +38,6 @@ interface HttpRequestWorkspaceState {
   // Actions/operations
   actions: {
     reset: () => void;
-    validateAndAdjustIndex: () => void;
   };
 }
 
@@ -50,9 +48,6 @@ export function useHttpRequestWorkspace(
 
   const requests = createMemo<WorkspaceRequest[]>(() => {
     const path = input.path();
-    if (getFileType(path) !== 'http') {
-      return [];
-    }
     return input.workspace.requestsByPath()[path] ?? [];
   });
 
@@ -154,8 +149,7 @@ export function useHttpRequestWorkspace(
       body: bodyDraft
     },
     actions: {
-      reset,
-      validateAndAdjustIndex
+      reset
     }
   };
 }
