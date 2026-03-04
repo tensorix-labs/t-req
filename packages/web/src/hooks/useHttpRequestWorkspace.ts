@@ -14,8 +14,8 @@ interface UseHttpRequestWorkspaceInput {
   workspace: WorkspaceStore;
 }
 
-// Structured API with domain grouping - prepares for Phase 4 Context
-interface HttpRequestWorkspaceState {
+// Structured API with domain grouping
+export interface HttpRequestWorkspaceState {
   // Core request selection state
   selection: {
     index: Accessor<number>;

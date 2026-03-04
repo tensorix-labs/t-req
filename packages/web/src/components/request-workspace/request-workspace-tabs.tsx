@@ -1,10 +1,6 @@
 import { createMemo, For, Match, Show, Switch } from 'solid-js';
+import { useHttpRequestEditor } from '../../context';
 import type { WorkspaceRequest } from '../../sdk';
-import type {
-  RequestBodyField,
-  RequestBodySummary,
-  RequestDetailsRow
-} from '../../utils/request-details';
 import { toRequestParams } from '../../utils/request-details';
 import { REQUEST_WORKSPACE_TABS, type RequestWorkspaceTabId } from './model';
 import {
@@ -16,42 +12,6 @@ import {
 interface RequestWorkspaceTabsProps {
   activeTab: RequestWorkspaceTabId;
   onTabChange: (tab: RequestWorkspaceTabId) => void;
-  selectedRequest?: WorkspaceRequest;
-  requestCount: number;
-  requestHeaders: RequestDetailsRow[];
-  requestBodySummary: RequestBodySummary;
-  requestBodyDraft: string;
-  requestBodyFormDataDraft: RequestBodyField[];
-  requestBodyFilePathDraft: string;
-  requestDetailsLoading: boolean;
-  requestDetailsError?: string;
-  headerDraftDirty: boolean;
-  headerDraftSaving: boolean;
-  headerDraftSaveError?: string;
-  onHeaderChange: (index: number, field: 'key' | 'value', value: string) => void;
-  onAddHeader: () => void;
-  onRemoveHeader: (index: number) => void;
-  onSaveHeaders: () => void;
-  onDiscardHeaders: () => void;
-  bodyDraftDirty: boolean;
-  bodyDraftSaving: boolean;
-  bodyDraftSaveError?: string;
-  bodyDraftValidationError?: string;
-  bodyDraftIsJsonEditable: boolean;
-  bodyDraftTemplateWarnings: string[];
-  onBodyChange: (value: string) => void;
-  onBodyFilePathChange: (value: string) => void;
-  onBodyFormDataNameChange: (index: number, value: string) => void;
-  onBodyFormDataTypeChange: (index: number, isFile: boolean) => void;
-  onBodyFormDataValueChange: (index: number, value: string) => void;
-  onBodyFormDataFilenameChange: (index: number, value: string) => void;
-  onBodyFormDataAddField: () => void;
-  onBodyFormDataRemoveField: (index: number) => void;
-  onBodyPrettify: () => void;
-  onBodyMinify: () => void;
-  onBodyCopy: () => void;
-  onSaveBody: () => void;
-  onDiscardBody: () => void;
 }
 
 const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
@@ -61,13 +21,20 @@ const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
 };
 
 export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
+  const httpWorkspace = useHttpRequestEditor();
+
   const requestParams = createMemo(() => {
-    const request = props.selectedRequest;
+    const request = httpWorkspace.selection.selected();
     if (!request) {
       return [];
     }
     return toRequestParams(request.url);
   });
+
+  const selectedRequest = createMemo((): WorkspaceRequest | undefined =>
+    httpWorkspace.selection.selected()
+  );
+  const requestCount = (): number => httpWorkspace.requests.count();
 
   return (
     <section
@@ -79,7 +46,7 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
           Request Workspace
         </p>
         <span class="badge badge-sm border-base-300 bg-base-200/70 font-mono text-[11px]">
-          {props.requestCount} req
+          {requestCount()} req
         </span>
       </div>
 
@@ -103,7 +70,7 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
       <div class="px-3 pb-3 pt-2">
         <div class="rounded-box border border-base-300 bg-base-100/70 px-3 py-2 text-sm text-base-content/75">
           <Show
-            when={props.selectedRequest}
+            when={selectedRequest()}
             fallback={<p>Select a request to view {TAB_LABELS[props.activeTab].toLowerCase()}.</p>}
           >
             {(request) => (
@@ -116,59 +83,64 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
                 </Match>
                 <Match when={props.activeTab === 'headers'}>
                   <Show
-                    when={!props.requestDetailsLoading}
+                    when={!httpWorkspace.drafts.parse.loading()}
                     fallback={<p>Loading request headers…</p>}
                   >
                     <Show
-                      when={!props.requestDetailsError}
-                      fallback={<p>{props.requestDetailsError}</p>}
+                      when={!httpWorkspace.drafts.parse.error()}
+                      fallback={<p>{httpWorkspace.drafts.parse.error()}</p>}
                     >
                       <RequestWorkspaceHeadersPanel
-                        hasRequest={Boolean(props.selectedRequest)}
-                        requestHeaders={props.requestHeaders}
-                        headerDraftDirty={props.headerDraftDirty}
-                        headerDraftSaving={props.headerDraftSaving}
-                        headerDraftSaveError={props.headerDraftSaveError}
-                        onHeaderChange={props.onHeaderChange}
-                        onAddHeader={props.onAddHeader}
-                        onRemoveHeader={props.onRemoveHeader}
-                        onSaveHeaders={props.onSaveHeaders}
-                        onDiscardHeaders={props.onDiscardHeaders}
+                        hasRequest={Boolean(selectedRequest())}
+                        requestHeaders={httpWorkspace.drafts.header.draftHeaders()}
+                        headerDraftDirty={httpWorkspace.drafts.header.isDirty()}
+                        headerDraftSaving={httpWorkspace.drafts.header.isSaving()}
+                        headerDraftSaveError={httpWorkspace.drafts.header.saveError()}
+                        onHeaderChange={httpWorkspace.drafts.header.onHeaderChange}
+                        onAddHeader={httpWorkspace.drafts.header.onAddHeader}
+                        onRemoveHeader={httpWorkspace.drafts.header.onRemoveHeader}
+                        onSaveHeaders={httpWorkspace.drafts.header.onSave}
+                        onDiscardHeaders={httpWorkspace.drafts.header.onDiscard}
                       />
                     </Show>
                   </Show>
                 </Match>
                 <Match when={props.activeTab === 'body'}>
-                  <Show when={!props.requestDetailsLoading} fallback={<p>Loading request body…</p>}>
+                  <Show
+                    when={!httpWorkspace.drafts.parse.loading()}
+                    fallback={<p>Loading request body…</p>}
+                  >
                     <Show
-                      when={!props.requestDetailsError}
-                      fallback={<p>{props.requestDetailsError}</p>}
+                      when={!httpWorkspace.drafts.parse.error()}
+                      fallback={<p>{httpWorkspace.drafts.parse.error()}</p>}
                     >
                       <RequestWorkspaceBodyPanel
-                        hasRequest={Boolean(props.selectedRequest)}
-                        requestBodySummary={props.requestBodySummary}
-                        requestBodyDraft={props.requestBodyDraft}
-                        requestBodyFormDataDraft={props.requestBodyFormDataDraft}
-                        requestBodyFilePathDraft={props.requestBodyFilePathDraft}
-                        bodyDraftDirty={props.bodyDraftDirty}
-                        bodyDraftSaving={props.bodyDraftSaving}
-                        bodyDraftSaveError={props.bodyDraftSaveError}
-                        bodyDraftValidationError={props.bodyDraftValidationError}
-                        bodyDraftIsJsonEditable={props.bodyDraftIsJsonEditable}
-                        bodyDraftTemplateWarnings={props.bodyDraftTemplateWarnings}
-                        onBodyChange={props.onBodyChange}
-                        onBodyFilePathChange={props.onBodyFilePathChange}
-                        onBodyFormDataNameChange={props.onBodyFormDataNameChange}
-                        onBodyFormDataTypeChange={props.onBodyFormDataTypeChange}
-                        onBodyFormDataValueChange={props.onBodyFormDataValueChange}
-                        onBodyFormDataFilenameChange={props.onBodyFormDataFilenameChange}
-                        onBodyFormDataAddField={props.onBodyFormDataAddField}
-                        onBodyFormDataRemoveField={props.onBodyFormDataRemoveField}
-                        onBodyPrettify={props.onBodyPrettify}
-                        onBodyMinify={props.onBodyMinify}
-                        onBodyCopy={props.onBodyCopy}
-                        onSaveBody={props.onSaveBody}
-                        onDiscardBody={props.onDiscardBody}
+                        hasRequest={Boolean(selectedRequest())}
+                        requestBodySummary={httpWorkspace.drafts.parse.bodySummary()}
+                        requestBodyDraft={httpWorkspace.drafts.body.draftBody()}
+                        requestBodyFormDataDraft={httpWorkspace.drafts.body.draftFormData()}
+                        requestBodyFilePathDraft={httpWorkspace.drafts.body.draftFilePath()}
+                        bodyDraftDirty={httpWorkspace.drafts.body.isDirty()}
+                        bodyDraftSaving={httpWorkspace.drafts.body.isSaving()}
+                        bodyDraftSaveError={httpWorkspace.drafts.body.saveError()}
+                        bodyDraftValidationError={httpWorkspace.drafts.body.validationError()}
+                        bodyDraftIsJsonEditable={httpWorkspace.drafts.body.isJsonBody()}
+                        bodyDraftTemplateWarnings={httpWorkspace.drafts.body.templateWarnings()}
+                        onBodyChange={httpWorkspace.drafts.body.onBodyChange}
+                        onBodyFilePathChange={httpWorkspace.drafts.body.onFilePathChange}
+                        onBodyFormDataNameChange={httpWorkspace.drafts.body.onFormDataNameChange}
+                        onBodyFormDataTypeChange={httpWorkspace.drafts.body.onFormDataTypeChange}
+                        onBodyFormDataValueChange={httpWorkspace.drafts.body.onFormDataValueChange}
+                        onBodyFormDataFilenameChange={
+                          httpWorkspace.drafts.body.onFormDataFilenameChange
+                        }
+                        onBodyFormDataAddField={httpWorkspace.drafts.body.onAddFormDataField}
+                        onBodyFormDataRemoveField={httpWorkspace.drafts.body.onRemoveFormDataField}
+                        onBodyPrettify={httpWorkspace.drafts.body.onBodyPrettify}
+                        onBodyMinify={httpWorkspace.drafts.body.onBodyMinify}
+                        onBodyCopy={() => void httpWorkspace.drafts.body.onBodyCopy()}
+                        onSaveBody={httpWorkspace.drafts.body.onSave}
+                        onDiscardBody={httpWorkspace.drafts.body.onDiscard}
                       />
                     </Show>
                   </Show>
