@@ -3,6 +3,7 @@ import { TreqCommandController } from './commands';
 import { TreqCodeLensProvider } from './providers/codelens';
 import { TreqDiagnostics } from './providers/diagnostics';
 import { TreqDocumentSymbolProvider } from './providers/document-symbols';
+import { TreqHoverProvider } from './providers/hover';
 import { migrateLegacyProfileState } from './state/profile-state';
 import { getFolderScopeUri } from './state/scope';
 import { TreqStatusBar } from './status-bar';
@@ -49,10 +50,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const codeLens = new TreqCodeLensProvider();
   const symbols = new TreqDocumentSymbolProvider();
+  const hover = new TreqHoverProvider(context, output);
 
-  disposables.push(output, panel, diagnostics, statusBar, commands);
+  disposables.push(output, panel, diagnostics, statusBar, commands, hover);
   disposables.push(vscode.languages.registerCodeLensProvider({ language: 'http' }, codeLens));
   disposables.push(vscode.languages.registerDocumentSymbolProvider({ language: 'http' }, symbols));
+  disposables.push(vscode.languages.registerHoverProvider({ language: 'http' }, hover));
 
   disposables.push(
     vscode.workspace.onDidChangeTextDocument((event) => {

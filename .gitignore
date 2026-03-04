@@ -68,3 +68,5 @@ tmp
 packages/vscode/.vscode-test/
 
 *.vsix
+
+specs
