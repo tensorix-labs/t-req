@@ -144,7 +144,7 @@ export function StatusBar(props: StatusBarProps) {
       <box flexDirection="row" gap={2}>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>ctrl+h</text>
-          <text fg={rgba(theme.textMuted)}>hide panel</text>
+          <text fg={rgba(theme.textMuted)}> hide panel</text>
         </box>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>{keybind.print('file_picker')}</text>
