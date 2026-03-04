@@ -8,6 +8,7 @@ import {
   type RequestWorkspaceTabId,
   RequestWorkspaceTabs
 } from '../request-workspace';
+import { HttpRequestEditorProvider } from './HttpRequestEditorContext';
 import { RequestSelectorBar } from './RequestSelectorBar';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -116,7 +117,7 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
   });
 
   return (
-    <>
+    <HttpRequestEditorProvider store={httpWorkspace}>
       <RequestSelectorBar
         requests={httpWorkspace.requests.all()}
         selectedIndex={httpWorkspace.selection.index()}
@@ -135,42 +136,6 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
               <RequestWorkspaceTabs
                 activeTab={activeRequestTab()}
                 onTabChange={setActiveRequestTab}
-                selectedRequest={httpWorkspace.selection.selected()}
-                requestCount={httpWorkspace.requests.count()}
-                requestHeaders={httpWorkspace.drafts.header.draftHeaders()}
-                requestBodySummary={httpWorkspace.drafts.parse.bodySummary()}
-                requestBodyDraft={httpWorkspace.drafts.body.draftBody()}
-                requestBodyFormDataDraft={httpWorkspace.drafts.body.draftFormData()}
-                requestBodyFilePathDraft={httpWorkspace.drafts.body.draftFilePath()}
-                requestDetailsLoading={httpWorkspace.drafts.parse.loading()}
-                requestDetailsError={httpWorkspace.drafts.parse.error()}
-                headerDraftDirty={httpWorkspace.drafts.header.isDirty()}
-                headerDraftSaving={httpWorkspace.drafts.header.isSaving()}
-                headerDraftSaveError={httpWorkspace.drafts.header.saveError()}
-                onHeaderChange={httpWorkspace.drafts.header.onHeaderChange}
-                onAddHeader={httpWorkspace.drafts.header.onAddHeader}
-                onRemoveHeader={httpWorkspace.drafts.header.onRemoveHeader}
-                onSaveHeaders={httpWorkspace.drafts.header.onSave}
-                onDiscardHeaders={httpWorkspace.drafts.header.onDiscard}
-                bodyDraftDirty={httpWorkspace.drafts.body.isDirty()}
-                bodyDraftSaving={httpWorkspace.drafts.body.isSaving()}
-                bodyDraftSaveError={httpWorkspace.drafts.body.saveError()}
-                bodyDraftValidationError={httpWorkspace.drafts.body.validationError()}
-                bodyDraftIsJsonEditable={httpWorkspace.drafts.body.isJsonBody()}
-                bodyDraftTemplateWarnings={httpWorkspace.drafts.body.templateWarnings()}
-                onBodyChange={httpWorkspace.drafts.body.onBodyChange}
-                onBodyFilePathChange={httpWorkspace.drafts.body.onFilePathChange}
-                onBodyFormDataNameChange={httpWorkspace.drafts.body.onFormDataNameChange}
-                onBodyFormDataTypeChange={httpWorkspace.drafts.body.onFormDataTypeChange}
-                onBodyFormDataValueChange={httpWorkspace.drafts.body.onFormDataValueChange}
-                onBodyFormDataFilenameChange={httpWorkspace.drafts.body.onFormDataFilenameChange}
-                onBodyFormDataAddField={httpWorkspace.drafts.body.onAddFormDataField}
-                onBodyFormDataRemoveField={httpWorkspace.drafts.body.onRemoveFormDataField}
-                onBodyPrettify={httpWorkspace.drafts.body.onBodyPrettify}
-                onBodyMinify={httpWorkspace.drafts.body.onBodyMinify}
-                onBodyCopy={() => void httpWorkspace.drafts.body.onBodyCopy()}
-                onSaveBody={httpWorkspace.drafts.body.onSave}
-                onDiscardBody={httpWorkspace.drafts.body.onDiscard}
               />
             </div>
           }
@@ -193,7 +158,7 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
           onCollapseChange={panelState.setCollapsed}
         />
       </div>
-    </>
+    </HttpRequestEditorProvider>
   );
 };
 
