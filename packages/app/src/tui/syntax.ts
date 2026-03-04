@@ -18,6 +18,13 @@ export const syntaxStyle = SyntaxStyle.fromTheme([
 export function detectFiletype(contentType?: string, content?: string): string | undefined {
   const ct = contentType?.toLowerCase();
   if (ct?.includes('application/json') || ct?.includes('+json')) return 'json';
+  if (ct?.includes('text/html') || ct?.includes('application/xhtml')) return 'html';
+  if (
+    ct?.includes('application/yaml') ||
+    ct?.includes('text/yaml') ||
+    ct?.includes('application/x-yaml')
+  )
+    return 'yaml';
 
   // No content-type — sniff JSON from content
   if (!ct && content) {
