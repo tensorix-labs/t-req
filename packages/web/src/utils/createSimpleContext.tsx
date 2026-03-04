@@ -30,7 +30,7 @@ export function createSimpleContext<
     const gate = input.gate ?? true;
 
     if (!gate) {
-      return ctx.Provider({ value: init, children: props.children });
+      return <ctx.Provider value={init}>{props.children}</ctx.Provider>;
     }
 
     const isReady = createMemo(() => {
@@ -38,10 +38,11 @@ export function createSimpleContext<
       return ready === undefined || (typeof ready === 'function' ? ready() : ready);
     });
 
-    return Show({
-      when: isReady(),
-      children: ctx.Provider({ value: init, children: props.children })
-    });
+    return (
+      <Show when={isReady()}>
+        <ctx.Provider value={init}>{props.children}</ctx.Provider>
+      </Show>
+    );
   };
 
   const use = (): T => {

@@ -22,13 +22,9 @@ export const ScriptEditorWithExecution: Component<ScriptEditorWithExecutionProps
   createEffect(
     on(
       () => props.path,
-      (path) => {
+      () => {
         observer.clearExecutions();
         observer.clearScriptOutput();
-
-        if (!path) {
-          return;
-        }
       }
     )
   );
