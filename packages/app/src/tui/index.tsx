@@ -1,3 +1,4 @@
+import { addDefaultParsers } from '@opentui/core';
 import { render } from '@opentui/solid';
 import { createTreqClient } from '@t-req/sdk/client';
 import { App } from './app';
@@ -15,6 +16,7 @@ import {
   unwrap
 } from './context';
 import { createObserverStore } from './observer-store';
+import { parsers } from './parsers-config';
 import { createStore } from './store';
 
 export interface TuiConfig {
@@ -25,6 +27,7 @@ export interface TuiConfig {
 }
 
 export async function startTui(config: TuiConfig): Promise<void> {
+  addDefaultParsers(parsers);
   const sdk = createTreqClient({ baseUrl: config.serverUrl, token: config.token });
   const store = createStore();
   const observerStore = createObserverStore();
