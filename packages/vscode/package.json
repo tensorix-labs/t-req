@@ -2,7 +2,7 @@
   "name": "t-req-vscode",
   "displayName": "t-req — HTTP Client & API Testing",
   "description": "Lightweight HTTP/REST client extension for testing APIs. Run requests from .http files with syntax highlighting, variables, profiles, and plugin support. Postman alternative.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "tensorix-labs",
   "icon": "logo.png",
   "license": "MIT",

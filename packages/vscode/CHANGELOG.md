@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [1c629f7]
+  - @t-req/sdk@0.1.4
+  - @t-req/core@0.2.6
+
 ## 0.1.6
 
 ### Patch Changes

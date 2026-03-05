@@ -1,5 +1,12 @@
 # @t-req/web
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [1c629f7]
+  - @t-req/sdk@0.1.4
+
 ## 0.0.3
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @t-req/app
 
+## 0.3.16
+
+### Patch Changes
+
+- 1c629f7: Add profile propagation through script and test runners.
+
+  Scripts and tests now automatically inherit the active workspace configuration profile when executed. This enables seamless use of profile-specific variables across nested execution contexts without manual configuration.
+  When running scripts or tests, the active profile is passed via the `TREQ_PROFILE` environment variable. Spawned clients automatically use this profile for variable resolution when no explicit profile is configured, ensuring consistent behavior whether triggered from the dashboard, CLI, or programmatically.
+
+- Updated dependencies [1c629f7]
+  - @t-req/sdk@0.1.4
+  - @t-req/core@0.2.6
+  - @t-req/plugin-base@0.1.1
+
 ## 0.3.15
 
 ### Patch Changes
