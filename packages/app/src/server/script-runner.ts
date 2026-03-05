@@ -335,10 +335,10 @@ export function runScript(options: RunScriptOptions): RunningScript {
   const env: Record<string, string | undefined> = {
     ...process.env,
     TREQ_SERVER: serverUrl,
-    TREQ_PROFILE: profile,
     TREQ_FLOW_ID: flowId,
     TREQ_SESSION_ID: sessionId,
-    TREQ_TOKEN: scriptToken // Scoped token (not the main server token)
+    TREQ_TOKEN: scriptToken, // Scoped token (not the main server token)
+    ...(profile !== undefined ? { TREQ_PROFILE: profile } : {})
   };
 
   // Spawn the process

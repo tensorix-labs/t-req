@@ -171,6 +171,7 @@ export type ServerConfig = {
   workspace?: string;
   port: number;
   host: string;
+  profile?: string;
   token?: string;
   corsOrigins?: string[];
   maxBodyBytes: number;
@@ -239,6 +240,7 @@ export function createApp(config: ServerConfig) {
     workspaceRoot,
     maxBodyBytes: config.maxBodyBytes,
     maxSessions: config.maxSessions,
+    profile: config.profile,
     onEvent: (sessionId, runId, event) => {
       eventManager.emit(sessionId, runId, event);
     }

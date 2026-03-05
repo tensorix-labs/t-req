@@ -6,6 +6,7 @@ import { createApp, type ServerConfig } from '../../src/server/app';
 import type { EventEnvelope } from '../../src/server/events';
 
 type TestApp = ReturnType<typeof createApp>;
+const clientModuleUrl = new URL('../../../core/src/client.ts', import.meta.url).href;
 
 async function getAvailablePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -59,14 +60,44 @@ async function waitForFlowEvent(
   throw new Error(`Timed out waiting for ${eventType} for flow ${flowId}`);
 }
 
-function createTestConfig(workspaceRoot: string, port: number): ServerConfig {
+function createTestConfig(workspaceRoot: string, port: number, profile?: string): ServerConfig {
   return {
     workspace: workspaceRoot,
     port,
     host: '127.0.0.1',
+    profile,
     maxBodyBytes: 1024 * 1024,
     maxSessions: 10
   };
+}
+
+function buildRunnerScriptSource(): string {
+  return `import { createClient } from '${clientModuleUrl}';
+
+const client = createClient({ server: process.env.TREQ_SERVER });
+const response = await client.run('profile.http');
+
+if (!response.ok) {
+  throw new Error(\`Unexpected status: \${response.status}\`);
+}
+
+await client.close();
+`;
+}
+
+function buildRunnerTestSource(): string {
+  return `import { expect, test } from 'bun:test';
+import { createClient } from '${clientModuleUrl}';
+
+test('uses the active profile', async () => {
+  const client = createClient({ server: process.env.TREQ_SERVER });
+  const response = await client.run('profile.http');
+
+  expect(response.status).toBe(200);
+
+  await client.close();
+});
+`;
 }
 
 describe('Runner profile propagation', () => {
@@ -75,6 +106,37 @@ describe('Runner profile propagation', () => {
   let appResult: TestApp | undefined;
   let appServer: Bun.Server | undefined;
   let upstreamServer: Bun.Server | undefined;
+
+  function getAppResult(): TestApp {
+    if (!appResult) {
+      throw new Error('App is not running');
+    }
+    return appResult;
+  }
+
+  async function startApp(profile?: string): Promise<void> {
+    appResult = createApp(createTestConfig(workspaceRoot, appPort, profile));
+    appServer = Bun.serve({
+      fetch: appResult.app.fetch,
+      websocket: appResult.websocket,
+      port: appPort,
+      hostname: '127.0.0.1'
+    });
+  }
+
+  async function stopApp(): Promise<void> {
+    appServer?.stop(true);
+    appServer = undefined;
+
+    if (!appResult) {
+      return;
+    }
+
+    appResult.eventManager.closeAll();
+    await appResult.service.dispose();
+    appResult.dispose();
+    appResult = undefined;
+  }
 
   beforeEach(async () => {
     workspaceRoot = await mkdtemp(join(dirname(import.meta.dir), 'tmp-profile-runner-'));
@@ -117,25 +179,12 @@ describe('Runner profile propagation', () => {
       `GET {{baseUrl}}/profile-check
 `
     );
-
-    appResult = createApp(createTestConfig(workspaceRoot, appPort));
-    appServer = Bun.serve({
-      fetch: appResult.app.fetch,
-      websocket: appResult.websocket,
-      port: appPort,
-      hostname: '127.0.0.1'
-    });
+    await startApp();
   });
 
   afterEach(async () => {
-    appServer?.stop(true);
+    await stopApp();
     upstreamServer?.stop(true);
-
-    if (appResult) {
-      appResult.eventManager.closeAll();
-      await appResult.service.dispose();
-      appResult.dispose();
-    }
 
     if (workspaceRoot) {
       await rm(workspaceRoot, { recursive: true, force: true });
@@ -143,21 +192,7 @@ describe('Runner profile propagation', () => {
   });
 
   test('POST /script applies a profile-only baseUrl for spawned clients', async () => {
-    await writeWorkspaceFile(
-      workspaceRoot,
-      'runner-script.ts',
-      `import { createClient } from '../../../core/src/client.ts';
-
-const client = createClient({ server: process.env.TREQ_SERVER });
-const response = await client.run('profile.http');
-
-if (!response.ok) {
-  throw new Error(\`Unexpected status: \${response.status}\`);
-}
-
-await client.close();
-`
-    );
+    await writeWorkspaceFile(workspaceRoot, 'runner-script.ts', buildRunnerScriptSource());
 
     const response = await fetch(`http://127.0.0.1:${appPort}/script`, {
       method: 'POST',
@@ -174,27 +209,16 @@ await client.close();
     expect(data.flowId).toBeDefined();
     expect(data.runId).toBeDefined();
 
-    const finished = await waitForFlowEvent(appResult!.eventManager, data.flowId, 'scriptFinished');
+    const finished = await waitForFlowEvent(
+      getAppResult().eventManager,
+      data.flowId,
+      'scriptFinished'
+    );
     expect(finished.payload.exitCode).toBe(0);
   });
 
   test('POST /test applies a profile-only baseUrl for spawned clients', async () => {
-    await writeWorkspaceFile(
-      workspaceRoot,
-      'runner.test.ts',
-      `import { expect, test } from 'bun:test';
-import { createClient } from '../../../core/src/client.ts';
-
-test('uses the active profile', async () => {
-  const client = createClient({ server: process.env.TREQ_SERVER });
-  const response = await client.run('profile.http');
-
-  expect(response.status).toBe(200);
-
-  await client.close();
-});
-`
-    );
+    await writeWorkspaceFile(workspaceRoot, 'runner.test.ts', buildRunnerTestSource());
 
     const response = await fetch(`http://127.0.0.1:${appPort}/test`, {
       method: 'POST',
@@ -211,7 +235,66 @@ test('uses the active profile', async () => {
     expect(data.flowId).toBeDefined();
     expect(data.runId).toBeDefined();
 
-    const finished = await waitForFlowEvent(appResult!.eventManager, data.flowId, 'testFinished');
+    const finished = await waitForFlowEvent(
+      getAppResult().eventManager,
+      data.flowId,
+      'testFinished'
+    );
+    expect(finished.payload.exitCode).toBe(0);
+    expect(finished.payload.status).toBe('passed');
+  });
+
+  test('POST /script falls back to the server default profile when request.profile is omitted', async () => {
+    await stopApp();
+    await startApp('playground');
+    await writeWorkspaceFile(workspaceRoot, 'runner-script.ts', buildRunnerScriptSource());
+
+    const response = await fetch(`http://127.0.0.1:${appPort}/script`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filePath: 'runner-script.ts',
+        runnerId: 'bun'
+      })
+    });
+
+    const data = (await response.json()) as { flowId: string; runId: string };
+    expect(response.status).toBe(200);
+    expect(data.flowId).toBeDefined();
+    expect(data.runId).toBeDefined();
+
+    const finished = await waitForFlowEvent(
+      getAppResult().eventManager,
+      data.flowId,
+      'scriptFinished'
+    );
+    expect(finished.payload.exitCode).toBe(0);
+  });
+
+  test('POST /test falls back to the server default profile when request.profile is omitted', async () => {
+    await stopApp();
+    await startApp('playground');
+    await writeWorkspaceFile(workspaceRoot, 'runner.test.ts', buildRunnerTestSource());
+
+    const response = await fetch(`http://127.0.0.1:${appPort}/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filePath: 'runner.test.ts',
+        frameworkId: 'bun'
+      })
+    });
+
+    const data = (await response.json()) as { flowId: string; runId: string };
+    expect(response.status).toBe(200);
+    expect(data.flowId).toBeDefined();
+    expect(data.runId).toBeDefined();
+
+    const finished = await waitForFlowEvent(
+      getAppResult().eventManager,
+      data.flowId,
+      'testFinished'
+    );
     expect(finished.payload.exitCode).toBe(0);
     expect(finished.payload.status).toBe('passed');
   });
