@@ -47,6 +47,8 @@ export interface RunTestOptions {
   cwd: string;
   /** Server URL to inject as TREQ_SERVER */
   serverUrl: string;
+  /** Optional config profile to inject as TREQ_PROFILE */
+  profile?: string;
   /** Flow ID to inject as TREQ_FLOW_ID */
   flowId: string;
   /** Pre-created session ID to inject as TREQ_SESSION_ID */
@@ -289,7 +291,7 @@ function generateRunId(): string {
  * Returns a handle to kill the process and the run ID.
  *
  * Security:
- * - Passes TREQ_SERVER, TREQ_FLOW_ID, TREQ_SESSION_ID, and TREQ_TOKEN
+ * - Passes TREQ_SERVER, TREQ_PROFILE, TREQ_FLOW_ID, TREQ_SESSION_ID, and TREQ_TOKEN
  * - The token is a scoped script token (not the main server token)
  * - Token is scoped to the specific flowId and sessionId
  * - Token is short-lived and revoked on test exit
@@ -300,6 +302,7 @@ export function runTest(options: RunTestOptions): RunningTest {
     framework,
     cwd,
     serverUrl,
+    profile,
     flowId,
     sessionId,
     scriptToken,
@@ -319,7 +322,8 @@ export function runTest(options: RunTestOptions): RunningTest {
     TREQ_SERVER: serverUrl,
     TREQ_FLOW_ID: flowId,
     TREQ_SESSION_ID: sessionId,
-    TREQ_TOKEN: scriptToken // Scoped token (not the main server token)
+    TREQ_TOKEN: scriptToken, // Scoped token (not the main server token)
+    ...(profile !== undefined ? { TREQ_PROFILE: profile } : {})
   };
 
   // Spawn the process

@@ -2,7 +2,7 @@ import { unwrap } from '@t-req/sdk/client';
 import { type Accessor, createContext, type JSX, useContext } from 'solid-js';
 import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
 import type { TestFrameworkOption } from '../sdk';
-import { useObserver } from './index';
+import { useObserver, useWorkspace } from './index';
 import { useConnection } from './sdk';
 
 export interface TestRunnerContextValue {
@@ -22,6 +22,7 @@ const TestRunnerContext = createContext<TestRunnerContextValue>();
 export function TestRunnerProvider(props: { children: JSX.Element }) {
   const observer = useObserver();
   const connection = useConnection();
+  const workspace = useWorkspace();
 
   const lifecycle = createRunnerLifecycle<TestFrameworkOption>({
     getClient: () => connection.client,
@@ -35,7 +36,11 @@ export function TestRunnerProvider(props: { children: JSX.Element }) {
     startRun: async (path, frameworkId, flowId) => {
       const client = connection.client;
       if (!client) throw new Error('Not connected');
-      return unwrap(client.postTest({ body: { filePath: path, frameworkId, flowId } }));
+      return unwrap(
+        client.postTest({
+          body: { filePath: path, frameworkId, profile: workspace.activeProfile(), flowId }
+        })
+      );
     },
     cancelRun: async (runId) => {
       const client = connection.client;

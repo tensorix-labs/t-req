@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "t-req Server API",
-    "version": "0.3.11",
+    "version": "0.3.15",
     "description": "HTTP API for parsing and executing .http files, managing sessions, and subscribing to real-time events.",
     "license": {
       "name": "MIT",
@@ -3446,6 +3446,10 @@
                     "type": "string",
                     "maxLength": 50
                   },
+                  "profile": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
                   "flowId": {
                     "type": "string",
                     "maxLength": 100
@@ -3686,6 +3690,10 @@
                   "frameworkId": {
                     "type": "string",
                     "maxLength": 50
+                  },
+                  "profile": {
+                    "type": "string",
+                    "maxLength": 100
                   },
                   "flowId": {
                     "type": "string",

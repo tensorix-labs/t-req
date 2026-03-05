@@ -122,6 +122,7 @@ function decodeBase64(input: string): ArrayBuffer {
  * When running as a server-spawned script:
  * - TREQ_FLOW_ID: Attach to existing flow (don't create new one)
  * - TREQ_SESSION_ID: Use pre-created session (skip session creation)
+ * - TREQ_PROFILE: Reuse the active config profile if the caller did not provide one
  * - TREQ_TOKEN: Use scoped script token for authentication
  *
  * @internal
@@ -130,6 +131,7 @@ export function createServerClient(config: ServerClientConfig): Client {
   const { serverUrl } = config;
   const attachedFlowId = getEnvVar('TREQ_FLOW_ID');
   const preCreatedSessionId = getEnvVar('TREQ_SESSION_ID');
+  const envProfile = getEnvVar('TREQ_PROFILE');
   const envToken = getEnvVar('TREQ_TOKEN');
 
   // Use environment token if available (for server-spawned scripts)
@@ -255,7 +257,7 @@ export function createServerClient(config: ServerClientConfig): Client {
       ...source,
       sessionId,
       flowId,
-      profile: config.profile,
+      profile: config.profile ?? envProfile,
       timeoutMs: options.timeout ?? defaultTimeout
     };
 

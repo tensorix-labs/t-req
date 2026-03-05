@@ -737,6 +737,7 @@ export const DeleteFileRequestSchema = z.object({
 export const RunScriptRequestSchema = z.object({
   filePath: z.string().max(MAX_PATH_LENGTH),
   runnerId: z.string().max(50).optional(),
+  profile: z.string().max(100).optional(),
   flowId: z.string().max(100).optional()
 });
 
@@ -762,6 +763,7 @@ export const GetRunnersResponseSchema = z.object({
 export const RunTestRequestSchema = z.object({
   filePath: z.string().max(MAX_PATH_LENGTH),
   frameworkId: z.string().max(50).optional(),
+  profile: z.string().max(100).optional(),
   flowId: z.string().max(100).optional()
 });
 
