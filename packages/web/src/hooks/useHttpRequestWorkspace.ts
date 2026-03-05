@@ -9,6 +9,7 @@ import {
 import type { WorkspaceRequest } from '../sdk';
 import type { WorkspaceStore } from '../stores/workspace';
 import { toRequestParams } from '../utils/request-details';
+import { buildUrlWithQueryRows } from '../utils/request-editing';
 
 interface UseHttpRequestWorkspaceInput {
   path: Accessor<string>;
@@ -81,12 +82,28 @@ export function useHttpRequestWorkspace(
     return toRequestParams(request.url);
   });
 
-  const paramDraft = useRequestParamDraftController({
+  let paramDraftRef: ReturnType<typeof useRequestParamDraftController> | undefined;
+
+  // Keep cross-tab edits in sync: header saves include unsaved param drafts when present.
+  const sourceUrlForHeaderSave = () => {
+    const requestUrl = selectedRequest()?.url;
+    if (!requestUrl) {
+      return undefined;
+    }
+
+    const paramDraft = paramDraftRef;
+    if (!paramDraft || !paramDraft.isDirty()) {
+      return requestUrl;
+    }
+
+    return buildUrlWithQueryRows(requestUrl, paramDraft.draftParams());
+  };
+
+  const headerDraft = useRequestHeaderDraftController({
     path: input.path,
     selectedRequest,
-    sourceParams,
     sourceHeaders: parseDetails.headers,
-    sourceUrl: () => selectedRequest()?.url,
+    sourceUrl: sourceUrlForHeaderSave,
     getFileContent: () => {
       const path = input.path();
       return input.workspace.fileContents()[path]?.content;
@@ -100,10 +117,13 @@ export function useHttpRequestWorkspace(
     refetchRequestDetails: parseDetails.refetch
   });
 
-  const headerDraft = useRequestHeaderDraftController({
+  const paramDraft = useRequestParamDraftController({
     path: input.path,
     selectedRequest,
-    sourceHeaders: parseDetails.headers,
+    sourceParams,
+    // Keep cross-tab edits in sync: param saves include unsaved header drafts when present.
+    sourceHeaders: () =>
+      headerDraft.isDirty() ? headerDraft.draftHeaders() : parseDetails.headers(),
     sourceUrl: () => selectedRequest()?.url,
     getFileContent: () => {
       const path = input.path();
@@ -117,6 +137,7 @@ export function useHttpRequestWorkspace(
     reloadRequests: (path: string) => input.workspace.loadRequests(path),
     refetchRequestDetails: parseDetails.refetch
   });
+  paramDraftRef = paramDraft;
 
   const bodyDraft = useRequestBodyDraftController({
     path: input.path,

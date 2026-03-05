@@ -112,17 +112,14 @@ export function useRequestParamDraftController(
 
   const persistRewrite = async (path: string, nextContent: string) => {
     input.setFileContent(nextContent);
-    setDraft({
-      ...draft,
-      isSaving: true,
-      saveError: undefined
-    });
+    setDraft('isSaving', true);
+    setDraft('saveError', undefined);
 
     try {
       await input.saveFile(path);
+      setDraft('isDirty', false);
       await input.reloadRequests(path);
       await input.refetchRequestDetails();
-      setDraft('isDirty', false);
     } catch (error) {
       setDraft('saveError', toErrorMessage(error));
     } finally {

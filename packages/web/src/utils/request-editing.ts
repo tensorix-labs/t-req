@@ -350,8 +350,76 @@ export function applyRequestEditsToContent(
   };
 }
 
+type QueryComponentSegment = {
+  text: string;
+  isTemplate: boolean;
+};
+
+function splitQueryComponentSegments(value: string): QueryComponentSegment[] {
+  const segments: QueryComponentSegment[] = [];
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    const templateStart = value.indexOf('{{', cursor);
+    if (templateStart === -1) {
+      const text = value.slice(cursor);
+      if (text.length > 0) {
+        segments.push({ text, isTemplate: false });
+      }
+      break;
+    }
+
+    if (templateStart > cursor) {
+      segments.push({
+        text: value.slice(cursor, templateStart),
+        isTemplate: false
+      });
+    }
+
+    let templateCursor = templateStart + 2;
+    let depth = 1;
+
+    while (templateCursor < value.length && depth > 0) {
+      const current = value[templateCursor];
+      const next = value[templateCursor + 1];
+
+      if (current === '{' && next === '{') {
+        depth += 1;
+        templateCursor += 2;
+        continue;
+      }
+
+      if (current === '}' && next === '}') {
+        depth -= 1;
+        templateCursor += 2;
+        continue;
+      }
+
+      templateCursor += 1;
+    }
+
+    if (depth > 0) {
+      segments.push({
+        text: value.slice(templateStart),
+        isTemplate: false
+      });
+      break;
+    }
+
+    segments.push({
+      text: value.slice(templateStart, templateCursor),
+      isTemplate: true
+    });
+    cursor = templateCursor;
+  }
+
+  return segments;
+}
+
 function encodeQueryComponent(value: string): string {
-  return encodeURIComponent(value);
+  return splitQueryComponentSegments(value)
+    .map((segment) => (segment.isTemplate ? segment.text : encodeURIComponent(segment.text)))
+    .join('');
 }
 
 function serializeQueryRows(rows: RequestDetailsRow[]): string[] {

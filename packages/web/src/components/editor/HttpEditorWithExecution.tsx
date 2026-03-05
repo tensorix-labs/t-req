@@ -51,28 +51,32 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
   const hasRequests = () => httpWorkspace.requests.hasRequests();
   const selectedExecution = () => observer.selectedExecution();
 
+  const persistAllDirtyDrafts = async (): Promise<boolean> => {
+    const drafts = [
+      httpWorkspace.drafts.param,
+      httpWorkspace.drafts.header,
+      httpWorkspace.drafts.body
+    ];
+
+    for (const draft of drafts) {
+      if (!draft.isDirty()) {
+        continue;
+      }
+
+      await draft.onSave();
+      if (draft.isDirty()) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleHttpExecute = async () => {
     if (!connection.client || !hasRequests()) return;
 
-    if (activeRequestTab() === 'params' && httpWorkspace.drafts.param.isDirty()) {
-      await httpWorkspace.drafts.param.onSave();
-      if (httpWorkspace.drafts.param.isDirty()) {
-        return;
-      }
-    }
-
-    if (activeRequestTab() === 'headers' && httpWorkspace.drafts.header.isDirty()) {
-      await httpWorkspace.drafts.header.onSave();
-      if (httpWorkspace.drafts.header.isDirty()) {
-        return;
-      }
-    }
-
-    if (activeRequestTab() === 'body' && httpWorkspace.drafts.body.isDirty()) {
-      await httpWorkspace.drafts.body.onSave();
-      if (httpWorkspace.drafts.body.isDirty()) {
-        return;
-      }
+    if (!(await persistAllDirtyDrafts())) {
+      return;
     }
 
     if (workspace.hasUnsavedChanges(props.path)) {
@@ -89,18 +93,7 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
   };
 
   const handleHttpSave = async () => {
-    if (activeRequestTab() === 'params' && httpWorkspace.drafts.param.isDirty()) {
-      await httpWorkspace.drafts.param.onSave();
-      return;
-    }
-
-    if (activeRequestTab() === 'headers' && httpWorkspace.drafts.header.isDirty()) {
-      await httpWorkspace.drafts.header.onSave();
-      return;
-    }
-
-    if (activeRequestTab() === 'body' && httpWorkspace.drafts.body.isDirty()) {
-      await httpWorkspace.drafts.body.onSave();
+    if (!(await persistAllDirtyDrafts())) {
       return;
     }
 
