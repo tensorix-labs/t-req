@@ -54,6 +54,27 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
   const handleHttpExecute = async () => {
     if (!connection.client || !hasRequests()) return;
 
+    if (activeRequestTab() === 'params' && httpWorkspace.drafts.param.isDirty()) {
+      await httpWorkspace.drafts.param.onSave();
+      if (httpWorkspace.drafts.param.isDirty()) {
+        return;
+      }
+    }
+
+    if (activeRequestTab() === 'headers' && httpWorkspace.drafts.header.isDirty()) {
+      await httpWorkspace.drafts.header.onSave();
+      if (httpWorkspace.drafts.header.isDirty()) {
+        return;
+      }
+    }
+
+    if (activeRequestTab() === 'body' && httpWorkspace.drafts.body.isDirty()) {
+      await httpWorkspace.drafts.body.onSave();
+      if (httpWorkspace.drafts.body.isDirty()) {
+        return;
+      }
+    }
+
     if (workspace.hasUnsavedChanges(props.path)) {
       await workspace.saveFile(props.path);
       await workspace.loadRequests(props.path);
@@ -68,6 +89,11 @@ export const HttpEditorWithExecution: Component<HttpEditorWithExecutionProps> = 
   };
 
   const handleHttpSave = async () => {
+    if (activeRequestTab() === 'params' && httpWorkspace.drafts.param.isDirty()) {
+      await httpWorkspace.drafts.param.onSave();
+      return;
+    }
+
     if (activeRequestTab() === 'headers' && httpWorkspace.drafts.header.isDirty()) {
       await httpWorkspace.drafts.header.onSave();
       return;

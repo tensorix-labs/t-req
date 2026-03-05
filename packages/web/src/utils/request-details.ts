@@ -10,6 +10,7 @@ export type ParsedRequestSpans = ParsedRequest['spans'];
 export type RequestDetailsRow = {
   key: string;
   value: string;
+  hasValue?: boolean;
 };
 
 export type RequestBodyField = {
@@ -71,7 +72,8 @@ export function toRequestParams(url: string): RequestDetailsRow[] {
       const rawValue = separator === -1 ? '' : segment.slice(separator + 1);
       return {
         key: decodeQueryComponent(rawKey),
-        value: decodeQueryComponent(rawValue)
+        value: decodeQueryComponent(rawValue),
+        hasValue: separator !== -1
       };
     });
 }

@@ -1,7 +1,6 @@
 import { createMemo, For, Match, Show, Switch } from 'solid-js';
 import { useHttpRequestEditor } from '../../context';
 import type { WorkspaceRequest } from '../../sdk';
-import { toRequestParams } from '../../utils/request-details';
 import { REQUEST_WORKSPACE_TABS, type RequestWorkspaceTabId } from './model';
 import {
   RequestWorkspaceBodyPanel,
@@ -22,14 +21,6 @@ const TAB_LABELS: Record<RequestWorkspaceTabId, string> = {
 
 export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
   const httpWorkspace = useHttpRequestEditor();
-
-  const requestParams = createMemo(() => {
-    const request = httpWorkspace.selection.selected();
-    if (!request) {
-      return [];
-    }
-    return toRequestParams(request.url);
-  });
 
   const selectedRequest = createMemo((): WorkspaceRequest | undefined =>
     httpWorkspace.selection.selected()
@@ -76,10 +67,29 @@ export function RequestWorkspaceTabs(props: RequestWorkspaceTabsProps) {
             {(request) => (
               <Switch>
                 <Match when={props.activeTab === 'params'}>
-                  <RequestWorkspaceParamsPanel
-                    requestMethod={request().method}
-                    requestParams={requestParams()}
-                  />
+                  <Show
+                    when={!httpWorkspace.drafts.parse.loading()}
+                    fallback={<p>Loading request params…</p>}
+                  >
+                    <Show
+                      when={!httpWorkspace.drafts.parse.error()}
+                      fallback={<p>{httpWorkspace.drafts.parse.error()}</p>}
+                    >
+                      <RequestWorkspaceParamsPanel
+                        hasRequest={Boolean(selectedRequest())}
+                        requestMethod={request().method}
+                        requestParams={httpWorkspace.drafts.param.draftParams()}
+                        paramDraftDirty={httpWorkspace.drafts.param.isDirty()}
+                        paramDraftSaving={httpWorkspace.drafts.param.isSaving()}
+                        paramDraftSaveError={httpWorkspace.drafts.param.saveError()}
+                        onParamChange={httpWorkspace.drafts.param.onParamChange}
+                        onAddParam={httpWorkspace.drafts.param.onAddParam}
+                        onRemoveParam={httpWorkspace.drafts.param.onRemoveParam}
+                        onSaveParams={httpWorkspace.drafts.param.onSave}
+                        onDiscardParams={httpWorkspace.drafts.param.onDiscard}
+                      />
+                    </Show>
+                  </Show>
                 </Match>
                 <Match when={props.activeTab === 'headers'}>
                   <Show

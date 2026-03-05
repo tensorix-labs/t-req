@@ -3,10 +3,12 @@ import { type Accessor, createEffect, createMemo, createSignal, on } from 'solid
 import {
   useRequestBodyDraftController,
   useRequestHeaderDraftController,
+  useRequestParamDraftController,
   useRequestParseDetails
 } from '../components/request-workspace';
 import type { WorkspaceRequest } from '../sdk';
 import type { WorkspaceStore } from '../stores/workspace';
+import { toRequestParams } from '../utils/request-details';
 
 interface UseHttpRequestWorkspaceInput {
   path: Accessor<string>;
@@ -32,6 +34,7 @@ export interface HttpRequestWorkspaceState {
   // Draft controllers for editing
   drafts: {
     parse: ReturnType<typeof useRequestParseDetails>;
+    param: ReturnType<typeof useRequestParamDraftController>;
     header: ReturnType<typeof useRequestHeaderDraftController>;
     body: ReturnType<typeof useRequestBodyDraftController>;
   };
@@ -67,6 +70,34 @@ export function useHttpRequestWorkspace(
     client: input.client,
     path: input.path,
     requestIndex: () => selectedRequest()?.index
+  });
+
+  const sourceParams = createMemo(() => {
+    const request = selectedRequest();
+    if (!request) {
+      return [];
+    }
+
+    return toRequestParams(request.url);
+  });
+
+  const paramDraft = useRequestParamDraftController({
+    path: input.path,
+    selectedRequest,
+    sourceParams,
+    sourceHeaders: parseDetails.headers,
+    sourceUrl: () => selectedRequest()?.url,
+    getFileContent: () => {
+      const path = input.path();
+      return input.workspace.fileContents()[path]?.content;
+    },
+    setFileContent: (content: string) => {
+      const path = input.path();
+      input.workspace.updateFileContent(path, content);
+    },
+    saveFile: (path: string) => input.workspace.saveFile(path),
+    reloadRequests: (path: string) => input.workspace.loadRequests(path),
+    refetchRequestDetails: parseDetails.refetch
   });
 
   const headerDraft = useRequestHeaderDraftController({
@@ -145,6 +176,7 @@ export function useHttpRequestWorkspace(
     },
     drafts: {
       parse: parseDetails,
+      param: paramDraft,
       header: headerDraft,
       body: bodyDraft
     },

@@ -102,7 +102,7 @@ function preferredLineEnding(lines: LineRecord[]): string {
 
 function normalizeRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
   return rows
-    .map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
+    .map((row) => ({ key: row.key.trim(), value: row.value.trim(), hasValue: row.hasValue }))
     .filter((row) => row.key.length > 0);
 }
 
@@ -271,7 +271,11 @@ function findRequestSegment(content: string, requestIndex: number): RequestSegme
 }
 
 export function cloneRequestRows(rows: RequestDetailsRow[]): RequestDetailsRow[] {
-  return rows.map((row) => ({ key: row.key, value: row.value }));
+  return rows.map((row) => ({
+    key: row.key,
+    value: row.value,
+    ...(row.hasValue !== undefined ? { hasValue: row.hasValue } : {})
+  }));
 }
 
 export function applySpanEditToContent(
@@ -312,7 +316,11 @@ export function areRequestRowsEqual(
     if (!firstRow || !secondRow) {
       return false;
     }
-    if (firstRow.key !== secondRow.key || firstRow.value !== secondRow.value) {
+    if (
+      firstRow.key !== secondRow.key ||
+      firstRow.value !== secondRow.value ||
+      firstRow.hasValue !== secondRow.hasValue
+    ) {
       return false;
     }
   }
@@ -340,4 +348,36 @@ export function applyRequestEditsToContent(
     ok: true,
     content: `${content.slice(0, requestSegment.startOffset)}${rewritten.content}${content.slice(requestSegment.endOffset)}`
   };
+}
+
+function encodeQueryComponent(value: string): string {
+  return encodeURIComponent(value);
+}
+
+function serializeQueryRows(rows: RequestDetailsRow[]): string[] {
+  return rows.flatMap((row) => {
+    if (row.key.trim().length === 0) {
+      return [];
+    }
+
+    const encodedKey = encodeQueryComponent(row.key);
+    const hasValue = row.hasValue ?? true;
+
+    if (!hasValue) {
+      return [encodedKey];
+    }
+
+    return [`${encodedKey}=${encodeQueryComponent(row.value)}`];
+  });
+}
+
+export function buildUrlWithQueryRows(url: string, rows: RequestDetailsRow[]): string {
+  const hashIndex = url.indexOf('#');
+  const hash = hashIndex === -1 ? '' : url.slice(hashIndex);
+  const urlWithoutHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const queryIndex = urlWithoutHash.indexOf('?');
+  const baseUrl = queryIndex === -1 ? urlWithoutHash : urlWithoutHash.slice(0, queryIndex);
+  const query = serializeQueryRows(rows).join('&');
+
+  return `${baseUrl}${query.length > 0 ? `?${query}` : ''}${hash}`;
 }

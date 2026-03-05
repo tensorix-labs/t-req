@@ -6,8 +6,17 @@ import type {
 } from '../../utils/request-details';
 
 interface RequestWorkspaceParamsPanelProps {
+  hasRequest: boolean;
   requestMethod: string;
   requestParams: RequestDetailsRow[];
+  paramDraftDirty: boolean;
+  paramDraftSaving: boolean;
+  paramDraftSaveError?: string;
+  onParamChange: (index: number, field: 'key' | 'value', value: string) => void;
+  onAddParam: () => void;
+  onRemoveParam: (index: number) => void;
+  onSaveParams: () => void;
+  onDiscardParams: () => void;
 }
 
 interface RequestWorkspaceHeadersPanelProps {
@@ -52,31 +61,111 @@ interface RequestWorkspaceBodyPanelProps {
 
 export function RequestWorkspaceParamsPanel(props: RequestWorkspaceParamsPanelProps) {
   return (
-    <Show
-      when={props.requestParams.length > 0}
-      fallback={<p>No query params in URL for {props.requestMethod.toUpperCase()} requests.</p>}
-    >
+    <div class="space-y-2">
+      <Show when={props.paramDraftSaveError}>
+        {(message) => (
+          <div class="rounded-box border border-error/35 bg-error/10 px-2 py-1.5 text-xs text-base-content">
+            {message()}
+          </div>
+        )}
+      </Show>
+
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          class="btn btn-ghost btn-xs font-mono"
+          onClick={props.onAddParam}
+          disabled={!props.hasRequest || props.paramDraftSaving}
+        >
+          Add Param
+        </button>
+
+        <div class="flex items-center gap-2">
+          <Show when={props.paramDraftDirty && !props.paramDraftSaving}>
+            <span class="badge badge-sm badge-warning font-mono">Unsaved</span>
+          </Show>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs font-mono"
+            onClick={props.onDiscardParams}
+            disabled={!props.hasRequest || !props.paramDraftDirty || props.paramDraftSaving}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-xs font-mono"
+            onClick={props.onSaveParams}
+            disabled={!props.hasRequest || !props.paramDraftDirty || props.paramDraftSaving}
+          >
+            {props.paramDraftSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+
       <div class="overflow-auto rounded-box border border-base-300 bg-base-100/80">
         <table class="table table-xs">
           <thead>
             <tr>
               <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Name</th>
               <th class="font-mono uppercase tracking-[0.06em] text-[11px]">Value</th>
+              <th class="font-mono uppercase tracking-[0.06em] text-[11px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <For each={props.requestParams}>
-              {(param) => (
+            <Show
+              when={props.requestParams.length > 0}
+              fallback={
                 <tr>
-                  <td class="font-mono text-xs text-base-content">{param.key}</td>
-                  <td class="font-mono text-xs text-base-content/80">{param.value}</td>
+                  <td colSpan={3} class="py-3 text-center font-mono text-xs text-base-content/70">
+                    No query params configured for this {props.requestMethod.toUpperCase()} request.
+                  </td>
                 </tr>
-              )}
-            </For>
+              }
+            >
+              <Index each={props.requestParams}>
+                {(param, index) => (
+                  <tr>
+                    <td>
+                      <input
+                        type="text"
+                        class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                        value={param().key}
+                        onInput={(event) =>
+                          props.onParamChange(index, 'key', event.currentTarget.value)
+                        }
+                        disabled={!props.hasRequest || props.paramDraftSaving}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
+                        value={param().value}
+                        onInput={(event) =>
+                          props.onParamChange(index, 'value', event.currentTarget.value)
+                        }
+                        disabled={!props.hasRequest || props.paramDraftSaving}
+                      />
+                    </td>
+                    <td class="text-right">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs text-error"
+                        onClick={() => props.onRemoveParam(index)}
+                        disabled={!props.hasRequest || props.paramDraftSaving}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </Index>
+            </Show>
           </tbody>
         </table>
       </div>
-    </Show>
+    </div>
   );
 }
 

@@ -31,23 +31,23 @@ function createBlock(index: number): ParseRequestBlock {
 describe('toRequestParams', () => {
   test('returns params in order and keeps repeated keys', () => {
     expect(toRequestParams('https://api.example.com/users?tag=one&tag=two&page=1')).toEqual([
-      { key: 'tag', value: 'one' },
-      { key: 'tag', value: 'two' },
-      { key: 'page', value: '1' }
+      { key: 'tag', value: 'one', hasValue: true },
+      { key: 'tag', value: 'two', hasValue: true },
+      { key: 'page', value: '1', hasValue: true }
     ]);
   });
 
   test('decodes encoded values and plus signs', () => {
     expect(toRequestParams('https://api.example.com/search?q=foo+bar&name=Jos%C3%A9')).toEqual([
-      { key: 'q', value: 'foo bar' },
-      { key: 'name', value: 'José' }
+      { key: 'q', value: 'foo bar', hasValue: true },
+      { key: 'name', value: 'José', hasValue: true }
     ]);
   });
 
   test('supports params without values', () => {
     expect(toRequestParams('https://api.example.com/search?flag&empty=')).toEqual([
-      { key: 'flag', value: '' },
-      { key: 'empty', value: '' }
+      { key: 'flag', value: '', hasValue: false },
+      { key: 'empty', value: '', hasValue: true }
     ]);
   });
 
@@ -57,13 +57,13 @@ describe('toRequestParams', () => {
 
   test('ignores hash fragments while parsing query string', () => {
     expect(toRequestParams('https://api.example.com/users?limit=50#section')).toEqual([
-      { key: 'limit', value: '50' }
+      { key: 'limit', value: '50', hasValue: true }
     ]);
   });
 
   test('falls back to raw content for malformed encoded values', () => {
     expect(toRequestParams('https://api.example.com/users?name=%E0%A4%A')).toEqual([
-      { key: 'name', value: '%E0%A4%A' }
+      { key: 'name', value: '%E0%A4%A', hasValue: true }
     ]);
   });
 });
