@@ -2,7 +2,7 @@ import { unwrap } from '@t-req/sdk/client';
 import { type Accessor, createContext, type JSX, useContext } from 'solid-js';
 import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
 import type { RunnerOption } from '../sdk';
-import { useObserver } from './index';
+import { useObserver, useWorkspace } from './index';
 import { useConnection } from './sdk';
 
 export interface ScriptRunnerContextValue {
@@ -22,6 +22,7 @@ const ScriptRunnerContext = createContext<ScriptRunnerContextValue>();
 export function ScriptRunnerProvider(props: { children: JSX.Element }) {
   const observer = useObserver();
   const connection = useConnection();
+  const workspace = useWorkspace();
 
   const lifecycle = createRunnerLifecycle<RunnerOption>({
     getClient: () => connection.client,
@@ -35,7 +36,11 @@ export function ScriptRunnerProvider(props: { children: JSX.Element }) {
     startRun: async (path, runnerId, flowId) => {
       const client = connection.client;
       if (!client) throw new Error('Not connected');
-      return unwrap(client.postScript({ body: { filePath: path, runnerId, flowId } }));
+      return unwrap(
+        client.postScript({
+          body: { filePath: path, runnerId, profile: workspace.activeProfile(), flowId }
+        })
+      );
     },
     cancelRun: async (runId) => {
       const client = connection.client;

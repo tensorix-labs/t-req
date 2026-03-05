@@ -1338,6 +1338,7 @@ export type PostScriptData = {
     body?: {
         filePath: string;
         runnerId?: string;
+        profile?: string;
         flowId?: string;
     };
     path?: never;
@@ -1456,6 +1457,7 @@ export type PostTestData = {
     body?: {
         filePath: string;
         frameworkId?: string;
+        profile?: string;
         flowId?: string;
     };
     path?: never;

@@ -115,6 +115,7 @@ export function createTestService(
       framework,
       cwd: context.workspaceRoot,
       serverUrl,
+      profile: request.profile ?? context.profile,
       flowId,
       sessionId,
       scriptToken,

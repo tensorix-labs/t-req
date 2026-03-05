@@ -512,4 +512,145 @@ describe('createClient with server option', () => {
       restore();
     }
   });
+
+  test('server client uses profile from environment when config profile is absent', async () => {
+    const previousProfile = process.env.TREQ_PROFILE;
+    process.env.TREQ_PROFILE = 'playground';
+
+    let executeBody: Record<string, unknown> | undefined;
+
+    const restore = installFetchMock(async (url, init) => {
+      const urlStr = String(url);
+
+      if (urlStr.includes('/session')) {
+        return new Response(JSON.stringify({ sessionId: 'session-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/flows') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ flowId: 'flow-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/execute')) {
+        executeBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            runId: 'run-1',
+            request: { index: 0, method: 'GET', url: 'https://example.com' },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              headers: [],
+              body: '',
+              encoding: 'utf-8',
+              truncated: false,
+              bodyBytes: 0
+            },
+            timing: { startTime: 0, endTime: 100, durationMs: 100 }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (urlStr.includes('/finish')) {
+        return new Response('', { status: 200 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const client = createClient({
+        server: 'http://localhost:4096'
+      });
+
+      await client.runString('GET https://example.com');
+      expect(executeBody?.profile).toBe('playground');
+
+      await client.close();
+    } finally {
+      restore();
+      if (previousProfile === undefined) {
+        delete process.env.TREQ_PROFILE;
+      } else {
+        process.env.TREQ_PROFILE = previousProfile;
+      }
+    }
+  });
+
+  test('explicit config profile overrides environment profile', async () => {
+    const previousProfile = process.env.TREQ_PROFILE;
+    process.env.TREQ_PROFILE = 'playground';
+
+    let executeBody: Record<string, unknown> | undefined;
+
+    const restore = installFetchMock(async (url, init) => {
+      const urlStr = String(url);
+
+      if (urlStr.includes('/session')) {
+        return new Response(JSON.stringify({ sessionId: 'session-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/flows') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ flowId: 'flow-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (urlStr.includes('/execute')) {
+        executeBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            runId: 'run-1',
+            request: { index: 0, method: 'GET', url: 'https://example.com' },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              headers: [],
+              body: '',
+              encoding: 'utf-8',
+              truncated: false,
+              bodyBytes: 0
+            },
+            timing: { startTime: 0, endTime: 100, durationMs: 100 }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (urlStr.includes('/finish')) {
+        return new Response('', { status: 200 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const client = createClient({
+        server: 'http://localhost:4096',
+        profile: 'dev'
+      });
+
+      await client.runString('GET https://example.com');
+      expect(executeBody?.profile).toBe('dev');
+
+      await client.close();
+    } finally {
+      restore();
+      if (previousProfile === undefined) {
+        delete process.env.TREQ_PROFILE;
+      } else {
+        process.env.TREQ_PROFILE = previousProfile;
+      }
+    }
+  });
 });

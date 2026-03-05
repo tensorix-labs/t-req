@@ -119,6 +119,7 @@ export function createScriptService(
       runner,
       cwd: scriptDir,
       serverUrl,
+      profile: request.profile ?? context.profile,
       flowId,
       sessionId,
       scriptToken,
