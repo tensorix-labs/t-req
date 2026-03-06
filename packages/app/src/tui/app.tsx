@@ -6,10 +6,12 @@ import { DebugConsoleDialog } from './components/debug-console-dialog';
 import { ExecutionDetailView } from './components/execution-detail';
 import { ExecutionList } from './components/execution-list';
 import { FileRequestPicker } from './components/file-request-picker';
+import { FileTree } from './components/file-tree';
 import { FrameworkSelectDialog } from './components/framework-select';
 import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { StreamView } from './components/stream-view';
+import { type LeftPanelTab, TabbedPanel } from './components/tabbed-panel';
 import { Toast } from './components/toast';
 import { unwrap, useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
 import { openInEditor } from './editor';
@@ -33,7 +35,6 @@ import {
 } from './layouts';
 import { isHttpFile, isRunnableScript, isTestFile } from './store';
 import type { StreamState } from './stream';
-import { rgba, theme } from './theme';
 
 export function App() {
   const sdk = useSDK();
@@ -68,14 +69,20 @@ export function App() {
   });
 
   const [panelHidden, setPanelHidden] = createSignal(false);
+  const [activeLeftTab, setActiveLeftTab] = createSignal<LeftPanelTab>('files');
 
   // Ctrl+H toggles panel visibility
   const togglePanelHidden = () => {
     setPanelHidden((hidden) => !hidden);
   };
 
+  const cycleLeftTab = () => {
+    setActiveLeftTab((tab) => (tab === 'files' ? 'executions' : 'files'));
+  };
+
   // Derived state
   const isRunning = createMemo(() => !!observer.state.runningScript);
+  const executionsCount = createMemo(() => observer.executionsList().length);
 
   // File execution handler - delegates to appropriate executor
   function handleFileExecute(filePath: string) {
@@ -150,6 +157,42 @@ export function App() {
     void exit();
   }
 
+  function navigateLeftPanelDown() {
+    if (activeLeftTab() === 'files') {
+      store.selectNext();
+      return;
+    }
+    observer.selectNextExecution();
+  }
+
+  function navigateLeftPanelUp() {
+    if (activeLeftTab() === 'files') {
+      store.selectPrevious();
+      return;
+    }
+    observer.selectPreviousExecution();
+  }
+
+  function executeActiveLeftSelection() {
+    if (activeLeftTab() !== 'files') return false;
+
+    const selectedNode = store.selectedNode();
+    if (!selectedNode || selectedNode.node.isDir) return false;
+
+    handleFileExecute(selectedNode.node.path);
+    return true;
+  }
+
+  function toggleActiveDirectory() {
+    if (activeLeftTab() !== 'files') return false;
+
+    const selectedNode = store.selectedNode();
+    if (!selectedNode || !selectedNode.node.isDir) return false;
+
+    store.toggleDir(selectedNode.node.path);
+    return true;
+  }
+
   // Command registry - declarative action mapping
   useKeyboardCommands({
     commands: {
@@ -197,8 +240,11 @@ export function App() {
       scriptRunner.cancelScript();
       testRunner.cancelTest();
     },
-    onNavigateDown: () => observer.selectNextExecution(),
-    onNavigateUp: () => observer.selectPreviousExecution(),
+    onCycleTab: cycleLeftTab,
+    onNavigateDown: navigateLeftPanelDown,
+    onNavigateUp: navigateLeftPanelUp,
+    onEnter: executeActiveLeftSelection,
+    onSpace: toggleActiveDirectory,
     onToggleHide: togglePanelHidden
   });
 
@@ -216,36 +262,27 @@ export function App() {
         <Show when={!panelHidden()}>
           <Panel width="40%">
             <Section flexGrow={1}>
-              <Show
-                when={observer.state.flowId}
-                keyed
-                fallback={
-                  <box
-                    flexGrow={1}
-                    flexDirection="column"
-                    overflow="hidden"
-                    backgroundColor={rgba(theme.backgroundPanel)}
-                  >
-                    <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                      <text fg={rgba(theme.primary)} attributes={1}>
-                        Executions
-                      </text>
-                    </box>
-                    <box paddingLeft={2}>
-                      <text fg={rgba(theme.textMuted)}>No executions yet</text>
-                    </box>
-                  </box>
+              <TabbedPanel
+                activeTab={activeLeftTab()}
+                onTabChange={setActiveLeftTab}
+                executionsCount={executionsCount()}
+                filesContent={
+                  <FileTree
+                    nodes={store.flattenedVisible()}
+                    selectedIndex={store.selectedIndex()}
+                    onSelect={(index) => store.setSelectedIndex(index)}
+                    onToggle={(path) => store.toggleDir(path)}
+                  />
                 }
-              >
-                {() => (
+                executionsContent={
                   <ExecutionList
                     executions={observer.executionsList()}
                     selectedId={observer.state.selectedReqExecId}
                     onSelect={(id) => observer.setState('selectedReqExecId', id)}
                     isRunning={isRunning()}
                   />
-                )}
-              </Show>
+                }
+              />
             </Section>
           </Panel>
           <VerticalDivider />

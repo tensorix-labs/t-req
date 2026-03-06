@@ -58,20 +58,6 @@ export function ExecutionList(props: ExecutionListProps) {
       overflow="hidden"
       backgroundColor={rgba(theme.backgroundPanel)}
     >
-      <box
-        paddingLeft={2}
-        paddingTop={1}
-        paddingBottom={1}
-        flexDirection="row"
-        justifyContent="space-between"
-      >
-        <text fg={rgba(theme.primary)} attributes={1}>
-          Executions
-        </text>
-        <Show when={props.isRunning}>
-          <text fg={rgba(theme.warning)}> Running...</text>
-        </Show>
-      </box>
       <scrollbox
         ref={(r) => {
           setScrollRef(r);
