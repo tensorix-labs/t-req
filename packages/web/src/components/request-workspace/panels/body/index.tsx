@@ -6,14 +6,14 @@ import { InlineBodyEditor } from './inline-editor';
 import type { BodyPanelProps } from './types';
 
 export function BodyPanel(props: BodyPanelProps) {
-  const shouldShowDescription =
+  const shouldShowDescription = () =>
     props.requestBodySummary.description !== 'Request includes an inline body payload.';
 
   return (
     <div class="space-y-2">
       <ErrorBanner message={props.bodyDraftSaveError} />
 
-      <Show when={shouldShowDescription}>
+      <Show when={shouldShowDescription()}>
         <p>{props.requestBodySummary.description}</p>
       </Show>
 
