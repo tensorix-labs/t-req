@@ -17,7 +17,13 @@ export function BodyPanel(props: BodyPanelProps) {
         <p>{props.requestBodySummary.description}</p>
       </Show>
 
-      <Switch>
+      <Switch
+        fallback={
+          <p class="font-mono text-xs text-base-content/70">
+            Unsupported body kind: {props.requestBodySummary.kind}
+          </p>
+        }
+      >
         <Match when={props.requestBodySummary.kind === 'inline'}>
           <InlineBodyEditor
             hasRequest={props.hasRequest}

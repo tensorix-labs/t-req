@@ -2,7 +2,7 @@ import { Index, Show } from 'solid-js';
 import type { RequestDetailsRow } from '../../../../utils/request-details';
 
 interface KeyValueRowProps {
-  item: () => RequestDetailsRow;
+  item: RequestDetailsRow;
   index: number;
   hasRequest: boolean;
   isSaving: boolean;
@@ -10,14 +10,14 @@ interface KeyValueRowProps {
   onRemove: (index: number) => void;
 }
 
-export function KeyValueRow(props: KeyValueRowProps) {
+function KeyValueRow(props: KeyValueRowProps) {
   return (
     <tr>
       <td>
         <input
           type="text"
           class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
-          value={props.item().key}
+          value={props.item.key}
           onInput={(event) => props.onChange(props.index, 'key', event.currentTarget.value)}
           disabled={!props.hasRequest || props.isSaving}
         />
@@ -26,7 +26,7 @@ export function KeyValueRow(props: KeyValueRowProps) {
         <input
           type="text"
           class="input input-xs w-full border-base-300 bg-base-100 font-mono text-xs"
-          value={props.item().value}
+          value={props.item.value}
           onInput={(event) => props.onChange(props.index, 'value', event.currentTarget.value)}
           disabled={!props.hasRequest || props.isSaving}
         />
@@ -79,7 +79,7 @@ export function KeyValueTable(props: KeyValueTableProps) {
             <Index each={props.items}>
               {(item, index) => (
                 <KeyValueRow
-                  item={item}
+                  item={item()}
                   index={index}
                   hasRequest={props.hasRequest}
                   isSaving={props.isSaving}

@@ -15,7 +15,6 @@ export { ParamsPanel } from './panels/params';
 export {
   DraftHeader,
   ErrorBanner,
-  KeyValueRow,
   KeyValueTable
 } from './panels/shared';
 
