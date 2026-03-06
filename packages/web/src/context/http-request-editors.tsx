@@ -1,4 +1,4 @@
-import type { HttpRequestWorkspaceState } from '../hooks/useHttpRequestWorkspace';
+import type { HttpRequestWorkspaceState } from '../hooks/use-http-request-workspace';
 import { createSimpleContext } from '../utils/createSimpleContext';
 
 // Context for HTTP request editor - provides workspace state to child components

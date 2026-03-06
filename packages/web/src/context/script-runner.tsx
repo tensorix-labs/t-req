@@ -1,6 +1,6 @@
 import { unwrap } from '@t-req/sdk/client';
 import { type Accessor, createContext, type JSX, useContext } from 'solid-js';
-import { createRunnerLifecycle } from '../hooks/createRunnerLifecycle';
+import { createRunnerLifecycle } from '../hooks/create-runner-lifecycle';
 import type { RunnerOption } from '../sdk';
 import { useObserver, useWorkspace } from './index';
 import { useConnection } from './sdk';

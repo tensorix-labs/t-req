@@ -1,6 +1,6 @@
 import { type Component, createEffect, on } from 'solid-js';
 import { useObserver, useScriptRunner, useTestRunner, useWorkspace } from '../../context';
-import { useEditorPanelState } from '../../hooks/useEditorPanelState';
+import { useEditorPanelState } from '../../hooks/use-editor-panel-state';
 import type { FileType } from '../../utils/fileType';
 import { ScriptPanel } from '../script';
 import { CodeEditor } from './CodeEditor';

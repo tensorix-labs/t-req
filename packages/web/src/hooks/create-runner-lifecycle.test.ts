@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { TreqClient } from '@t-req/sdk/client';
 import { createRoot } from 'solid-js';
 import { createObserverStore } from '../stores/observer';
-import { createRunnerLifecycle } from './createRunnerLifecycle';
+import { createRunnerLifecycle } from './create-runner-lifecycle';
 
 function createMockClient(onUnsubscribe?: () => void): TreqClient {
   async function* streamUntilAbort(signal: AbortSignal): AsyncGenerator<unknown> {
