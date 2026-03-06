@@ -1,7 +1,7 @@
 import { type Component, createEffect, createSignal, on, onCleanup, Show } from 'solid-js';
 import { HttpRequestEditorProvider, useConnection, useObserver, useWorkspace } from '../../context';
-import { useEditorPanelState } from '../../hooks/useEditorPanelState';
-import { useHttpRequestWorkspace } from '../../hooks/useHttpRequestWorkspace';
+import { useEditorPanelState } from '../../hooks/use-editor-panel-state';
+import { useHttpRequestWorkspace } from '../../hooks/use-http-request-workspace';
 import { ExecutionDetail } from '../execution/ExecutionDetail';
 import {
   DEFAULT_REQUEST_WORKSPACE_TAB,
