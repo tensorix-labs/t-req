@@ -17,7 +17,7 @@ interface HeadersPanelProps {
 export function HeadersPanel(props: HeadersPanelProps) {
   return (
     <div class="space-y-2">
-      <ErrorBanner message={() => props.headerDraftSaveError} />
+      <ErrorBanner message={props.headerDraftSaveError} />
 
       <DraftHeader
         itemLabel="Header"

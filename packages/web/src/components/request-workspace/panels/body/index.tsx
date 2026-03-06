@@ -1,4 +1,5 @@
 import { Match, Show, Switch } from 'solid-js';
+import { ErrorBanner } from '../shared';
 import { FileBodyEditor } from './file-editor';
 import { FormDataEditor } from './form-data-editor';
 import { InlineBodyEditor } from './inline-editor';
@@ -10,13 +11,7 @@ export function BodyPanel(props: BodyPanelProps) {
 
   return (
     <div class="space-y-2">
-      <Show when={props.bodyDraftSaveError}>
-        {(message) => (
-          <div class="rounded-box border border-error/35 bg-error/10 px-2 py-1.5 text-xs text-base-content">
-            {message()}
-          </div>
-        )}
-      </Show>
+      <ErrorBanner message={props.bodyDraftSaveError} />
 
       <Show when={shouldShowDescription}>
         <p>{props.requestBodySummary.description}</p>

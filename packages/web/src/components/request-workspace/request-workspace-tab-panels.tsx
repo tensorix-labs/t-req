@@ -2,6 +2,3 @@
 export { BodyPanel as RequestWorkspaceBodyPanel } from './panels/body';
 export { HeadersPanel as RequestWorkspaceHeadersPanel } from './panels/headers';
 export { ParamsPanel as RequestWorkspaceParamsPanel } from './panels/params';
-
-// Re-export shared components
-export { DraftHeader, ErrorBanner, KeyValueRow, KeyValueTable } from './panels/shared';

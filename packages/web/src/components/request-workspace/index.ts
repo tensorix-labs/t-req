@@ -5,23 +5,22 @@ export {
   REQUEST_WORKSPACE_TABS,
   type RequestWorkspaceTabId
 } from './model';
+
+// Panel component exports
 export { BodyPanel } from './panels/body';
 export { HeadersPanel } from './panels/headers';
-// New panel component exports
 export { ParamsPanel } from './panels/params';
-export {
-  DraftHeader as SharedDraftHeader,
-  ErrorBanner as SharedErrorBanner,
-  KeyValueRow as SharedKeyValueRow,
-  KeyValueTable as SharedKeyValueTable
-} from './panels/shared';
 
-// Legacy panel component exports (re-exported from new locations)
+// Shared panel component exports
 export {
   DraftHeader,
   ErrorBanner,
   KeyValueRow,
-  KeyValueTable,
+  KeyValueTable
+} from './panels/shared';
+
+// Legacy panel component exports (re-exported from new locations)
+export {
   RequestWorkspaceBodyPanel,
   RequestWorkspaceHeadersPanel,
   RequestWorkspaceParamsPanel
