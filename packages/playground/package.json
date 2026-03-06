@@ -1,5 +1,5 @@
 {
-  "name": "playground",
+  "name": "@t-req/playground",
   "scripts": {
     "dev": "bun run --hot src/index.ts"
   },
