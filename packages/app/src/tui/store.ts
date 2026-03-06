@@ -279,10 +279,18 @@ export function createStore(): TuiStore {
 
   const selectNext = () => {
     const flat = flattenedVisible();
+    if (flat.length === 0) {
+      setSelectedIndex(0);
+      return;
+    }
     setSelectedIndex((idx: number) => Math.min(idx + 1, flat.length - 1));
   };
 
   const selectPrevious = () => {
+    if (flattenedVisible().length === 0) {
+      setSelectedIndex(0);
+      return;
+    }
     setSelectedIndex((idx: number) => Math.max(idx - 1, 0));
   };
 

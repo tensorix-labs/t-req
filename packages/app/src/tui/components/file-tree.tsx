@@ -27,11 +27,6 @@ export function FileTree(props: FileTreeProps) {
       flexDirection="column"
       backgroundColor={rgba(theme.backgroundPanel)}
     >
-      <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-        <text fg={rgba(theme.primary)} attributes={1}>
-          Files
-        </text>
-      </box>
       <scrollbox
         ref={(r) => {
           setScrollRef(r);
@@ -39,12 +34,13 @@ export function FileTree(props: FileTreeProps) {
         flexGrow={1}
         paddingLeft={1}
         paddingRight={1}
+        paddingTop={1}
       >
         <Show
           when={props.nodes.length > 0}
           fallback={
             <box id="empty-state" paddingLeft={2}>
-              <text fg={rgba(theme.textMuted)}>No .http files found</text>
+              <text fg={rgba(theme.textMuted)}>No files found</text>
             </box>
           }
         >

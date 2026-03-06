@@ -7,7 +7,7 @@
  */
 
 import type { JSX } from 'solid-js';
-import { Show } from 'solid-js';
+import { For, Show } from 'solid-js';
 import { useKeybind, useStore } from '../context';
 import { rgba, theme } from '../theme';
 import { getStatusDisplay } from '../util/status-display';
@@ -88,6 +88,58 @@ export function Section(props: SectionProps) {
   );
 }
 
+export interface TabBarTab {
+  id: string;
+  label: string;
+}
+
+export interface TabBarProps {
+  tabs: TabBarTab[];
+  activeTab: string;
+  paddingLeft?: number;
+  paddingRight?: number;
+  gap?: number;
+}
+
+/**
+ * Single-line tab bar with active tab highlighting.
+ */
+export function TabBar(props: TabBarProps) {
+  return (
+    <box
+      height={1}
+      flexShrink={0}
+      flexDirection="row"
+      paddingLeft={props.paddingLeft ?? 2}
+      paddingRight={props.paddingRight ?? 2}
+      gap={props.gap ?? 2}
+    >
+      <For each={props.tabs}>
+        {(tab) => {
+          const isActive = () => props.activeTab === tab.id;
+
+          return (
+            <box
+              height={1}
+              flexDirection="row"
+              paddingLeft={1}
+              paddingRight={1}
+              backgroundColor={isActive() ? rgba(theme.primary) : undefined}
+            >
+              <text
+                fg={rgba(isActive() ? theme.background : theme.textMuted)}
+                attributes={isActive() ? 1 : 0}
+              >
+                {tab.label}
+              </text>
+            </box>
+          );
+        }}
+      </For>
+    </box>
+  );
+}
+
 // ============================================================================
 // Dividers
 // ============================================================================
@@ -145,6 +197,14 @@ export function StatusBar(props: StatusBarProps) {
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>ctrl+h</text>
           <text fg={rgba(theme.textMuted)}> hide panel</text>
+        </box>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)}>tab</text>
+          <text fg={rgba(theme.textMuted)}> switch tab</text>
+        </box>
+        <box flexDirection="row">
+          <text fg={rgba(theme.text)}>l/h</text>
+          <text fg={rgba(theme.textMuted)}> response tabs</text>
         </box>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>{keybind.print('file_picker')}</text>
