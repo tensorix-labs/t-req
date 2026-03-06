@@ -35,6 +35,7 @@ import {
 } from './layouts';
 import { isHttpFile, isRunnableScript, isTestFile } from './store';
 import type { StreamState } from './stream';
+import { resolveLeftPanelEnterAction } from './util/left-panel-enter-action';
 
 export function App() {
   const sdk = useSDK();
@@ -174,10 +175,15 @@ export function App() {
   }
 
   function executeActiveLeftSelection() {
-    if (activeLeftTab() !== 'files') return false;
-
     const selectedNode = store.selectedNode();
-    if (!selectedNode || selectedNode.node.isDir) return false;
+
+    const action = resolveLeftPanelEnterAction(activeLeftTab(), selectedNode?.node.isDir);
+    if (!selectedNode || action === 'none') return false;
+
+    if (action === 'toggle-directory') {
+      store.toggleDir(selectedNode.node.path);
+      return true;
+    }
 
     handleFileExecute(selectedNode.node.path);
     return true;
