@@ -264,7 +264,6 @@ export function App() {
             <Section flexGrow={1}>
               <TabbedPanel
                 activeTab={activeLeftTab()}
-                onTabChange={setActiveLeftTab}
                 executionsCount={executionsCount()}
                 filesContent={
                   <FileTree

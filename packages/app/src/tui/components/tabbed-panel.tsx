@@ -7,7 +7,6 @@ export type LeftPanelTab = 'files' | 'executions';
 
 export interface TabbedPanelProps {
   activeTab: LeftPanelTab;
-  onTabChange: (tab: LeftPanelTab) => void;
   executionsCount?: number;
   filesContent: JSX.Element;
   executionsContent: JSX.Element;
