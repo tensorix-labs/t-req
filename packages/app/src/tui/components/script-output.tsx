@@ -9,6 +9,7 @@ export interface ScriptOutputProps {
   exitCode: number | null | undefined;
   isRunning: boolean;
   scriptPath?: string;
+  showHeader?: boolean;
 }
 
 interface OutputLine {
@@ -18,6 +19,7 @@ interface OutputLine {
 
 export function ScriptOutput(props: ScriptOutputProps) {
   let scrollRef: ScrollBoxRenderable | undefined;
+  const showHeader = () => props.showHeader ?? true;
 
   // Merge stdout and stderr into a single list (alternating as they arrive)
   // For simplicity, we'll show stdout first, then stderr
@@ -69,38 +71,40 @@ export function ScriptOutput(props: ScriptOutputProps) {
       overflow="hidden"
       backgroundColor={rgba(theme.backgroundPanel)}
     >
-      <box
-        paddingLeft={2}
-        paddingTop={1}
-        paddingBottom={1}
-        flexDirection="row"
-        justifyContent="space-between"
-      >
-        <box flexDirection="row">
-          <text fg={rgba(theme.primary)} attributes={1}>
-            Output
-          </text>
-          <Show when={props.scriptPath}>
-            <text fg={rgba(theme.textMuted)}> - {scriptName()}</text>
-          </Show>
+      <Show when={showHeader()}>
+        <box
+          paddingLeft={2}
+          paddingTop={1}
+          paddingBottom={1}
+          flexDirection="row"
+          justifyContent="space-between"
+        >
+          <box flexDirection="row">
+            <text fg={rgba(theme.primary)} attributes={1}>
+              Output
+            </text>
+            <Show when={props.scriptPath}>
+              <text fg={rgba(theme.textMuted)}> - {scriptName()}</text>
+            </Show>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <Show when={props.isRunning}>
+              <text fg={rgba(theme.warning)}> Running</text>
+            </Show>
+            <Show when={exitStatus()}>
+              {(status: () => { text: string; color: string }) => (
+                <text fg={rgba(status().color)}> {status().text}</text>
+              )}
+            </Show>
+          </box>
         </box>
-        <box flexDirection="row" gap={1}>
-          <Show when={props.isRunning}>
-            <text fg={rgba(theme.warning)}> Running</text>
-          </Show>
-          <Show when={exitStatus()}>
-            {(status: () => { text: string; color: string }) => (
-              <text fg={rgba(status().color)}> {status().text}</text>
-            )}
-          </Show>
-        </box>
-      </box>
+      </Show>
       <scrollbox
         ref={(r) => {
           scrollRef = r;
         }}
         flexGrow={1}
-        paddingLeft={1}
+        paddingLeft={showHeader() ? 1 : 2}
         paddingRight={1}
       >
         <Show

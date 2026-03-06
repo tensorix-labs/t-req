@@ -9,7 +9,6 @@ import { FileRequestPicker } from './components/file-request-picker';
 import { FrameworkSelectDialog } from './components/framework-select';
 import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
-import { ScriptOutput } from './components/script-output';
 import { StreamView } from './components/stream-view';
 import { Toast } from './components/toast';
 import { unwrap, useDialog, useExit, useObserver, useSDK, useStore, useUpdate } from './context';
@@ -26,7 +25,6 @@ import {
 } from './hooks';
 import {
   FullScreenLayout,
-  HorizontalDivider,
   Panel,
   Section,
   SplitPanel,
@@ -217,7 +215,7 @@ export function App() {
       <SplitPanel>
         <Show when={!panelHidden()}>
           <Panel width="40%">
-            <Section height="50%">
+            <Section flexGrow={1}>
               <Show
                 when={observer.state.flowId}
                 keyed
@@ -249,40 +247,6 @@ export function App() {
                 )}
               </Show>
             </Section>
-            <HorizontalDivider />
-            <Section flexGrow={1}>
-              <Show
-                when={observer.state.flowId}
-                keyed
-                fallback={
-                  <box
-                    flexGrow={1}
-                    flexDirection="column"
-                    overflow="hidden"
-                    backgroundColor={rgba(theme.backgroundPanel)}
-                  >
-                    <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                      <text fg={rgba(theme.primary)} attributes={1}>
-                        Output
-                      </text>
-                    </box>
-                    <box paddingLeft={2}>
-                      <text fg={rgba(theme.textMuted)}>No output yet</text>
-                    </box>
-                  </box>
-                }
-              >
-                {() => (
-                  <ScriptOutput
-                    stdoutLines={observer.state.stdoutLines}
-                    stderrLines={observer.state.stderrLines}
-                    exitCode={observer.state.exitCode}
-                    isRunning={isRunning()}
-                    scriptPath={observer.state.runningScript?.path}
-                  />
-                )}
-              </Show>
-            </Section>
           </Panel>
           <VerticalDivider />
         </Show>
@@ -297,35 +261,16 @@ export function App() {
             )}
           </Show>
           <Show when={!observer.state.streamState}>
-            <Show
-              when={observer.state.flowId}
-              keyed
-              fallback={
-                <box
-                  flexGrow={1}
-                  flexDirection="column"
-                  overflow="hidden"
-                  backgroundColor={rgba(theme.backgroundPanel)}
-                >
-                  <box paddingLeft={2} paddingTop={1} paddingBottom={1}>
-                    <text fg={rgba(theme.primary)} attributes={1}>
-                      Details
-                    </text>
-                  </box>
-                  <box paddingLeft={2}>
-                    <text fg={rgba(theme.textMuted)}>Select an execution to view details</text>
-                  </box>
-                </box>
-              }
-            >
-              {() => (
-                <ExecutionDetailView
-                  execution={executionDetail()}
-                  isLoading={loadingDetail()}
-                  loadedPlugins={loadedPlugins()}
-                />
-              )}
-            </Show>
+            <ExecutionDetailView
+              execution={executionDetail()}
+              isLoading={loadingDetail()}
+              loadedPlugins={loadedPlugins()}
+              stdoutLines={observer.state.stdoutLines}
+              stderrLines={observer.state.stderrLines}
+              exitCode={observer.state.exitCode}
+              isRunning={isRunning()}
+              scriptPath={observer.state.runningScript?.path}
+            />
           </Show>
         </Panel>
       </SplitPanel>

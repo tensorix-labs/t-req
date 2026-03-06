@@ -365,8 +365,8 @@ The TUI provides an interactive terminal interface for browsing and executing yo
 
 ### Layout
 
-- **Left panel**: File tree (browse `.http` files, scripts, and tests) or Executions view (request list + script output)
-- **Right panel**: Execution detail (full HTTP request and response)
+- **Left panel**: Executions list
+- **Right panel**: Execution details with tabs for body, headers, plugins, and output
 
 ### Keyboard Shortcuts
 
@@ -380,6 +380,7 @@ The TUI provides an interactive terminal interface for browsing and executing yo
 | `Ctrl+T` | File/request picker |
 | `Ctrl+P` | Command palette |
 | `Ctrl+E` | Open in external editor |
+| `1` / `2` / `3` / `4` | Switch detail tab (body / headers / plugins / output) |
 | `Escape` | Cancel running script |
 | `Ctrl+C` | Quit |
 
