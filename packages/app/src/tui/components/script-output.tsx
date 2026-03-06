@@ -99,6 +99,30 @@ export function ScriptOutput(props: ScriptOutputProps) {
           </box>
         </box>
       </Show>
+      <Show when={!showHeader()}>
+        <box
+          height={1}
+          paddingLeft={2}
+          paddingRight={1}
+          paddingBottom={1}
+          flexDirection="row"
+          justifyContent="space-between"
+        >
+          <Show when={props.scriptPath}>
+            <text fg={rgba(theme.textMuted)}>{scriptName()}</text>
+          </Show>
+          <box flexDirection="row" gap={1}>
+            <Show when={props.isRunning}>
+              <text fg={rgba(theme.warning)}>Running</text>
+            </Show>
+            <Show when={exitStatus()}>
+              {(status: () => { text: string; color: string }) => (
+                <text fg={rgba(status().color)}>{status().text}</text>
+              )}
+            </Show>
+          </box>
+        </box>
+      </Show>
       <scrollbox
         ref={(r) => {
           scrollRef = r;
