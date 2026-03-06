@@ -1,6 +1,6 @@
 {
   "name": "@t-req/app",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "API testing CLI for .http files - run requests, automate checks, and serve test workflows",
   "license": "MIT",
   "repository": {
