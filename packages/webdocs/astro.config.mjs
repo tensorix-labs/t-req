@@ -2,6 +2,8 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 import cloudflare from '@astrojs/cloudflare';
+import starlightBlog from 'starlight-blog';
+
 
 export default defineConfig({
   site: 'https://t-req.io',
@@ -12,9 +14,10 @@ export default defineConfig({
   },
   integrations: [
     starlight({
+      plugins: [starlightBlog()],
       title: 't-req',
       description:
-        't-req is a utility-first HTTP client with .http files that integrate with Vitest, Jest, and Bun.',
+        'The open-source .http file engine for API testing and automation. Git-native, and built for code-first teams.',
       logo: {
         src: './src/assets/logo.jpg',
         replacesTitle: true
