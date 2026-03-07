@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 import cloudflare from '@astrojs/cloudflare';
-import starlightBlog from 'starlight-blog'
+import starlightBlog from 'starlight-blog';
 
 
 export default defineConfig({
@@ -17,7 +17,7 @@ export default defineConfig({
       plugins: [starlightBlog()],
       title: 't-req',
       description:
-        'The open-source .http file engine for API testing and automation. Git-native, and built code-first teams.',
+        'The open-source .http file engine for API testing and automation. Git-native, and built for code-first teams.',
       logo: {
         src: './src/assets/logo.jpg',
         replacesTitle: true
