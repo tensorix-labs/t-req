@@ -8,6 +8,7 @@ import { ExecutionList } from './components/execution-list';
 import { FileRequestPicker } from './components/file-request-picker';
 import { FileTree } from './components/file-tree';
 import { FrameworkSelectDialog } from './components/framework-select';
+import { HeaderBar } from './components/header-bar';
 import { ProfileSelectDialog } from './components/profile-select';
 import { RunnerSelectDialog } from './components/runner-select';
 import { StreamView } from './components/stream-view';
@@ -264,6 +265,7 @@ export function App() {
   // Render - semantic layout structure
   return (
     <FullScreenLayout>
+      <HeaderBar />
       <SplitPanel>
         <Show when={!panelHidden()}>
           <Panel width="40%">
