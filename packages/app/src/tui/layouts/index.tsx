@@ -8,10 +8,9 @@
 
 import type { JSX } from 'solid-js';
 import { For, Show } from 'solid-js';
+import { Installation } from '../../installation';
 import { useKeybind, useStore } from '../context';
 import { rgba, theme } from '../theme';
-import { getStatusDisplay } from '../util/status-display';
-
 // ============================================================================
 // Core Layout Primitives
 // ============================================================================
@@ -172,7 +171,6 @@ export interface StatusBarProps {
 export function StatusBar(props: StatusBarProps) {
   const keybind = useKeybind();
   const store = useStore();
-  const statusDisplay = () => getStatusDisplay(store.connectionStatus());
   const activeProfile = () => store.activeProfile();
 
   return (
@@ -185,15 +183,12 @@ export function StatusBar(props: StatusBarProps) {
       justifyContent="space-between"
     >
       <box flexDirection="row" gap={2}>
-        <text fg={rgba(theme.text)}>t-req</text>
         <Show when={activeProfile()}>
           <text fg={rgba(theme.primary)}>[{activeProfile()}]</text>
         </Show>
         <Show when={props.isRunning}>
           <text fg={rgba(theme.warning)}>Running</text>
         </Show>
-      </box>
-      <box flexDirection="row" gap={2}>
         <box flexDirection="row">
           <text fg={rgba(theme.text)}>ctrl+h</text>
           <text fg={rgba(theme.textMuted)}> hide panel</text>
@@ -214,11 +209,8 @@ export function StatusBar(props: StatusBarProps) {
           <text fg={rgba(theme.text)}>{keybind.print('command_list')}</text>
           <text fg={rgba(theme.textMuted)}> cmds</text>
         </box>
-        <box flexDirection="row" gap={1}>
-          <text fg={rgba(statusDisplay().color)}>{statusDisplay().icon}</text>
-          <text fg={rgba(theme.textMuted)}>{statusDisplay().text}</text>
-        </box>
       </box>
+      <text fg={rgba(theme.textMuted)}>v{Installation.VERSION}</text>
     </box>
   );
 }
